@@ -1,4 +1,8 @@
 from database import inicializar_base_de_datos
+from compras import (
+    agregar_compra,
+    listar_compras
+) 
 from productos import (
     agregar_producto,
     listar_productos,
@@ -9,6 +13,8 @@ from productos import (
 
 def mostrar_menu():
     print("\n===== CONTROL DEL NEGOCIO =====")
+    print("7 - Listar compras ")
+    print("6 - Registrar compra")
     print("5 - Eliminar producto")
     print("4 - Modificar producto")
     print("3 - Buscar producto por ID")
@@ -75,6 +81,15 @@ def main():
                 print("\n========== PRODUCTO ==========")
                 print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6}")
                 print("-" * 110)
+                print(
+                    f"{producto[0]:<4} | "
+                    f"{producto[1]:<25} | "
+                    f"{producto[2]:<15} | "
+                    f"{producto[3]:<15} | "
+                    f"{producto[4]:<12} | "
+                    f"{producto[5]:<10} | "
+                    f"{producto[6]:<6}"
+                )
 
         elif opcion == "4":
             id_producto = int(input("Ingrese el ID del producto: "))
@@ -159,14 +174,18 @@ def main():
                     print("Producto eliminado correctamente.")
                 else:
                     print("Eliminacion cancelada.")
+        
+        elif opcion == "6":
+            agregar_compra()
 
-            
-                    
-                    
+        elif opcion =="7":
+            listar_compras()
+
+
 
         else:
-            print("Opción inválida. Intente nuevamente")
+            print("Opción inválida. Intente nuevamente")    
 
-
-main()
+if __name__ == "__main__":
+    main()
 

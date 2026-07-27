@@ -24,6 +24,26 @@ def crear_tabla_productos():
     conexion.commit()
     conexion.close()
 
+def crear_tabla_compras():
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS compras(
+        id_compra INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_producto INTEGER NOT NULL,
+        fecha TEXT NOT NULL,
+        cantidad INTEGER NOT NULL,
+        precio_unitario REAL NOT NULL,
+        FOREIGN KEY (id_producto)
+            REFERENCES productos(id_producto)
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
+    crear_tabla_compras()
 
