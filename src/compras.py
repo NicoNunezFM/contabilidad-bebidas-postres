@@ -1,5 +1,6 @@
 from database import obtener_conexion
 from productos import listar_productos, buscar_producto_por_id
+from datetime import datetime
 
 def agregar_compra():
     listar_productos()
@@ -20,11 +21,7 @@ def agregar_compra():
 
     print("Producto encontrado")
 
-    fecha = input("Ingrese fecha: ")
-
-    if fecha == "":
-        print("La fecha no puede estar vacia.")
-        return
+    fecha = datetime.now().strftime("%d/%m/%Y")
 
     cantidad_texto = input("Ingrese cantidad: ")
 
@@ -66,6 +63,16 @@ def agregar_compra():
         fecha,
         cantidad,
         precio_unitario
+
+    ))
+
+    cursor.execute("""
+        UPDATE productos
+        SET stock = stock + ?
+        WHERE id_producto = ?
+    """,(
+        cantidad,
+        id_producto
     ))
     conexion.commit()
     conexion.close()

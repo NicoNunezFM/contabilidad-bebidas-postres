@@ -1,7 +1,7 @@
 from database import inicializar_base_de_datos
 from compras import (
     agregar_compra,
-    listar_compras
+    listar_compras,
 ) 
 from productos import (
     agregar_producto,
@@ -9,20 +9,21 @@ from productos import (
     buscar_producto_por_id,
     modificar_producto,
     eliminar_producto
-)   
+)
+from ventas import agregar_venta   
 
 def mostrar_menu():
     print("\n===== CONTROL DEL NEGOCIO =====")
-    print("7 - Listar compras ")
-    print("6 - Registrar compra")
-    print("5 - Eliminar producto")
-    print("4 - Modificar producto")
-    print("3 - Buscar producto por ID")
-    print("2 - Listar productos")
-    print("1 - Agregar producto")
     print("0 - Salir")
-
-
+    print("1 - Agregar producto")
+    print("2 - Listar productos")
+    print("3 - Buscar producto por ID")
+    print("4 - Modificar producto")
+    print("5 - Eliminar producto")
+    print("6 - Registrar compra")
+    print("7 - Listar compras ")
+    print("8 - Registrar venta")
+    print("9 - Listar ventas ")
 
 def solicitar_datos_producto():
     print("\n--- NUEVO PRODUCTO ---")
@@ -65,11 +66,11 @@ def main():
         elif opcion == "2":
             productos = listar_productos()
             print("\n========== PRODUCTOS ==========")
-            print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6}")
+            print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6} | {'Stock':<82}" )
             print("-" * 110)
 
             for producto in productos:
-                print(f"{producto[0]:<4} | {producto[1]:<25} | {producto[2]:<15} | {producto[3]:<15} | {producto[4]:<12} | {producto[5]:<10} | {producto[6]:<6}")
+                print(f"{producto[0]:<4} | {producto[1]:<25} | {producto[2]:<15} | {producto[3]:<15} | {producto[4]:<12} | {producto[5]:<10} | {producto[6]:<6} | {producto[7]:<8}")
 
         elif opcion == "3":
             id_producto = int(input("Ingrese el Id del producto: "))
@@ -181,11 +182,12 @@ def main():
         elif opcion =="7":
             listar_compras()
 
-
+        elif opcion == "8":
+            agregar_venta()
 
         else:
             print("Opción inválida. Intente nuevamente")    
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__":8
+main()
 
