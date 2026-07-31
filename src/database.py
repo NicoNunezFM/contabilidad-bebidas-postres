@@ -63,8 +63,28 @@ def crear_tabla_ventas():
     conexion.commit()
     conexion.close()
 
+def crear_tabla_gastos():
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS gastos(
+        id_gasto INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT NOT NULL,
+        categoria TEXT NOT NULL,
+        descripcion_gasto TEXT NOT NULL,
+        valor_final REAL NOT NULL
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     crear_tabla_compras()
     crear_tabla_ventas()
+    crear_tabla_gastos()
+
+
 

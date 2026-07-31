@@ -10,7 +10,13 @@ from productos import (
     modificar_producto,
     eliminar_producto
 )
-from ventas import agregar_venta   
+from ventas import agregar_venta, listar_ventas
+from gastos import agregar_gasto, listar_gastos
+from validaciones import (
+    pedir_float,
+    pedir_entero,
+    pedir_texto
+)  
 
 def mostrar_menu():
     print("\n===== CONTROL DEL NEGOCIO =====")
@@ -24,17 +30,18 @@ def mostrar_menu():
     print("7 - Listar compras ")
     print("8 - Registrar venta")
     print("9 - Listar ventas ")
+    print("10 - Registrar gasto")
+    print("11 - Listar gastos")
 
 def solicitar_datos_producto():
     print("\n--- NUEVO PRODUCTO ---")
 
-    nombre = input("Nombre: ")
-    categoria = input("Categoria: ")
-    presentacion = input("Presentación: ")
-    contenido = float(input("Contenido: "))
-    unidad_medida = input("Unidad de medida: ")
-    unidades_por_pack = int(input("Unidades por pack: "))
-
+    nombre = pedir_texto("Nombre: ")
+    categoria = pedir_texto("Categoria: ")
+    presentacion = pedir_texto("Presentacion: ")
+    contenido = pedir_float("Contenido: ")
+    unidad_medida = pedir_texto("Unidad de medida: ")
+    unidades_por_pack = pedir_entero("Unidades por pack: ")
     return (
         nombre,
         categoria,
@@ -66,22 +73,22 @@ def main():
         elif opcion == "2":
             productos = listar_productos()
             print("\n========== PRODUCTOS ==========")
-            print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6} | {'Stock':<82}" )
-            print("-" * 110)
+            print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6} | {'Stock':<8}" )
+            print("-" * 125)
 
             for producto in productos:
                 print(f"{producto[0]:<4} | {producto[1]:<25} | {producto[2]:<15} | {producto[3]:<15} | {producto[4]:<12} | {producto[5]:<10} | {producto[6]:<6} | {producto[7]:<8}")
 
         elif opcion == "3":
-            id_producto = int(input("Ingrese el Id del producto: "))
+            id_producto = pedir_entero("Ingrese el ID del producto: ")
 
             producto = buscar_producto_por_id(id_producto)
             if producto is None:
                 print("Producto no encontrado")        
             else:
                 print("\n========== PRODUCTO ==========")
-                print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6}")
-                print("-" * 110)
+                print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6} | {'Stock':<8}")
+                print("-" * 125)
                 print(
                     f"{producto[0]:<4} | "
                     f"{producto[1]:<25} | "
@@ -89,11 +96,12 @@ def main():
                     f"{producto[3]:<15} | "
                     f"{producto[4]:<12} | "
                     f"{producto[5]:<10} | "
-                    f"{producto[6]:<6}"
+                    f"{producto[6]:<6} | "
+                    f"{producto[7]:<8} "
                 )
 
         elif opcion == "4":
-            id_producto = int(input("Ingrese el ID del producto: "))
+            id_producto = pedir_entero("Ingrese el ID del producto: ")
 
             producto = buscar_producto_por_id(id_producto)
 
@@ -153,7 +161,7 @@ def main():
                 print("Producto modificado correctamente")
 
         elif opcion == "5":
-            id_producto = int(input("Ingrese el ID del producto: "))
+            id_producto = pedir_entero("Ingrese el ID del producto: ")
 
             producto = buscar_producto_por_id(id_producto)
 
@@ -185,9 +193,19 @@ def main():
         elif opcion == "8":
             agregar_venta()
 
+        elif opcion == "9":
+            listar_ventas()
+            
+
+        elif opcion == "10":
+            agregar_gasto()
+
+        elif opcion == "11":
+            listar_gastos()
+
         else:
             print("Opción inválida. Intente nuevamente")    
 
-if __name__ == "__main__":8
-main()
+if __name__ == "__main__":  
+    main()
 

@@ -82,3 +82,39 @@ def agregar_venta():
     conexion.commit ()
     conexion.close()
     print("Venta registrada correctamente.")
+
+def listar_ventas():
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+    
+    SELECT 
+        ventas.id_venta,
+        productos.nombre,
+        ventas.fecha,
+        ventas.cantidad,
+        ventas.precio_unitario
+    FROM ventas
+    INNER JOIN productos
+        on ventas.id_producto = productos.id_producto
+    ORDER BY ventas.id_venta
+     """)
+    
+    ventas = cursor.fetchall()
+    
+    conexion.close()
+
+    if not ventas:
+        print("No hay ventas registradas.")
+        return
+
+    for venta in ventas:
+        total = venta[3] * venta[4]
+        print(f"Venta N°: {venta[0]}")
+        print(f"Producto: {venta[1]}")
+        print(f"Fecha: {venta[2]}")
+        print(f"Cantidad: {venta[3]}")
+        print(f"Precio unitario: ${venta[4]:.2f}")
+        print(f"Total: ${total:.2f}")
+        print("-----------------------\n")
