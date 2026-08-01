@@ -1,22 +1,35 @@
 from database import inicializar_base_de_datos
+
+from caja import mostrar_caja
+
 from compras import (
     agregar_compra,
     listar_compras,
-) 
+)
+
+from gastos import (
+    agregar_gasto,
+    listar_gastos,
+)
+
 from productos import (
     agregar_producto,
-    listar_productos,
     buscar_producto_por_id,
+    eliminar_producto,
+    listar_productos,
     modificar_producto,
-    eliminar_producto
 )
-from ventas import agregar_venta, listar_ventas
-from gastos import agregar_gasto, listar_gastos
+
 from validaciones import (
-    pedir_float,
     pedir_entero,
-    pedir_texto
-)  
+    pedir_float,
+    pedir_texto,
+)
+
+from ventas import (
+    agregar_venta,
+    listar_ventas,
+)
 
 def mostrar_menu():
     print("\n===== CONTROL DEL NEGOCIO =====")
@@ -32,6 +45,7 @@ def mostrar_menu():
     print("9 - Listar ventas ")
     print("10 - Registrar gasto")
     print("11 - Listar gastos")
+    print("12 - Dashboard")
 
 def solicitar_datos_producto():
     print("\n--- NUEVO PRODUCTO ---")
@@ -202,6 +216,9 @@ def main():
 
         elif opcion == "11":
             listar_gastos()
+
+        elif opcion == "12":
+            mostrar_caja()
 
         else:
             print("Opción inválida. Intente nuevamente")    
