@@ -31,7 +31,13 @@ from ventas import (
     listar_ventas,
 )
 
+
+# ============================================================
+# MENÚ PRINCIPAL
+# ============================================================
+
 def mostrar_menu():
+
     print("\n===== CONTROL DEL NEGOCIO =====")
     print("0 - Salir")
     print("1 - Agregar producto")
@@ -40,22 +46,29 @@ def mostrar_menu():
     print("4 - Modificar producto")
     print("5 - Eliminar producto")
     print("6 - Registrar compra")
-    print("7 - Listar compras ")
+    print("7 - Listar compras")
     print("8 - Registrar venta")
-    print("9 - Listar ventas ")
+    print("9 - Listar ventas")
     print("10 - Registrar gasto")
     print("11 - Listar gastos")
     print("12 - Dashboard")
 
+
+# ============================================================
+# SOLICITAR DATOS DE PRODUCTO
+# ============================================================
+
 def solicitar_datos_producto():
+
     print("\n--- NUEVO PRODUCTO ---")
 
     nombre = pedir_texto("Nombre: ")
-    categoria = pedir_texto("Categoria: ")
-    presentacion = pedir_texto("Presentacion: ")
+    categoria = pedir_texto("Categoría: ")
+    presentacion = pedir_texto("Presentación: ")
     contenido = pedir_float("Contenido: ")
     unidad_medida = pedir_texto("Unidad de medida: ")
     unidades_por_pack = pedir_entero("Unidades por pack: ")
+
     return (
         nombre,
         categoria,
@@ -65,104 +78,263 @@ def solicitar_datos_producto():
         unidades_por_pack
     )
 
+
+# ============================================================
+# DATOS OPCIONALES PARA MODIFICAR PRODUCTOS
+# ============================================================
+
+def pedir_texto_opcional(mensaje, valor_actual):
+
+    while True:
+
+        texto = input(mensaje).strip()
+
+        if texto == "":
+            return valor_actual
+
+        return texto
+
+
+def pedir_float_opcional(mensaje, valor_actual):
+
+    while True:
+
+        texto = input(mensaje).strip()
+
+        if texto == "":
+            return valor_actual
+
+        try:
+            numero = float(texto)
+
+            if numero <= 0:
+                print("El número debe ser mayor que cero.")
+                continue
+
+            return numero
+
+        except ValueError:
+            print("El dato ingresado debe ser un número.")
+
+
+def pedir_entero_opcional(mensaje, valor_actual):
+
+    while True:
+
+        texto = input(mensaje).strip()
+
+        if texto == "":
+            return valor_actual
+
+        try:
+            numero = int(texto)
+
+            if numero <= 0:
+                print("El número debe ser mayor que cero.")
+                continue
+
+            return numero
+
+        except ValueError:
+            print("El dato ingresado debe ser un número entero.")
+
+
+# ============================================================
+# MOSTRAR PRODUCTOS
+# ============================================================
+
+def mostrar_productos():
+
+    productos = listar_productos()
+
+    if not productos:
+        print("No hay productos registrados.")
+        return
+
+    print("\n========== PRODUCTOS ==========")
+
+    print(
+        f"{'ID':<4} | "
+        f"{'Nombre':<25} | "
+        f"{'Categoría':<15} | "
+        f"{'Presentación':<15} | "
+        f"{'Contenido':<12} | "
+        f"{'Unidad':<10} | "
+        f"{'Pack':<6} | "
+        f"{'Stock':<8}"
+    )
+
+    print("-" * 125)
+
+    for producto in productos:
+
+        print(
+            f"{producto[0]:<4} | "
+            f"{producto[1]:<25} | "
+            f"{producto[2]:<15} | "
+            f"{producto[3]:<15} | "
+            f"{producto[4]:<12} | "
+            f"{producto[5]:<10} | "
+            f"{producto[6]:<6} | "
+            f"{producto[7]:<8}"
+        )
+
+
+# ============================================================
+# MOSTRAR UN PRODUCTO
+# ============================================================
+
+def mostrar_producto(producto):
+
+    print("\n========== PRODUCTO ==========")
+
+    print(
+        f"{'ID':<4} | "
+        f"{'Nombre':<25} | "
+        f"{'Categoría':<15} | "
+        f"{'Presentación':<15} | "
+        f"{'Contenido':<12} | "
+        f"{'Unidad':<10} | "
+        f"{'Pack':<6} | "
+        f"{'Stock':<8}"
+    )
+
+    print("-" * 125)
+
+    print(
+        f"{producto[0]:<4} | "
+        f"{producto[1]:<25} | "
+        f"{producto[2]:<15} | "
+        f"{producto[3]:<15} | "
+        f"{producto[4]:<12} | "
+        f"{producto[5]:<10} | "
+        f"{producto[6]:<6} | "
+        f"{producto[7]:<8}"
+    )
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
 def main():
+
     inicializar_base_de_datos()
 
     while True:
+
         mostrar_menu()
 
-        opcion = input("Seleccione una opcion: ")
+        opcion = input("Seleccione una opción: ").strip()
+
+        # ----------------------------------------------------
+        # SALIR
+        # ----------------------------------------------------
 
         if opcion == "0":
+
             print("Programa finalizado.")
             break
 
+        # ----------------------------------------------------
+        # AGREGAR PRODUCTO
+        # ----------------------------------------------------
+
         elif opcion == "1":
+
             datos_producto = solicitar_datos_producto()
-            
-            agregar_producto(*datos_producto)
-            
-            print("Producto agregado correctamente")
 
-        elif opcion == "2":
-            productos = listar_productos()
-            print("\n========== PRODUCTOS ==========")
-            print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6} | {'Stock':<8}" )
-            print("-" * 125)
+            resultado = agregar_producto(*datos_producto)
 
-            for producto in productos:
-                print(f"{producto[0]:<4} | {producto[1]:<25} | {producto[2]:<15} | {producto[3]:<15} | {producto[4]:<12} | {producto[5]:<10} | {producto[6]:<6} | {producto[7]:<8}")
+            print(resultado["mensaje"])
 
-        elif opcion == "3":
-            id_producto = pedir_entero("Ingrese el ID del producto: ")
-
-            producto = buscar_producto_por_id(id_producto)
-            if producto is None:
-                print("Producto no encontrado")        
-            else:
-                print("\n========== PRODUCTO ==========")
-                print(f"{'ID':<4} | {'Nombre':<25} | {'Categoría':<15} | {'Presentación':<15} | {'Contenido':<12} | {'Unidad':<10} | {'Pack':<6} | {'Stock':<8}")
-                print("-" * 125)
+            if resultado["ok"]:
                 print(
-                    f"{producto[0]:<4} | "
-                    f"{producto[1]:<25} | "
-                    f"{producto[2]:<15} | "
-                    f"{producto[3]:<15} | "
-                    f"{producto[4]:<12} | "
-                    f"{producto[5]:<10} | "
-                    f"{producto[6]:<6} | "
-                    f"{producto[7]:<8} "
+                    f"ID del nuevo producto: "
+                    f"{resultado['id_producto']}"
                 )
 
-        elif opcion == "4":
-            id_producto = pedir_entero("Ingrese el ID del producto: ")
+        # ----------------------------------------------------
+        # LISTAR PRODUCTOS
+        # ----------------------------------------------------
+
+        elif opcion == "2":
+
+            mostrar_productos()
+
+        # ----------------------------------------------------
+        # BUSCAR PRODUCTO
+        # ----------------------------------------------------
+
+        elif opcion == "3":
+
+            id_producto = pedir_entero(
+                "Ingrese el ID del producto: "
+            )
 
             producto = buscar_producto_por_id(id_producto)
 
             if producto is None:
                 print("Producto no encontrado.")
 
-            else: 
+            else:
+                mostrar_producto(producto)
+
+        # ----------------------------------------------------
+        # MODIFICAR PRODUCTO
+        # ----------------------------------------------------
+
+        elif opcion == "4":
+
+            id_producto = pedir_entero(
+                "Ingrese el ID del producto: "
+            )
+
+            producto = buscar_producto_por_id(id_producto)
+
+            if producto is None:
+
+                print("Producto no encontrado.")
+
+            else:
 
                 print("\n--- MODIFICAR PRODUCTO ---")
-                print("Presione enter para mantener el valor actual.")
+                print(
+                    "Presione Enter para mantener "
+                    "el valor actual."
+                )
 
-                nuevo_nombre = input(f"Nombre [{producto[1]}]: ")
+                nuevo_nombre = pedir_texto_opcional(
+                    f"Nombre [{producto[1]}]: ",
+                    producto[1]
+                )
 
-                if nuevo_nombre == "":
-                    nuevo_nombre = producto[1]
+                nueva_categoria = pedir_texto_opcional(
+                    f"Categoría [{producto[2]}]: ",
+                    producto[2]
+                )
 
-                nueva_categoria = input(f"Categoria [{producto[2]}]: ")
+                nueva_presentacion = pedir_texto_opcional(
+                    f"Presentación [{producto[3]}]: ",
+                    producto[3]
+                )
 
-                if nueva_categoria == "":
-                    nueva_categoria = producto[2]
+                nuevo_contenido = pedir_float_opcional(
+                    f"Contenido [{producto[4]}]: ",
+                    producto[4]
+                )
 
-                nueva_presentacion = input(f"Presentacion [{producto[3]}]: ")
+                nueva_unidad = pedir_texto_opcional(
+                    f"Unidad [{producto[5]}]: ",
+                    producto[5]
+                )
 
-                if nueva_presentacion == "":
-                    nueva_presentacion = producto[3]
+                nuevo_pack = pedir_entero_opcional(
+                    f"Pack [{producto[6]}]: ",
+                    producto[6]
+                )
 
-                nuevo_contenido = input(f"Contenido [{producto[4]}]: ")
-
-                if nuevo_contenido == "":
-                    nuevo_contenido = producto[4]
-                else: 
-                    nuevo_contenido = float(nuevo_contenido)
-
-                nueva_unidad = input(f"Unidad [{producto[5]}]: ")
-
-                if nueva_unidad == "":
-                    nueva_unidad = producto[5]
-
-                nuevo_pack = input(f"Pack [{producto[6]}]: ")
-
-                if nuevo_pack == "":
-                    nuevo_pack = producto[6]
-
-                else: 
-                    nuevo_pack = int(nuevo_pack)
-
-                modificar_producto(
+                resultado = modificar_producto(
                     id_producto,
                     nuevo_nombre,
                     nueva_categoria,
@@ -172,57 +344,97 @@ def main():
                     nuevo_pack
                 )
 
-                print("Producto modificado correctamente")
+                print(resultado["mensaje"])
+
+        # ----------------------------------------------------
+        # ELIMINAR PRODUCTO
+        # ----------------------------------------------------
 
         elif opcion == "5":
-            id_producto = pedir_entero("Ingrese el ID del producto: ")
+
+            id_producto = pedir_entero(
+                "Ingrese el ID del producto: "
+            )
 
             producto = buscar_producto_por_id(id_producto)
 
             if producto is None:
+
                 print("Producto no encontrado.")
 
             else:
-                print("\n --- PRODUCTO A ELIMINAR ---")
+
+                print("\n--- PRODUCTO A ELIMINAR ---")
                 print(f"ID: {producto[0]}")
                 print(f"Nombre: {producto[1]}")
-                print(f"Categoria: {producto[2]}")
+                print(f"Categoría: {producto[2]}")
 
                 confirmacion = input(
-                    "¿Seguro desea eliminarlo? (s/n)"
-                ).lower()
+                    "¿Seguro desea eliminarlo? (s/n): "
+                ).strip().lower()
 
                 if confirmacion == "s":
-                    eliminar_producto(id_producto)
-                    print("Producto eliminado correctamente.")
+
+                    resultado = eliminar_producto(id_producto)
+
+                    print(resultado["mensaje"])
+
                 else:
-                    print("Eliminacion cancelada.")
-        
+
+                    print("Eliminación cancelada.")
+
+        # ----------------------------------------------------
+        # COMPRAS
+        # ----------------------------------------------------
+
         elif opcion == "6":
+
             agregar_compra()
 
-        elif opcion =="7":
+        elif opcion == "7":
+
             listar_compras()
 
+        # ----------------------------------------------------
+        # VENTAS
+        # ----------------------------------------------------
+
         elif opcion == "8":
+
             agregar_venta()
 
         elif opcion == "9":
+
             listar_ventas()
-            
+
+        # ----------------------------------------------------
+        # GASTOS
+        # ----------------------------------------------------
 
         elif opcion == "10":
+
             agregar_gasto()
 
         elif opcion == "11":
+
             listar_gastos()
 
+        # ----------------------------------------------------
+        # DASHBOARD
+        # ----------------------------------------------------
+
         elif opcion == "12":
+
             mostrar_caja()
 
+        # ----------------------------------------------------
+        # OPCIÓN INVÁLIDA
+        # ----------------------------------------------------
+
         else:
-            print("Opción inválida. Intente nuevamente")    
 
-if __name__ == "__main__":  
+            print("Opción inválida. Intente nuevamente.")
+
+
+if __name__ == "__main__":
     main()
-

@@ -1,105 +1,235 @@
-from database import obtener_conexion
 from datetime import datetime
+import sqlite3
+
+from database import obtener_conexion
+
+
+CATEGORIAS_GASTO = {
+    "1": "Materia prima",
+    "2": "Bebidas",
+    "3": "Envases",
+    "4": "Transporte",
+    "5": "Publicidad",
+    "6": "Servicios",
+    "7": "Equipamiento",
+    "8": "Otros"
+}
+
+
+# ============================================================
+# REGISTRAR GASTO
+# ============================================================
+
+def registrar_gasto(
+    categoria,
+    descripcion_gasto,
+    valor_final,
+    fecha=None
+):
+    """
+    Registra un gasto en la base de datos.
+
+    No utiliza input(), por lo que puede ser llamada desde
+    terminal, WhatsApp, Notion u otra interfaz.
+    """
+
+    if not isinstance(categoria, str) or not categoria.strip():
+        return {
+            "ok": False,
+            "mensaje": "La categoría no puede estar vacía."
+        }
+
+    if categoria not in CATEGORIAS_GASTO.values():
+        return {
+            "ok": False,
+            "mensaje": "La categoría seleccionada no es válida."
+        }
+
+    if (
+        not isinstance(descripcion_gasto, str)
+        or not descripcion_gasto.strip()
+    ):
+        return {
+            "ok": False,
+            "mensaje": "La descripción del gasto no puede estar vacía."
+        }
+
+    if not isinstance(valor_final, (int, float)):
+        return {
+            "ok": False,
+            "mensaje": "El valor del gasto debe ser un número."
+        }
+
+    if valor_final <= 0:
+        return {
+            "ok": False,
+            "mensaje": "El valor del gasto debe ser mayor que cero."
+        }
+
+    if fecha is None:
+        fecha = datetime.now().strftime("%d/%m/%Y")
+
+    conexion = obtener_conexion()
+
+    try:
+        cursor = conexion.cursor()
+
+        cursor.execute("""
+            INSERT INTO gastos (
+                fecha,
+                categoria,
+                descripcion_gasto,
+                valor_final
+            )
+            VALUES (?, ?, ?, ?)
+        """, (
+            fecha,
+            categoria.strip(),
+            descripcion_gasto.strip(),
+            valor_final
+        ))
+
+        id_gasto = cursor.lastrowid
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "mensaje": "Gasto registrado correctamente.",
+            "id_gasto": id_gasto,
+            "fecha": fecha,
+            "categoria": categoria,
+            "descripcion": descripcion_gasto.strip(),
+            "valor": valor_final
+        }
+
+    except sqlite3.Error as error:
+        conexion.rollback()
+
+        return {
+            "ok": False,
+            "mensaje": f"Error al registrar el gasto: {error}"
+        }
+
+    finally:
+        conexion.close()
+
+
+# ============================================================
+# REGISTRAR GASTO DESDE TERMINAL
+# ============================================================
 
 def agregar_gasto():
+    """
+    Interfaz de consola para registrar un gasto.
+    """
 
-    fecha = datetime.now().strftime("%d/%m/%Y")
+    print("Seleccione la categoría del gasto:")
 
-    categorias = {
-        "1": "Materia prima",
-        "2": "Bebidas",
-        "3": "Envases",
-        "4": "Transporte",
-        "5": "Publicidad",
-        "6": "Servicios",
-        "7": "Equipamiento",
-        "8": "Otros"
-    }
-    print("Seleccione la opcion que desea registrar. ")
+    for opcion, descripcion in CATEGORIAS_GASTO.items():
+        print(f"{opcion} - {descripcion}")
 
-    for opcion_categoria, descripcion in categorias.items():
-        print(f"{opcion_categoria} - {descripcion}")
+    opcion_categoria = input("Ingrese su opción: ")
 
-    opcion_categoria = input("Ingrese su opcion: ")
-
-    if opcion_categoria not in categorias:
-        print("Debe seleccionar una opcion de la lista")
+    if opcion_categoria not in CATEGORIAS_GASTO:
+        print("Debe seleccionar una opción válida.")
         return
 
-    categoria = categorias[opcion_categoria]
+    categoria = CATEGORIAS_GASTO[opcion_categoria]
 
-    descripcion_gasto = input("Ingrese la descripcion del gasto: ")
+    descripcion_gasto = input(
+        "Ingrese la descripción del gasto: "
+    ).strip()
 
-    if descripcion_gasto == "":
-        print("La descripcion no puede estar sin datos.")
+    if not descripcion_gasto:
+        print("La descripción no puede estar vacía.")
         return
 
     valor_texto = input("Ingrese valor: ")
 
-    if not valor_texto.isdigit():
-        print("El valor debe ser un numero.")
+    try:
+        valor_final = float(valor_texto)
+
+    except ValueError:
+        print("El valor debe ser un número.")
         return
 
-    valor_final = float(valor_texto)
+    resultado = registrar_gasto(
+        categoria=categoria,
+        descripcion_gasto=descripcion_gasto,
+        valor_final=valor_final
+    )
 
-    if valor_final <= 0:
-        print("El valor final debe ser superior a cero.")
+    print(resultado["mensaje"])
 
+    if resultado["ok"]:
+        print(f"Categoría: {resultado['categoria']}")
+        print(f"Descripción: {resultado['descripcion']}")
+        print(f"Monto: ${resultado['valor']:.2f}")
+
+
+# ============================================================
+# OBTENER GASTOS
+# ============================================================
+
+def obtener_gastos():
+    """
+    Devuelve todos los gastos como una lista de diccionarios.
+    """
 
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
     cursor.execute("""
-        INSERT INTO gastos (
+        SELECT
+            id_gasto,
             fecha,
             categoria,
             descripcion_gasto,
             valor_final
-        )
-        VALUES (?, ?, ?, ?)
-    """, (
-        fecha,
-        categoria,
-        descripcion_gasto,
-        valor_final
-    ))
-
-
-    conexion.commit ()
-    conexion.close()
-
-    print("Gasto registrado correctamente.")
-
-def listar_gastos():
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
-
-    cursor.execute("""
-    
-    SELECT 
-        gastos.id_gasto,
-        gastos.fecha,
-        gastos.categoria,
-        gastos.descripcion_gasto,
-        gastos.valor_final
-    from gastos
-    ORDER BY gastos.id_gasto
+        FROM gastos
+        ORDER BY id_gasto
     """)
 
-    gastos = cursor.fetchall()
+    gastos_db = cursor.fetchall()
 
     conexion.close()
+
+    gastos = []
+
+    for gasto in gastos_db:
+        gasto_python = {
+            "id_gasto": gasto[0],
+            "fecha": gasto[1],
+            "categoria": gasto[2],
+            "descripcion": gasto[3],
+            "valor": gasto[4]
+        }
+
+        gastos.append(gasto_python)
+
+    return gastos
+
+
+# ============================================================
+# LISTAR GASTOS EN TERMINAL
+# ============================================================
+
+def listar_gastos():
+    """
+    Muestra los gastos en la terminal.
+    """
+
+    gastos = obtener_gastos()
 
     if not gastos:
         print("No existen gastos registrados.")
         return
 
     for gasto in gastos:
-        print(f"Gasto N°: {gasto[0]}")
-        print(f"Fecha: {gasto[1]}")
-        print(f"Categoria: {gasto[2]}")
-        print(f"Descripcion: {gasto[3]}")
-        print(f"Monto: {gasto[4]:.2f}")
+        print(f"Gasto N°: {gasto['id_gasto']}")
+        print(f"Fecha: {gasto['fecha']}")
+        print(f"Categoría: {gasto['categoria']}")
+        print(f"Descripción: {gasto['descripcion']}")
+        print(f"Monto: ${gasto['valor']:.2f}")
         print("------------------------\n")
-        
-
