@@ -73,7 +73,7 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
 
     # Si no se recibe fecha, usar la fecha actual
     if fecha is None:
-        fecha = datetime.now().strftime("%d/%m/%Y")
+        fecha = datetime.now().strftime("%Y-%m-%d")
 
     conexion = obtener_conexion()
 
@@ -140,6 +140,98 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
 # ============================================================
 # REGISTRAR VENTA DESDE TERMINAL
 # ============================================================
+
+def anular_venta(id_venta, motivo):
+
+    if not isinstance(id_venta, int):
+        return {
+            "ok": False,
+            "mensaje": "El ID de la venta debe ser un número entero."
+        }
+
+    if not isinstance(motivo, str) or not motivo.strip():
+        return {
+            "ok": False,
+            "mensaje": "El motivo de anulación no puede estar vacío."
+        }
+
+    conexion = obtener_conexion()
+
+    try:
+        cursor = conexion.cursor()
+
+        cursor.execute("""
+            SELECT
+                id_producto,
+                cantidad,
+                anulada
+            FROM ventas
+            WHERE id_venta = ?
+        """, (id_venta,))
+
+        venta = cursor.fetchone()
+
+        if venta is None:
+            return {
+                "ok": False,
+                "mensaje": "Venta no encontrada."
+            }
+
+        id_producto = venta[0]
+        cantidad = venta[1]
+        anulada = venta[2]
+
+        if anulada == 1:
+            return {
+                "ok": False,
+                "mensaje": "La venta ya se encuentra anulada."
+            }
+
+        fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
+
+        cursor.execute("""
+            UPDATE productos
+            SET stock = stock + ?
+            WHERE id_producto = ?
+        """, (
+            cantidad,
+            id_producto
+        ))
+
+        cursor.execute("""
+            UPDATE ventas
+            SET
+                anulada = 1,
+                fecha_anulacion = ?,
+                motivo_anulacion = ?
+            WHERE id_venta = ?
+        """, (
+            fecha_anulacion,
+            motivo.strip(),
+            id_venta
+        ))
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "mensaje": "Venta anulada correctamente.",
+            "id_venta": id_venta,
+            "cantidad_devuelta_stock": cantidad,
+            "fecha_anulacion": fecha_anulacion,
+            "motivo": motivo.strip()
+        }
+
+    except sqlite3.Error as error:
+        conexion.rollback()
+
+        return {
+            "ok": False,
+            "mensaje": f"Error al anular la venta: {error}"
+        }
+
+    finally:
+        conexion.close()
 
 def agregar_venta():
     """
@@ -208,7 +300,10 @@ def obtener_ventas():
             productos.nombre,
             ventas.fecha,
             ventas.cantidad,
-            ventas.precio_unitario
+            ventas.precio_unitario,
+            ventas.anulada,
+            ventas.fecha_anulacion,
+            ventas.motivo_anulacion
         FROM ventas
         INNER JOIN productos
             ON ventas.id_producto = productos.id_producto
@@ -231,8 +326,11 @@ def obtener_ventas():
             "fecha": venta[2],
             "cantidad": venta[3],
             "precio_unitario": venta[4],
-            "total": total
-        }
+            "total": total,
+            "anulada": bool(venta[5]),
+            "fecha_anulacion": venta[6],
+            "motivo_anulacion": venta[7]
+        }   
 
         ventas.append(venta_python)
 

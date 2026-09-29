@@ -59,7 +59,7 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
         }
 
     if fecha is None:
-        fecha = datetime.now().strftime("%d/%m/%Y")
+        fecha = datetime.now().strftime("%Y-%m-%d")
 
     stock_actual = producto[7]
 
@@ -191,7 +191,10 @@ def obtener_compras():
             productos.nombre,
             compras.fecha,
             compras.cantidad,
-            compras.precio_unitario
+            compras.precio_unitario,
+            compras.anulada,
+            compras.fecha_anulacion,
+            compras.motivo_anulacion
         FROM compras
         INNER JOIN productos
             ON compras.id_producto = productos.id_producto
@@ -214,7 +217,10 @@ def obtener_compras():
             "fecha": compra[2],
             "cantidad": compra[3],
             "precio_unitario": compra[4],
-            "total": total
+            "total": total,
+            "anulada": bool(compra[5]),
+            "fecha_anulacion": compra[6],
+            "motivo_anulacion": compra[7]
         }
 
         compras.append(compra_python)
@@ -243,3 +249,116 @@ def listar_compras():
         print(f"Precio unitario: ${compra['precio_unitario']:.2f}")
         print(f"Total: ${compra['total']:.2f}")
         print("-----------------------\n")
+
+def anular_compra(id_compra, motivo):
+
+    if not isinstance(id_compra, int):
+        return {
+            "ok": False,
+            "mensaje": "El ID de la compra debe ser un número entero."
+        }
+
+    if not isinstance(motivo, str) or not motivo.strip():
+        return {
+            "ok": False,
+            "mensaje": "El motivo de anulación no puede estar vacío."
+        }
+
+    conexion = obtener_conexion()
+
+    try:
+        cursor = conexion.cursor()
+
+        cursor.execute("""
+            SELECT
+                id_producto,
+                cantidad,
+                anulada
+            FROM compras
+            WHERE id_compra = ?
+        """, (id_compra,))
+
+        compra = cursor.fetchone()
+
+        if compra is None:
+            return {
+                "ok": False,
+                "mensaje": "Compra no encontrada."
+            }
+
+        id_producto = compra[0]
+        cantidad = compra[1]
+        anulada = compra[2]
+
+        if anulada == 1:
+            return {
+                "ok": False,
+                "mensaje": "La compra ya se encuentra anulada."
+            }
+
+        cursor.execute("""
+            SELECT stock
+            FROM productos
+            WHERE id_producto = ?
+        """, (id_producto,))
+
+        producto = cursor.fetchone()
+
+        stock_actual = producto[0]
+
+        if stock_actual < cantidad:
+            return {
+                "ok": False,
+                "mensaje": (
+                    "No se puede anular la compra porque "
+                    "no hay suficiente stock disponible. "
+                    f"Stock actual: {stock_actual}. "
+                    f"Cantidad de la compra: {cantidad}."
+                )
+            }
+
+        fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
+
+        cursor.execute("""
+            UPDATE productos
+            SET stock = stock - ?
+            WHERE id_producto = ?
+        """, (
+            cantidad,
+            id_producto
+        ))
+
+        cursor.execute("""
+            UPDATE compras
+            SET
+                anulada = 1,
+                fecha_anulacion = ?,
+                motivo_anulacion = ?
+            WHERE id_compra = ?
+        """, (
+            fecha_anulacion,
+            motivo.strip(),
+            id_compra
+        ))
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "mensaje": "Compra anulada correctamente.",
+            "id_compra": id_compra,
+            "cantidad_retirada_stock": cantidad,
+            "fecha_anulacion": fecha_anulacion,
+            "motivo": motivo.strip()
+        }
+
+    except sqlite3.Error as error:
+        conexion.rollback()
+
+        return {
+            "ok": False,
+            "mensaje": f"Error al anular la compra: {error}"
+        }
+
+    finally:
+        conexion.close()

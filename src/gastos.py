@@ -67,7 +67,7 @@ def registrar_gasto(
         }
 
     if fecha is None:
-        fecha = datetime.now().strftime("%d/%m/%Y")
+        fecha = datetime.now().strftime("%Y-%m-%d")
 
     conexion = obtener_conexion()
 
@@ -186,7 +186,10 @@ def obtener_gastos():
             fecha,
             categoria,
             descripcion_gasto,
-            valor_final
+            valor_final,
+            anulado,
+            fecha_anulacion,
+            motivo_anulacion
         FROM gastos
         ORDER BY id_gasto
     """)
@@ -203,12 +206,91 @@ def obtener_gastos():
             "fecha": gasto[1],
             "categoria": gasto[2],
             "descripcion": gasto[3],
-            "valor": gasto[4]
+            "valor": gasto[4],
+            "anulado": bool(gasto[5]),
+            "fecha_anulacion": gasto[6],
+            "motivo_anulacion": gasto[7]
+
         }
 
         gastos.append(gasto_python)
 
     return gastos
+
+def anular_gasto(id_gasto, motivo):
+
+    if not isinstance(id_gasto, int):
+        return {
+            "ok": False,
+            "mensaje": "El ID del gasto debe ser un número entero."
+        }
+
+    if not isinstance(motivo, str) or not motivo.strip():
+        return {
+            "ok": False,
+            "mensaje": "El motivo de anulación no puede estar vacío."
+        }
+
+    conexion = obtener_conexion()
+
+    try:
+        cursor = conexion.cursor()
+
+        cursor.execute("""
+            SELECT anulado
+            FROM gastos
+            WHERE id_gasto = ?
+        """, (id_gasto,))
+
+        gasto = cursor.fetchone()
+
+        if gasto is None:
+            return {
+                "ok": False,
+                "mensaje": "Gasto no encontrado."
+            }
+
+        if gasto[0] == 1:
+            return {
+                "ok": False,
+                "mensaje": "El gasto ya se encuentra anulado."
+            }
+
+        fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
+
+        cursor.execute("""
+            UPDATE gastos
+            SET
+                anulado = 1,
+                fecha_anulacion = ?,
+                motivo_anulacion = ?
+            WHERE id_gasto = ?
+        """, (
+            fecha_anulacion,
+            motivo.strip(),
+            id_gasto
+        ))
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "mensaje": "Gasto anulado correctamente.",
+            "id_gasto": id_gasto,
+            "fecha_anulacion": fecha_anulacion,
+            "motivo": motivo.strip()
+        }
+
+    except sqlite3.Error as error:
+        conexion.rollback()
+
+        return {
+            "ok": False,
+            "mensaje": f"Error al anular el gasto: {error}"
+        }
+
+    finally:
+        conexion.close()
 
 
 # ============================================================
