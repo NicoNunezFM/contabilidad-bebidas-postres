@@ -124,4 +124,50 @@ def mostrar_caja():
     print(f"Saldo físico: ${saldo_fisico:.2f}")
     print(f"Saldo disponible: ${saldo_disponible:.2f}")
 
+def obtener_estado_caja():
+
+    compras = compras_caja()
+    ventas = ventas_caja()
+    gastos = gastos_caja()
+
+    aportes = total_aportes()
+    retiros = total_retiros()
+
+    estado_diezmo = estado_general_diezmo()
+
+    diezmo_reservado = estado_diezmo["reservado_en_caja"]
+    diezmo_entregado = estado_diezmo["entregado_total"]
+
+    resultado_negocio = ventas - compras - gastos
+
+    saldo_caja = (
+        resultado_negocio
+        + aportes
+        - retiros
+    )
+
+    saldo_fisico = (
+        saldo_caja
+        - diezmo_entregado
+    )
+
+    saldo_disponible = (
+        saldo_fisico
+        - diezmo_reservado
+    )
+
+    return {
+        "ventas": ventas,
+        "compras": compras,
+        "gastos": gastos,
+        "resultado_negocio": resultado_negocio,
+        "aportes": aportes,
+        "retiros": retiros,
+        "saldo_caja": saldo_caja,
+        "diezmo_entregado": diezmo_entregado,
+        "diezmo_reservado": diezmo_reservado,
+        "saldo_fisico": saldo_fisico,
+        "saldo_disponible": saldo_disponible
+    }
+
 
