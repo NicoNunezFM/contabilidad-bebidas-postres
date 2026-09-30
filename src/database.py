@@ -1,12 +1,29 @@
+import os
 import sqlite3
 from pathlib import Path
 
 
-RUTA_BASE = Path(__file__).resolve().parent.parent / "negocio.db"
+RUTA_BASE_PREDETERMINADA = (
+    Path(__file__).resolve().parent.parent / "negocio.db"
+)
+
+
+def obtener_ruta_base():
+
+    ruta_personalizada = os.getenv("NEGOCIO_DB_PATH")
+
+    if ruta_personalizada:
+        return Path(ruta_personalizada)
+
+    return RUTA_BASE_PREDETERMINADA
 
 
 def obtener_conexion():
-    conexion = sqlite3.connect(RUTA_BASE)
+
+    conexion = sqlite3.connect(
+        obtener_ruta_base()
+    )
+
     return conexion
 
 def crear_tabla_productos():

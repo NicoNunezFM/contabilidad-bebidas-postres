@@ -6,12 +6,31 @@ from database import obtener_conexion
 from reportes import resumen_por_periodo
 
 
-
+PORCENTAJE_DIEZMO = 0.10
 
 TIPOS_MOVIMIENTO_DIEZMO = (
     "Reserva",
     "Entrega"
 )
+
+
+# ============================================================
+# VALIDACIONES
+# ============================================================
+
+def validar_fecha(fecha):
+
+    try:
+        datetime.strptime(
+            fecha,
+            "%Y-%m-%d"
+        )
+
+        return True
+
+    except (ValueError, TypeError):
+
+        return False
 
 
 # ============================================================
@@ -27,48 +46,62 @@ def registrar_movimiento_diezmo(
     fecha=None
 ):
 
-    if not isinstance(anio, int):
+    if not isinstance(anio, int) or anio < 1:
         return {
             "ok": False,
-            "mensaje": "El año debe ser un número entero."
+            "codigo": "ANIO_INVALIDO",
+            "mensaje": "El año debe ser un número entero mayor que cero."
         }
 
     if not isinstance(mes, int) or mes < 1 or mes > 12:
         return {
             "ok": False,
+            "codigo": "MES_INVALIDO",
             "mensaje": "El mes debe estar entre 1 y 12."
         }
 
     if tipo not in TIPOS_MOVIMIENTO_DIEZMO:
         return {
             "ok": False,
+            "codigo": "TIPO_MOVIMIENTO_INVALIDO",
             "mensaje": "El tipo de movimiento no es válido."
         }
 
     if not isinstance(monto, (int, float)):
         return {
             "ok": False,
+            "codigo": "MONTO_INVALIDO",
             "mensaje": "El monto debe ser un número."
         }
 
     if monto <= 0:
         return {
             "ok": False,
+            "codigo": "MONTO_INVALIDO",
             "mensaje": "El monto debe ser mayor que cero."
         }
 
     if not isinstance(descripcion, str) or not descripcion.strip():
         return {
             "ok": False,
+            "codigo": "DESCRIPCION_INVALIDA",
             "mensaje": "La descripción no puede estar vacía."
         }
 
     if fecha is None:
         fecha = datetime.now().strftime("%Y-%m-%d")
 
+    elif not validar_fecha(fecha):
+        return {
+            "ok": False,
+            "codigo": "FECHA_INVALIDA",
+            "mensaje": "La fecha debe tener formato YYYY-MM-DD."
+        }
+
     conexion = obtener_conexion()
 
     try:
+
         cursor = conexion.cursor()
 
         cursor.execute("""
@@ -96,6 +129,7 @@ def registrar_movimiento_diezmo(
 
         return {
             "ok": True,
+            "codigo": "MOVIMIENTO_DIEZMO_REGISTRADO",
             "mensaje": "Movimiento de diezmo registrado correctamente.",
             "id_movimiento": id_movimiento,
             "anio": anio,
@@ -112,12 +146,14 @@ def registrar_movimiento_diezmo(
 
         return {
             "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
             "mensaje": (
                 f"Error al registrar movimiento de diezmo: {error}"
             )
         }
 
     finally:
+
         conexion.close()
 
 
@@ -136,23 +172,30 @@ def registrar_reserva_diezmo(
     if not isinstance(monto, (int, float)):
         return {
             "ok": False,
+            "codigo": "MONTO_INVALIDO",
             "mensaje": "El monto debe ser un número."
         }
 
     if monto <= 0:
         return {
             "ok": False,
+            "codigo": "MONTO_INVALIDO",
             "mensaje": "El monto debe ser mayor que cero."
         }
 
-    estado = estado_diezmo_mes(anio, mes)
+    estado = estado_diezmo_mes(
+        anio,
+        mes
+    )
 
     if not estado["ok"]:
         return estado
 
     if estado.get("futuro", False):
+
         return {
             "ok": False,
+            "codigo": "MES_FUTURO",
             "mensaje": (
                 "No se puede reservar diezmo para "
                 "un mes que todavía no comenzó."
@@ -166,8 +209,10 @@ def registrar_reserva_diezmo(
         pendiente = estado["pendiente_reservar"]
 
         if monto > pendiente:
+
             return {
                 "ok": False,
+                "codigo": "RESERVA_EXCEDE_PENDIENTE",
                 "mensaje": (
                     f"El monto supera lo pendiente de reservar. "
                     f"Pendiente: ${pendiente:.2f}"
@@ -183,6 +228,7 @@ def registrar_reserva_diezmo(
         fecha=fecha
     )
 
+
 # ============================================================
 # REGISTRAR ENTREGA
 # ============================================================
@@ -195,14 +241,33 @@ def registrar_entrega_diezmo(
     fecha=None
 ):
 
-    estado = estado_diezmo_mes(anio, mes)
+    if not isinstance(monto, (int, float)):
+        return {
+            "ok": False,
+            "codigo": "MONTO_INVALIDO",
+            "mensaje": "El monto debe ser un número."
+        }
+
+    if monto <= 0:
+        return {
+            "ok": False,
+            "codigo": "MONTO_INVALIDO",
+            "mensaje": "El monto debe ser mayor que cero."
+        }
+
+    estado = estado_diezmo_mes(
+        anio,
+        mes
+    )
 
     if not estado["ok"]:
         return estado
 
     if not estado["cerrado"]:
+
         return {
             "ok": False,
+            "codigo": "MES_NO_CERRADO",
             "mensaje": (
                 "No se puede registrar una entrega "
                 "porque el mes todavía no está cerrado."
@@ -212,8 +277,10 @@ def registrar_entrega_diezmo(
     pendiente = estado["pendiente_entregar"]
 
     if monto > pendiente:
+
         return {
             "ok": False,
+            "codigo": "ENTREGA_EXCEDE_PENDIENTE",
             "mensaje": (
                 f"El monto supera lo pendiente de entregar. "
                 f"Pendiente: ${pendiente:.2f}"
@@ -228,55 +295,76 @@ def registrar_entrega_diezmo(
         descripcion=descripcion,
         fecha=fecha
     )
+
+
 # ============================================================
 # TOTAL DE MOVIMIENTOS DE DIEZMO
 # ============================================================
 
-def total_movimientos_diezmo(anio, mes, tipo):
+def total_movimientos_diezmo(
+    anio,
+    mes,
+    tipo
+):
 
     conexion = obtener_conexion()
-    cursor = conexion.cursor()
 
-    cursor.execute("""
-        SELECT SUM(monto)
-        FROM movimientos_diezmo
-        WHERE anio = ?
-        AND mes = ?
-        AND tipo = ?
-        AND anulado = 0
-    """, (
-        anio,
-        mes,
-        tipo
-    ))
+    try:
 
-    resultado = cursor.fetchone()
+        cursor = conexion.cursor()
 
-    conexion.close()
+        cursor.execute("""
+            SELECT SUM(monto)
+            FROM movimientos_diezmo
+            WHERE anio = ?
+            AND mes = ?
+            AND tipo = ?
+            AND anulado = 0
+        """, (
+            anio,
+            mes,
+            tipo
+        ))
 
-    total = resultado[0]
+        resultado = cursor.fetchone()
 
-    if total is None:
-        total = 0
+        total = resultado[0]
 
-    return total
+        if total is None:
+            total = 0
+
+        return total
+
+    finally:
+
+        conexion.close()
 
 
 # ============================================================
 # ESTADO DEL DIEZMO DE UN MES
 # ============================================================
 
-def estado_diezmo_mes(anio, mes):
+def estado_diezmo_mes(
+    anio,
+    mes
+):
 
-    if not isinstance(anio, int):
+    if not isinstance(anio, int) or anio < 1:
+
         return {
             "ok": False,
-            "mensaje": "El año debe ser un número entero."
+            "codigo": "ANIO_INVALIDO",
+            "mensaje": (
+                "El año debe ser un número entero "
+                "mayor que cero."
+            )
         }
 
     if not isinstance(mes, int) or mes < 1 or mes > 12:
+
         return {
             "ok": False,
+            "codigo": "MES_INVALIDO",
             "mensaje": "El mes debe estar entre 1 y 12."
         }
 
@@ -293,31 +381,46 @@ def estado_diezmo_mes(anio, mes):
     )
 
     conexion = obtener_conexion()
-    cursor = conexion.cursor()
 
-    cursor.execute("""
-        SELECT
-            diezmo_correspondiente,
-            resultado_negocio
-        FROM cierres_mensuales
-        WHERE anio = ?
-        AND mes = ?
-    """, (
-        anio,
-        mes
-    ))
+    try:
 
-    cierre = cursor.fetchone()
+        cursor = conexion.cursor()
 
-    conexion.close()
+        cursor.execute("""
+            SELECT
+                diezmo_correspondiente,
+                resultado_negocio
+            FROM cierres_mensuales
+            WHERE anio = ?
+            AND mes = ?
+        """, (
+            anio,
+            mes
+        ))
 
-    # El mes todavía no tiene cierre definitivo
+        cierre = cursor.fetchone()
+
+    finally:
+
+        conexion.close()
+
+    # ========================================================
+    # MES SIN CIERRE DEFINITIVO
+    # ========================================================
+
     if cierre is None:
 
         hoy = datetime.now().date()
 
-        mes_consultado = (anio, mes)
-        mes_actual = (hoy.year, hoy.month)
+        mes_consultado = (
+            anio,
+            mes
+        )
+
+        mes_actual = (
+            hoy.year,
+            hoy.month
+        )
 
         # ----------------------------------------------------
         # MES FUTURO
@@ -343,7 +446,9 @@ def estado_diezmo_mes(anio, mes):
                 )
             }
 
-        fecha_desde = f"{anio}-{mes:02d}-01"
+        fecha_desde = (
+            f"{anio}-{mes:02d}-01"
+        )
 
         # ----------------------------------------------------
         # MES ACTUAL
@@ -351,7 +456,10 @@ def estado_diezmo_mes(anio, mes):
 
         if mes_consultado == mes_actual:
 
-            fecha_hasta = hoy.strftime("%Y-%m-%d")
+            fecha_hasta = hoy.strftime(
+                "%Y-%m-%d"
+            )
+
             estado_mes = "abierto"
 
         # ----------------------------------------------------
@@ -360,7 +468,10 @@ def estado_diezmo_mes(anio, mes):
 
         else:
 
-            ultimo_dia = calendar.monthrange(anio, mes)[1]
+            ultimo_dia = calendar.monthrange(
+                anio,
+                mes
+            )[1]
 
             fecha_hasta = (
                 f"{anio}-{mes:02d}-{ultimo_dia:02d}"
@@ -373,11 +484,19 @@ def estado_diezmo_mes(anio, mes):
             fecha_hasta
         )
 
-        resultado_estimado = resumen["resultado_negocio"]
+        resultado_estimado = (
+            resumen["resultado_negocio"]
+        )
 
         if resultado_estimado > 0:
-            diezmo_estimado = resultado_estimado * 0.10
+
+            diezmo_estimado = (
+                resultado_estimado *
+                PORCENTAJE_DIEZMO
+            )
+
         else:
+
             diezmo_estimado = 0
 
         diferencia_estimada = (
@@ -410,7 +529,10 @@ def estado_diezmo_mes(anio, mes):
             )
         }
 
-    # El mes ya tiene cierre
+    # ========================================================
+    # MES CON CIERRE DEFINITIVO
+    # ========================================================
+
     diezmo_correspondiente = cierre[0]
     resultado_negocio = cierre[1]
 
@@ -421,7 +543,11 @@ def estado_diezmo_mes(anio, mes):
     exceso_reservado = 0
 
     if pendiente_reservar < 0:
-        exceso_reservado = abs(pendiente_reservar)
+
+        exceso_reservado = abs(
+            pendiente_reservar
+        )
+
         pendiente_reservar = 0
 
     pendiente_entregar = (
@@ -445,23 +571,33 @@ def estado_diezmo_mes(anio, mes):
         "pendiente_entregar": pendiente_entregar
     }
 
+
+# ============================================================
+# ESTADO GENERAL DEL DIEZMO
+# ============================================================
+
 def estado_general_diezmo():
 
     conexion = obtener_conexion()
-    cursor = conexion.cursor()
 
-    cursor.execute("""
-        SELECT
-            tipo,
-            SUM(monto)
-        FROM movimientos_diezmo
-        WHERE anulado = 0
-        GROUP BY tipo
-    """)
+    try:
 
-    resultados = cursor.fetchall()
+        cursor = conexion.cursor()
 
-    conexion.close()
+        cursor.execute("""
+            SELECT
+                tipo,
+                SUM(monto)
+            FROM movimientos_diezmo
+            WHERE anulado = 0
+            GROUP BY tipo
+        """)
+
+        resultados = cursor.fetchall()
+
+    finally:
+
+        conexion.close()
 
     total_reservado = 0
     total_entregado = 0
@@ -478,7 +614,8 @@ def estado_general_diezmo():
             total_entregado = monto
 
     reservado_en_caja = (
-        total_reservado - total_entregado
+        total_reservado -
+        total_entregado
     )
 
     if reservado_en_caja < 0:

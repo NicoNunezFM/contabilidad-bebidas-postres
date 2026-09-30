@@ -33,39 +33,48 @@ def registrar_gasto(
     terminal, WhatsApp, Notion u otra interfaz.
     """
 
+    # Validar categoría
     if not isinstance(categoria, str) or not categoria.strip():
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "La categoría no puede estar vacía."
         }
 
     if categoria not in CATEGORIAS_GASTO.values():
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "La categoría seleccionada no es válida."
         }
 
+    # Validar descripción
     if (
         not isinstance(descripcion_gasto, str)
         or not descripcion_gasto.strip()
     ):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "La descripción del gasto no puede estar vacía."
         }
 
+    # Validar monto
     if not isinstance(valor_final, (int, float)):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El valor del gasto debe ser un número."
         }
 
     if valor_final <= 0:
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El valor del gasto debe ser mayor que cero."
         }
 
+    # Fecha automática
     if fecha is None:
         fecha = datetime.now().strftime("%Y-%m-%d")
 
@@ -74,7 +83,8 @@ def registrar_gasto(
     try:
         cursor = conexion.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO gastos (
                 fecha,
                 categoria,
@@ -82,12 +92,14 @@ def registrar_gasto(
                 valor_final
             )
             VALUES (?, ?, ?, ?)
-        """, (
-            fecha,
-            categoria.strip(),
-            descripcion_gasto.strip(),
-            valor_final
-        ))
+            """,
+            (
+                fecha,
+                categoria.strip(),
+                descripcion_gasto.strip(),
+                valor_final
+            )
+        )
 
         id_gasto = cursor.lastrowid
 
@@ -95,10 +107,11 @@ def registrar_gasto(
 
         return {
             "ok": True,
+            "codigo": "GASTO_REGISTRADO",
             "mensaje": "Gasto registrado correctamente.",
             "id_gasto": id_gasto,
             "fecha": fecha,
-            "categoria": categoria,
+            "categoria": categoria.strip(),
             "descripcion": descripcion_gasto.strip(),
             "valor": valor_final
         }
@@ -108,6 +121,7 @@ def registrar_gasto(
 
         return {
             "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
             "mensaje": f"Error al registrar el gasto: {error}"
         }
 
@@ -180,7 +194,8 @@ def obtener_gastos():
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             id_gasto,
             fecha,
@@ -192,7 +207,8 @@ def obtener_gastos():
             motivo_anulacion
         FROM gastos
         ORDER BY id_gasto
-    """)
+        """
+    )
 
     gastos_db = cursor.fetchall()
 
@@ -201,6 +217,7 @@ def obtener_gastos():
     gastos = []
 
     for gasto in gastos_db:
+
         gasto_python = {
             "id_gasto": gasto[0],
             "fecha": gasto[1],
@@ -210,24 +227,35 @@ def obtener_gastos():
             "anulado": bool(gasto[5]),
             "fecha_anulacion": gasto[6],
             "motivo_anulacion": gasto[7]
-
         }
 
         gastos.append(gasto_python)
 
     return gastos
 
-def anular_gasto(id_gasto, motivo):
 
+# ============================================================
+# ANULAR GASTO
+# ============================================================
+
+def anular_gasto(id_gasto, motivo):
+    """
+    Anula un gasto sin eliminarlo de la base de datos.
+    """
+
+    # Validar ID
     if not isinstance(id_gasto, int):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El ID del gasto debe ser un número entero."
         }
 
+    # Validar motivo
     if not isinstance(motivo, str) or not motivo.strip():
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El motivo de anulación no puede estar vacío."
         }
 
@@ -236,45 +264,56 @@ def anular_gasto(id_gasto, motivo):
     try:
         cursor = conexion.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT anulado
             FROM gastos
             WHERE id_gasto = ?
-        """, (id_gasto,))
+            """,
+            (id_gasto,)
+        )
 
         gasto = cursor.fetchone()
 
+        # Gasto inexistente
         if gasto is None:
             return {
                 "ok": False,
+                "codigo": "GASTO_NO_ENCONTRADO",
                 "mensaje": "Gasto no encontrado."
             }
 
+        # Gasto ya anulado
         if gasto[0] == 1:
             return {
                 "ok": False,
+                "codigo": "GASTO_YA_ANULADO",
                 "mensaje": "El gasto ya se encuentra anulado."
             }
 
         fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
 
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE gastos
             SET
                 anulado = 1,
                 fecha_anulacion = ?,
                 motivo_anulacion = ?
             WHERE id_gasto = ?
-        """, (
-            fecha_anulacion,
-            motivo.strip(),
-            id_gasto
-        ))
+            """,
+            (
+                fecha_anulacion,
+                motivo.strip(),
+                id_gasto
+            )
+        )
 
         conexion.commit()
 
         return {
             "ok": True,
+            "codigo": "GASTO_ANULADO",
             "mensaje": "Gasto anulado correctamente.",
             "id_gasto": id_gasto,
             "fecha_anulacion": fecha_anulacion,
@@ -286,6 +325,7 @@ def anular_gasto(id_gasto, motivo):
 
         return {
             "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
             "mensaje": f"Error al anular el gasto: {error}"
         }
 

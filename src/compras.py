@@ -21,6 +21,7 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
     if not isinstance(id_producto, int):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El ID del producto debe ser un número entero."
         }
 
@@ -29,6 +30,7 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
     if producto is None:
         return {
             "ok": False,
+            "codigo": "PRODUCTO_NO_ENCONTRADO",
             "mensaje": "Producto no encontrado."
         }
 
@@ -36,12 +38,14 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
     if not isinstance(cantidad, int):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "La cantidad debe ser un número entero."
         }
 
     if cantidad <= 0:
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "La cantidad debe ser mayor que cero."
         }
 
@@ -49,12 +53,14 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
     if not isinstance(precio_unitario, (int, float)):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El precio debe ser un número."
         }
 
     if precio_unitario <= 0:
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El precio debe ser mayor que cero."
         }
 
@@ -101,6 +107,7 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
 
         return {
             "ok": True,
+            "codigo": "COMPRA_REGISTRADA",
             "mensaje": "Compra registrada correctamente.",
             "id_compra": id_compra,
             "producto": producto[1],
@@ -117,6 +124,7 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
 
         return {
             "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
             "mensaje": f"Error al registrar la compra: {error}"
         }
 
@@ -255,12 +263,14 @@ def anular_compra(id_compra, motivo):
     if not isinstance(id_compra, int):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El ID de la compra debe ser un número entero."
         }
 
     if not isinstance(motivo, str) or not motivo.strip():
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El motivo de anulación no puede estar vacío."
         }
 
@@ -283,6 +293,7 @@ def anular_compra(id_compra, motivo):
         if compra is None:
             return {
                 "ok": False,
+                "codigo": "COMPRA_NO_ENCONTRADA",
                 "mensaje": "Compra no encontrada."
             }
 
@@ -293,6 +304,7 @@ def anular_compra(id_compra, motivo):
         if anulada == 1:
             return {
                 "ok": False,
+                "codigo": "COMPRA_YA_ANULADA",
                 "mensaje": "La compra ya se encuentra anulada."
             }
 
@@ -309,6 +321,7 @@ def anular_compra(id_compra, motivo):
         if stock_actual < cantidad:
             return {
                 "ok": False,
+                "codigo": "STOCK_INSUFICIENTE_PARA_ANULAR_COMPRA",
                 "mensaje": (
                     "No se puede anular la compra porque "
                     "no hay suficiente stock disponible. "
@@ -345,6 +358,7 @@ def anular_compra(id_compra, motivo):
 
         return {
             "ok": True,
+            "codigo": "COMPRA_ANULADA",
             "mensaje": "Compra anulada correctamente.",
             "id_compra": id_compra,
             "cantidad_retirada_stock": cantidad,
@@ -357,6 +371,7 @@ def anular_compra(id_compra, motivo):
 
         return {
             "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
             "mensaje": f"Error al anular la compra: {error}"
         }
 

@@ -3,10 +3,16 @@ import sqlite3
 
 from database import obtener_conexion
 
+
 TIPOS_MOVIMIENTO = (
     "Aporte",
     "Retiro"
 )
+
+
+# ============================================================
+# REGISTRAR MOVIMIENTO DE CAJA
+# ============================================================
 
 def registrar_movimiento_caja(
     tipo,
@@ -14,37 +20,52 @@ def registrar_movimiento_caja(
     monto,
     fecha=None
 ):
+    """
+    Registra un aporte o retiro de caja.
 
+    No utiliza input(), por lo que puede ser llamada desde
+    terminal, FastAPI, WhatsApp, Notion u otra interfaz.
+    """
+
+    # Validar tipo
     if not isinstance(tipo, str):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El tipo de movimiento debe ser texto."
         }
 
     if tipo not in TIPOS_MOVIMIENTO:
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El tipo de movimiento no es válido."
         }
 
+    # Validar descripción
     if not isinstance(descripcion, str) or not descripcion.strip():
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "La descripción no puede estar vacía."
         }
 
+    # Validar monto
     if not isinstance(monto, (int, float)):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El monto debe ser un número."
         }
 
     if monto <= 0:
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El monto debe ser mayor que cero."
         }
 
+    # Fecha automática
     if fecha is None:
         fecha = datetime.now().strftime("%Y-%m-%d")
 
@@ -53,7 +74,8 @@ def registrar_movimiento_caja(
     try:
         cursor = conexion.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO movimientos_caja (
                 fecha,
                 tipo,
@@ -61,12 +83,14 @@ def registrar_movimiento_caja(
                 monto
             )
             VALUES (?, ?, ?, ?)
-        """, (
-            fecha,
-            tipo,
-            descripcion.strip(),
-            monto
-        ))
+            """,
+            (
+                fecha,
+                tipo,
+                descripcion.strip(),
+                monto
+            )
+        )
 
         id_movimiento = cursor.lastrowid
 
@@ -74,6 +98,7 @@ def registrar_movimiento_caja(
 
         return {
             "ok": True,
+            "codigo": "MOVIMIENTO_CAJA_REGISTRADO",
             "mensaje": "Movimiento de caja registrado correctamente.",
             "id_movimiento": id_movimiento,
             "fecha": fecha,
@@ -87,13 +112,28 @@ def registrar_movimiento_caja(
 
         return {
             "ok": False,
-            "mensaje": f"Error al registrar movimiento: {error}"
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": (
+                f"Error al registrar movimiento de caja: {error}"
+            )
         }
 
     finally:
         conexion.close()
 
-def registrar_retiro(descripcion, monto, fecha=None):
+
+# ============================================================
+# REGISTRAR RETIRO
+# ============================================================
+
+def registrar_retiro(
+    descripcion,
+    monto,
+    fecha=None
+):
+    """
+    Registra un retiro de dinero de la caja.
+    """
 
     return registrar_movimiento_caja(
         tipo="Retiro",
@@ -103,7 +143,18 @@ def registrar_retiro(descripcion, monto, fecha=None):
     )
 
 
-def registrar_aporte(descripcion, monto, fecha=None):
+# ============================================================
+# REGISTRAR APORTE
+# ============================================================
+
+def registrar_aporte(
+    descripcion,
+    monto,
+    fecha=None
+):
+    """
+    Registra un aporte de dinero a la caja.
+    """
 
     return registrar_movimiento_caja(
         tipo="Aporte",
@@ -112,24 +163,35 @@ def registrar_aporte(descripcion, monto, fecha=None):
         fecha=fecha
     )
 
+
+# ============================================================
+# OBTENER MOVIMIENTOS DE CAJA
+# ============================================================
+
 def obtener_movimientos_caja():
+    """
+    Devuelve todos los movimientos de caja como una lista
+    de diccionarios.
+    """
 
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
-    cursor.execute("""
-    SELECT
-        id_movimiento,
-        fecha,
-        tipo,
-        descripcion,
-        monto,
-        anulado,
-        fecha_anulacion,
-        motivo_anulacion
-    FROM movimientos_caja
-    ORDER BY id_movimiento
-    """)
+    cursor.execute(
+        """
+        SELECT
+            id_movimiento,
+            fecha,
+            tipo,
+            descripcion,
+            monto,
+            anulado,
+            fecha_anulacion,
+            motivo_anulacion
+        FROM movimientos_caja
+        ORDER BY id_movimiento
+        """
+    )
 
     movimientos_db = cursor.fetchall()
 
@@ -140,33 +202,44 @@ def obtener_movimientos_caja():
     for movimiento in movimientos_db:
 
         movimiento_python = {
-        "id_movimiento": movimiento[0],
-        "fecha": movimiento[1],
-        "tipo": movimiento[2],
-        "descripcion": movimiento[3],
-        "monto": movimiento[4],
-        "anulado": bool(movimiento[5]),
-        "fecha_anulacion": movimiento[6],
-        "motivo_anulacion": movimiento[7]
-    }
+            "id_movimiento": movimiento[0],
+            "fecha": movimiento[1],
+            "tipo": movimiento[2],
+            "descripcion": movimiento[3],
+            "monto": movimiento[4],
+            "anulado": bool(movimiento[5]),
+            "fecha_anulacion": movimiento[6],
+            "motivo_anulacion": movimiento[7]
+        }
 
         movimientos.append(movimiento_python)
 
     return movimientos
 
+
+# ============================================================
+# TOTAL DE APORTES
+# ============================================================
+
 def total_aportes():
+    """
+    Devuelve el total de aportes activos.
+    """
 
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
-    cursor.execute("""
-    SELECT SUM(monto)
-    FROM movimientos_caja
-    WHERE tipo = 'Aporte'
-    AND anulado = 0
-    """)
+    cursor.execute(
+        """
+        SELECT SUM(monto)
+        FROM movimientos_caja
+        WHERE tipo = 'Aporte'
+        AND anulado = 0
+        """
+    )
 
     resultado = cursor.fetchone()
+
     conexion.close()
 
     total = resultado[0]
@@ -175,20 +248,31 @@ def total_aportes():
         total = 0
 
     return total
+
+
+# ============================================================
+# TOTAL DE RETIROS
+# ============================================================
 
 def total_retiros():
+    """
+    Devuelve el total de retiros activos.
+    """
 
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
-    cursor.execute("""
-    SELECT SUM(monto)
-    FROM movimientos_caja
-    WHERE tipo = 'Retiro'
-    AND anulado = 0
-    """)
+    cursor.execute(
+        """
+        SELECT SUM(monto)
+        FROM movimientos_caja
+        WHERE tipo = 'Retiro'
+        AND anulado = 0
+        """
+    )
 
     resultado = cursor.fetchone()
+
     conexion.close()
 
     total = resultado[0]
@@ -197,12 +281,21 @@ def total_retiros():
         total = 0
 
     return total
+
+
+# ============================================================
+# TOTAL DE MOVIMIENTOS POR PERÍODO
+# ============================================================
 
 def total_movimientos_por_periodo(
     tipo,
     fecha_desde,
     fecha_hasta
 ):
+    """
+    Calcula el total de aportes o retiros activos
+    dentro de un período.
+    """
 
     if tipo not in TIPOS_MOVIMIENTO:
         return 0
@@ -210,19 +303,23 @@ def total_movimientos_por_periodo(
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT SUM(monto)
         FROM movimientos_caja
         WHERE tipo = ?
         AND fecha BETWEEN ? AND ?
         AND anulado = 0
-    """, (
-        tipo,
-        fecha_desde,
-        fecha_hasta
-    ))
+        """,
+        (
+            tipo,
+            fecha_desde,
+            fecha_hasta
+        )
+    )
 
     resultado = cursor.fetchone()
+
     conexion.close()
 
     total = resultado[0]
@@ -232,7 +329,15 @@ def total_movimientos_por_periodo(
 
     return total
 
-def total_aportes_por_periodo(fecha_desde, fecha_hasta):
+
+# ============================================================
+# TOTAL DE APORTES POR PERÍODO
+# ============================================================
+
+def total_aportes_por_periodo(
+    fecha_desde,
+    fecha_hasta
+):
 
     return total_movimientos_por_periodo(
         "Aporte",
@@ -241,7 +346,14 @@ def total_aportes_por_periodo(fecha_desde, fecha_hasta):
     )
 
 
-def total_retiros_por_periodo(fecha_desde, fecha_hasta):
+# ============================================================
+# TOTAL DE RETIROS POR PERÍODO
+# ============================================================
+
+def total_retiros_por_periodo(
+    fecha_desde,
+    fecha_hasta
+):
 
     return total_movimientos_por_periodo(
         "Retiro",
@@ -249,18 +361,37 @@ def total_retiros_por_periodo(fecha_desde, fecha_hasta):
         fecha_hasta
     )
 
-def anular_movimiento_caja(id_movimiento, motivo):
 
+# ============================================================
+# ANULAR MOVIMIENTO DE CAJA
+# ============================================================
+
+def anular_movimiento_caja(
+    id_movimiento,
+    motivo
+):
+    """
+    Anula un aporte o retiro sin eliminarlo de la base de datos.
+    """
+
+    # Validar ID
     if not isinstance(id_movimiento, int):
         return {
             "ok": False,
-            "mensaje": "El ID del movimiento debe ser un número entero."
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": (
+                "El ID del movimiento debe ser un número entero."
+            )
         }
 
+    # Validar motivo
     if not isinstance(motivo, str) or not motivo.strip():
         return {
             "ok": False,
-            "mensaje": "El motivo de anulación no puede estar vacío."
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": (
+                "El motivo de anulación no puede estar vacío."
+            )
         }
 
     conexion = obtener_conexion()
@@ -268,20 +399,25 @@ def anular_movimiento_caja(id_movimiento, motivo):
     try:
         cursor = conexion.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 tipo,
                 monto,
                 anulado
             FROM movimientos_caja
             WHERE id_movimiento = ?
-        """, (id_movimiento,))
+            """,
+            (id_movimiento,)
+        )
 
         movimiento = cursor.fetchone()
 
+        # Movimiento inexistente
         if movimiento is None:
             return {
                 "ok": False,
+                "codigo": "MOVIMIENTO_CAJA_NO_ENCONTRADO",
                 "mensaje": "Movimiento de caja no encontrado."
             }
 
@@ -289,32 +425,42 @@ def anular_movimiento_caja(id_movimiento, motivo):
         monto = movimiento[1]
         anulado = movimiento[2]
 
+        # Movimiento ya anulado
         if anulado == 1:
             return {
                 "ok": False,
-                "mensaje": "El movimiento ya se encuentra anulado."
+                "codigo": "MOVIMIENTO_CAJA_YA_ANULADO",
+                "mensaje": (
+                    "El movimiento de caja ya se encuentra anulado."
+                )
             }
 
         fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
 
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE movimientos_caja
             SET
                 anulado = 1,
                 fecha_anulacion = ?,
                 motivo_anulacion = ?
             WHERE id_movimiento = ?
-        """, (
-            fecha_anulacion,
-            motivo.strip(),
-            id_movimiento
-        ))
+            """,
+            (
+                fecha_anulacion,
+                motivo.strip(),
+                id_movimiento
+            )
+        )
 
         conexion.commit()
 
         return {
             "ok": True,
-            "mensaje": "Movimiento de caja anulado correctamente.",
+            "codigo": "MOVIMIENTO_CAJA_ANULADO",
+            "mensaje": (
+                "Movimiento de caja anulado correctamente."
+            ),
             "id_movimiento": id_movimiento,
             "tipo": tipo,
             "monto": monto,
@@ -327,7 +473,10 @@ def anular_movimiento_caja(id_movimiento, motivo):
 
         return {
             "ok": False,
-            "mensaje": f"Error al anular movimiento: {error}"
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": (
+                f"Error al anular movimiento de caja: {error}"
+            )
         }
 
     finally:

@@ -21,6 +21,7 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
     if not isinstance(id_producto, int):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El ID del producto debe ser un número entero."
         }
 
@@ -30,6 +31,7 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
     if producto is None:
         return {
             "ok": False,
+            "codigo": "PRODUCTO_NO_ENCONTRADO",
             "mensaje": "Producto no encontrado."
         }
 
@@ -37,12 +39,14 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
     if not isinstance(cantidad, int):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "La cantidad debe ser un número entero."
         }
 
     if cantidad <= 0:
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "La cantidad debe ser mayor que cero."
         }
 
@@ -52,6 +56,7 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
     if cantidad > stock_actual:
         return {
             "ok": False,
+            "codigo": "STOCK_INSUFICIENTE",
             "mensaje": (
                 f"Stock insuficiente. "
                 f"Stock disponible: {stock_actual}"
@@ -62,12 +67,14 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
     if not isinstance(precio_unitario, (int, float)):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El precio unitario debe ser un número."
         }
 
     if precio_unitario <= 0:
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El precio unitario debe ser mayor que cero."
         }
 
@@ -81,7 +88,8 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
         cursor = conexion.cursor()
 
         # Registrar venta
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO ventas (
                 id_producto,
                 fecha,
@@ -89,25 +97,30 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
                 precio_unitario
             )
             VALUES (?, ?, ?, ?)
-        """, (
-            id_producto,
-            fecha,
-            cantidad,
-            precio_unitario
-        ))
+            """,
+            (
+                id_producto,
+                fecha,
+                cantidad,
+                precio_unitario
+            )
+        )
 
         # Guardar ID de la nueva venta
         id_venta = cursor.lastrowid
 
         # Descontar stock
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE productos
             SET stock = stock - ?
             WHERE id_producto = ?
-        """, (
-            cantidad,
-            id_producto
-        ))
+            """,
+            (
+                cantidad,
+                id_producto
+            )
+        )
 
         conexion.commit()
 
@@ -115,6 +128,7 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
 
         return {
             "ok": True,
+            "codigo": "VENTA_REGISTRADA",
             "mensaje": "Venta registrada correctamente.",
             "id_venta": id_venta,
             "producto": producto[1],
@@ -130,6 +144,7 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
 
         return {
             "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
             "mensaje": f"Error al registrar la venta: {error}"
         }
 
@@ -138,20 +153,28 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
 
 
 # ============================================================
-# REGISTRAR VENTA DESDE TERMINAL
+# ANULAR VENTA
 # ============================================================
 
 def anular_venta(id_venta, motivo):
+    """
+    Anula una venta registrada y devuelve las unidades
+    correspondientes al stock.
+    """
 
+    # Validar ID
     if not isinstance(id_venta, int):
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El ID de la venta debe ser un número entero."
         }
 
+    # Validar motivo
     if not isinstance(motivo, str) or not motivo.strip():
         return {
             "ok": False,
+            "codigo": "DATOS_INVALIDOS",
             "mensaje": "El motivo de anulación no puede estar vacío."
         }
 
@@ -160,20 +183,25 @@ def anular_venta(id_venta, motivo):
     try:
         cursor = conexion.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 id_producto,
                 cantidad,
                 anulada
             FROM ventas
             WHERE id_venta = ?
-        """, (id_venta,))
+            """,
+            (id_venta,)
+        )
 
         venta = cursor.fetchone()
 
+        # Venta inexistente
         if venta is None:
             return {
                 "ok": False,
+                "codigo": "VENTA_NO_ENCONTRADA",
                 "mensaje": "Venta no encontrada."
             }
 
@@ -181,40 +209,51 @@ def anular_venta(id_venta, motivo):
         cantidad = venta[1]
         anulada = venta[2]
 
+        # Venta ya anulada
         if anulada == 1:
             return {
                 "ok": False,
+                "codigo": "VENTA_YA_ANULADA",
                 "mensaje": "La venta ya se encuentra anulada."
             }
 
         fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
 
-        cursor.execute("""
+        # Devolver unidades al stock
+        cursor.execute(
+            """
             UPDATE productos
             SET stock = stock + ?
             WHERE id_producto = ?
-        """, (
-            cantidad,
-            id_producto
-        ))
+            """,
+            (
+                cantidad,
+                id_producto
+            )
+        )
 
-        cursor.execute("""
+        # Marcar la venta como anulada
+        cursor.execute(
+            """
             UPDATE ventas
             SET
                 anulada = 1,
                 fecha_anulacion = ?,
                 motivo_anulacion = ?
             WHERE id_venta = ?
-        """, (
-            fecha_anulacion,
-            motivo.strip(),
-            id_venta
-        ))
+            """,
+            (
+                fecha_anulacion,
+                motivo.strip(),
+                id_venta
+            )
+        )
 
         conexion.commit()
 
         return {
             "ok": True,
+            "codigo": "VENTA_ANULADA",
             "mensaje": "Venta anulada correctamente.",
             "id_venta": id_venta,
             "cantidad_devuelta_stock": cantidad,
@@ -227,11 +266,17 @@ def anular_venta(id_venta, motivo):
 
         return {
             "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
             "mensaje": f"Error al anular la venta: {error}"
         }
 
     finally:
         conexion.close()
+
+
+# ============================================================
+# REGISTRAR VENTA DESDE TERMINAL
+# ============================================================
 
 def agregar_venta():
     """
@@ -294,7 +339,8 @@ def obtener_ventas():
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             ventas.id_venta,
             productos.nombre,
@@ -308,7 +354,8 @@ def obtener_ventas():
         INNER JOIN productos
             ON ventas.id_producto = productos.id_producto
         ORDER BY ventas.id_venta
-    """)
+        """
+    )
 
     ventas_db = cursor.fetchall()
 
@@ -330,7 +377,7 @@ def obtener_ventas():
             "anulada": bool(venta[5]),
             "fecha_anulacion": venta[6],
             "motivo_anulacion": venta[7]
-        }   
+        }
 
         ventas.append(venta_python)
 
