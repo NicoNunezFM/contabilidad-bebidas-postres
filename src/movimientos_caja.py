@@ -51,7 +51,10 @@ def registrar_movimiento_caja(
         }
 
     # Validar monto
-    if not isinstance(monto, (int, float)):
+    if isinstance(monto, bool) or not isinstance(
+    monto,
+    (int, float)
+    ):
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
@@ -375,7 +378,10 @@ def anular_movimiento_caja(
     """
 
     # Validar ID
-    if not isinstance(id_movimiento, int):
+    if isinstance(id_movimiento, bool) or not isinstance(
+    id_movimiento,
+    int
+    ):
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
