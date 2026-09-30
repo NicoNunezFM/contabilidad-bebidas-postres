@@ -18,7 +18,7 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
     """
 
     # Validar ID
-    if not isinstance(id_producto, int):
+    if isinstance(id_producto, bool) or not isinstance(id_producto, int):
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
@@ -35,7 +35,7 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
         }
 
     # Validar cantidad
-    if not isinstance(cantidad, int):
+    if isinstance(cantidad, bool) or not isinstance(cantidad, int):
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
@@ -50,7 +50,10 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
         }
 
     # Validar precio
-    if not isinstance(precio_unitario, (int, float)):
+    if isinstance(precio_unitario, bool) or not isinstance(
+    precio_unitario,
+    (int, float)
+    ):
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
