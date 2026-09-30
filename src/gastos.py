@@ -60,7 +60,10 @@ def registrar_gasto(
         }
 
     # Validar monto
-    if not isinstance(valor_final, (int, float)):
+    if isinstance(valor_final, bool) or not isinstance(
+    valor_final,
+    (int, float)
+    ):
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
@@ -244,7 +247,7 @@ def anular_gasto(id_gasto, motivo):
     """
 
     # Validar ID
-    if not isinstance(id_gasto, int):
+    if isinstance(id_gasto, bool) or not isinstance(id_gasto, int):
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",

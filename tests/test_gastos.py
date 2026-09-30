@@ -63,3 +63,45 @@ def test_no_permite_anular_gasto_dos_veces(
     )
 
     assert segunda["ok"] is False
+
+def test_gasto_rechaza_valor_booleano(base_prueba):
+    resultado = registrar_gasto(
+        categoria="Transporte",
+        descripcion_gasto="Prueba",
+        valor_final=True
+    )
+
+    assert resultado["ok"] is False
+    assert resultado["codigo"] == "DATOS_INVALIDOS"
+
+
+def test_gasto_rechaza_categoria_invalida(base_prueba):
+    resultado = registrar_gasto(
+        categoria="Categoria inexistente",
+        descripcion_gasto="Prueba",
+        valor_final=1000
+    )
+
+    assert resultado["ok"] is False
+    assert resultado["codigo"] == "DATOS_INVALIDOS"
+
+
+def test_gasto_rechaza_descripcion_vacia(base_prueba):
+    resultado = registrar_gasto(
+        categoria="Transporte",
+        descripcion_gasto="   ",
+        valor_final=1000
+    )
+
+    assert resultado["ok"] is False
+    assert resultado["codigo"] == "DATOS_INVALIDOS"
+
+
+def test_anular_gasto_rechaza_id_booleano(base_prueba):
+    resultado = anular_gasto(
+        id_gasto=True,
+        motivo="Prueba"
+    )
+
+    assert resultado["ok"] is False
+    assert resultado["codigo"] == "DATOS_INVALIDOS"
