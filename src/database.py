@@ -24,6 +24,8 @@ def obtener_conexion():
         obtener_ruta_base()
     )
 
+    conexion.execute("PRAGMA foreign_keys = ON")
+
     return conexion
 
 def crear_tabla_productos():
