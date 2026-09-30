@@ -40,7 +40,7 @@ def agregar_producto(
             "mensaje": "La presentación no puede estar vacía."
         }
 
-    if not isinstance(contenido, (int, float)):
+    if isinstance(contenido, bool) or not isinstance(contenido, (int, float)):
         return {
             "ok": False,
             "mensaje": "El contenido debe ser un número."
@@ -394,12 +394,27 @@ def eliminar_producto(id_producto):
 
         cantidad_ventas = cursor.fetchone()[0]
 
-        if cantidad_compras > 0 or cantidad_ventas > 0:
+                # Verificar si existen ajustes de stock asociados
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM ajustes_stock
+            WHERE id_producto = ?
+        """, (
+            id_producto,
+        ))
+
+        cantidad_ajustes = cursor.fetchone()[0]
+
+        if (
+            cantidad_compras > 0
+            or cantidad_ventas > 0
+            or cantidad_ajustes > 0
+        ):
             return {
                 "ok": False,
                 "mensaje": (
                     "No se puede eliminar el producto porque tiene "
-                    "compras o ventas registradas."
+                    "compras, ventas o ajustes de stock registrados."
                 )
             }
 
