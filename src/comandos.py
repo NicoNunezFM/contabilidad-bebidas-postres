@@ -111,6 +111,140 @@ def formatear_caja(estado):
     ])
 
 
+
+
+def interpretar_salida_stock(texto, accion, prefijos, titulo):
+    prefijo_usado = next(
+        (
+            prefijo
+            for prefijo in prefijos
+            if texto.startswith(prefijo)
+        ),
+        None
+    )
+
+    if prefijo_usado is None:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_MOVIMIENTO_STOCK_INVALIDO",
+            "respuesta": "No se pudo interpretar el movimiento de stock.",
+        }
+
+    contenido = texto[len(prefijo_usado):].strip()
+
+    coincidencia = re.match(
+        r"^x?(\d+)\s+(.+)$",
+        contenido
+    )
+
+    if not coincidencia:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_MOVIMIENTO_STOCK_INVALIDO",
+            "respuesta": (
+                "Usá cantidad y producto. "
+                "Ejemplo: merma 2 pepsi"
+            ),
+        }
+
+    cantidad = int(coincidencia.group(1))
+    producto = coincidencia.group(2).strip()
+
+    resultado = ejecutar_accion({
+        "accion": accion,
+        "datos": {
+            "producto": producto,
+            "cantidad": cantidad,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    return {
+        "ok": True,
+        "codigo": resultado["codigo"],
+        "respuesta": "\n".join([
+            f"*{titulo}*",
+            f"{cantidad} x {datos['producto']}",
+            f"Stock anterior: {datos['stock_anterior']}",
+            f"Stock actual: {datos['stock_nuevo']}",
+            f"Motivo: {datos['motivo']}",
+        ]),
+        **datos,
+    }
+
+
+def interpretar_inventario(texto):
+    contenido = texto[len("inventario"):].strip()
+
+    if not contenido:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_INVENTARIO_INVALIDO",
+            "respuesta": (
+                "Indicá producto y cantidad contada. "
+                "Ejemplo: inventario pepsi 8"
+            ),
+        }
+
+    coincidencia = re.match(
+        r"^(.+?)\s+(\d+)$",
+        contenido
+    )
+
+    if not coincidencia:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_INVENTARIO_INVALIDO",
+            "respuesta": (
+                "Usá producto y cantidad contada. "
+                "Ejemplo: inventario pepsi 8"
+            ),
+        }
+
+    producto = coincidencia.group(1).strip()
+    cantidad_real = int(coincidencia.group(2))
+
+    resultado = ejecutar_accion({
+        "accion": "registrar_inventario",
+        "datos": {
+            "producto": producto,
+            "cantidad_real": cantidad_real,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    if datos.get("ajuste") == 0:
+        respuesta = "\n".join([
+            "*Inventario verificado*",
+            f"{datos['producto']}: {datos['stock_contado']}",
+            "Sin diferencias con el sistema.",
+        ])
+
+    else:
+        respuesta = "\n".join([
+            "*Inventario actualizado*",
+            f"{datos['producto']}",
+            f"Stock anterior: {datos['stock_anterior']}",
+            f"Stock contado: {cantidad_real}",
+            f"Ajuste: {datos['ajuste']:+d}",
+            f"Stock actual: {datos['stock_nuevo']}",
+        ])
+
+    return {
+        "ok": True,
+        "codigo": resultado["codigo"],
+        "respuesta": respuesta,
+        **datos,
+    }
+
 def interpretar_venta(texto):
     contenido = texto[len("venta"):].strip()
 
@@ -184,6 +318,9 @@ def mensaje_ayuda():
         "*Comandos disponibles*",
         "- venta 2 manaos cola 600",
         "- venta big mac doble",
+        "- merma 2 pepsi",
+        "- consumo 1 oreo",
+        "- inventario pepsi 8",
         "- stock",
         "- ver stock",
         "- precios",
@@ -213,6 +350,28 @@ def procesar_comando(mensaje):
 
     if texto.startswith("venta"):
         return interpretar_venta(texto)
+
+    if texto.startswith("merma ") or texto.startswith("perdida "):
+        return interpretar_salida_stock(
+            texto=texto,
+            accion="registrar_merma",
+            prefijos=("merma", "perdida"),
+            titulo="Merma registrada",
+        )
+
+    if (
+        texto.startswith("consumo interno ")
+        or texto.startswith("consumo ")
+    ):
+        return interpretar_salida_stock(
+            texto=texto,
+            accion="registrar_consumo_interno",
+            prefijos=("consumo interno", "consumo"),
+            titulo="Consumo interno registrado",
+        )
+
+    if texto.startswith("inventario"):
+        return interpretar_inventario(texto)
 
     if texto in {"ayuda", "menu", "comandos"}:
         return {
