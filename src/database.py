@@ -42,12 +42,40 @@ def crear_tabla_productos():
             contenido REAL,
             unidad_medida TEXT,
             unidades_por_pack INTEGER,
-            stock INTEGER NOT NULL DEFAULT 0
+            stock INTEGER NOT NULL DEFAULT 0,
+            precio_venta REAL,
+            controla_stock INTEGER NOT NULL DEFAULT 1
         )
     """)
 
     conexion.commit()
     conexion.close()
+
+def actualizar_tabla_productos():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("PRAGMA table_info(productos)")
+    columnas = cursor.fetchall()
+
+    nombres_columnas = [columna[1] for columna in columnas]
+
+    if "precio_venta" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE productos
+            ADD COLUMN precio_venta REAL
+        """)
+
+    if "controla_stock" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE productos
+            ADD COLUMN controla_stock INTEGER NOT NULL DEFAULT 1
+        """)
+
+    conexion.commit()
+    conexion.close()
+
 
 def crear_tabla_compras():
     conexion = obtener_conexion()
@@ -396,6 +424,7 @@ def crear_tabla_movimientos_diezmo():
 
 def inicializar_base_de_datos():
     crear_tabla_productos()
+    actualizar_tabla_productos()
     crear_tabla_compras()
     crear_tabla_ventas()
     crear_tabla_gastos()
