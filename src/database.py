@@ -144,6 +144,7 @@ def crear_tabla_ajustes_stock():
             fecha TEXT NOT NULL,
             cantidad_ajuste INTEGER NOT NULL,
             motivo TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'Ajuste',
             stock_anterior INTEGER NOT NULL,
             stock_nuevo INTEGER NOT NULL,
             FOREIGN KEY (id_producto)
@@ -153,6 +154,26 @@ def crear_tabla_ajustes_stock():
 
     conexion.commit()
     conexion.close()
+
+def actualizar_tabla_ajustes_stock():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("PRAGMA table_info(ajustes_stock)")
+    columnas = cursor.fetchall()
+
+    nombres_columnas = [columna[1] for columna in columnas]
+
+    if "tipo" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE ajustes_stock
+            ADD COLUMN tipo TEXT NOT NULL DEFAULT 'Ajuste'
+        """)
+
+    conexion.commit()
+    conexion.close()
+
 
 def actualizar_tabla_ventas():
 
@@ -429,6 +450,7 @@ def inicializar_base_de_datos():
     crear_tabla_ventas()
     crear_tabla_gastos()
     crear_tabla_ajustes_stock()
+    actualizar_tabla_ajustes_stock()
     actualizar_tabla_ventas()
     actualizar_tabla_compras()
     actualizar_tabla_gastos()
