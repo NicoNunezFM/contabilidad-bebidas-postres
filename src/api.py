@@ -34,6 +34,11 @@ from gastos import (
     anular_gasto
 )
 
+from idempotencia import (
+    finalizar_procesamiento,
+    iniciar_procesamiento,
+)
+
 from movimientos_caja import (
     registrar_aporte,
     registrar_retiro,
@@ -76,6 +81,7 @@ CODIGOS_HTTP = {
     "COMPRA_NO_ENCONTRADA": 404,
     "GASTO_NO_ENCONTRADO": 404,
     "MOVIMIENTO_CAJA_NO_ENCONTRADO": 404,
+    "OPERACION_VENTA_NO_ENCONTRADA": 404,
 
     # 409 - Conflictos con el estado actual
     "STOCK_INSUFICIENTE": 409,
@@ -84,6 +90,9 @@ CODIGOS_HTTP = {
     "STOCK_INSUFICIENTE_PARA_ANULAR_COMPRA": 409,
     "GASTO_YA_ANULADO": 409,
     "MOVIMIENTO_CAJA_YA_ANULADO": 409,
+    "OPERACION_VENTA_YA_ANULADA": 409,
+    "OPERACION_VENTA_PARCIALMENTE_ANULADA": 409,
+    "MENSAJE_EN_PROCESO": 409,
 
     "CIERRE_SEMANAL_EXISTENTE": 409,
     "CIERRE_MENSUAL_EXISTENTE": 409,
@@ -207,6 +216,14 @@ class CierreMensualEntrada(BaseModel):
 
 class ComandoEntrada(BaseModel):
     mensaje: str = Field(min_length=1)
+    id_mensaje: str | None = Field(
+        default=None,
+        min_length=1
+    )
+    canal: str = Field(
+        default="api",
+        min_length=1
+    )
 
 
 class AccionEntrada(BaseModel):
@@ -611,9 +628,31 @@ def procesar_comando_api(
     comando: ComandoEntrada
 ):
 
+    if comando.id_mensaje:
+        reserva = iniciar_procesamiento(
+            canal=comando.canal,
+            id_externo=comando.id_mensaje,
+            mensaje=comando.mensaje,
+        )
+
+        if not reserva["ok"]:
+            return responder_resultado(reserva)
+
+        if reserva.get("nuevo") is False:
+            return responder_resultado(
+                reserva["resultado"]
+            )
+
     resultado = procesar_comando(
         comando.mensaje
     )
+
+    if comando.id_mensaje:
+        finalizar_procesamiento(
+            canal=comando.canal,
+            id_externo=comando.id_mensaje,
+            resultado=resultado,
+        )
 
     return responder_resultado(resultado)
 
