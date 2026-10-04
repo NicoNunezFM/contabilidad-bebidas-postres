@@ -9,7 +9,7 @@ from productos import listar_productos, buscar_producto_por_id
 # REGISTRAR VENTA
 # ============================================================
 
-def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
+def registrar_venta(id_producto, cantidad, precio_unitario=None, fecha=None):
     """
     Registra una venta en la base de datos y descuenta el stock.
 
@@ -50,10 +50,12 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
             "mensaje": "La cantidad debe ser mayor que cero."
         }
 
-    # Obtener stock actual
+    # Obtener datos comerciales del producto.
     stock_actual = producto[7]
+    precio_configurado = producto[8]
+    controla_stock = bool(producto[9])
 
-    if cantidad > stock_actual:
+    if controla_stock and cantidad > stock_actual:
         return {
             "ok": False,
             "codigo": "STOCK_INSUFICIENTE",
@@ -63,8 +65,19 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
             )
         }
 
+    # Si no se informa un precio, usar el precio configurado del producto.
+    if precio_unitario is None:
+        precio_unitario = precio_configurado
+
+    if precio_unitario is None:
+        return {
+            "ok": False,
+            "codigo": "PRECIO_NO_CONFIGURADO",
+            "mensaje": "El producto no tiene un precio de venta configurado."
+        }
+
     # Validar precio
-    if not isinstance(precio_unitario, (int, float)):
+    if isinstance(precio_unitario, bool) or not isinstance(precio_unitario, (int, float)):
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
@@ -109,18 +122,19 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
         # Guardar ID de la nueva venta
         id_venta = cursor.lastrowid
 
-        # Descontar stock
-        cursor.execute(
-            """
-            UPDATE productos
-            SET stock = stock - ?
-            WHERE id_producto = ?
-            """,
-            (
-                cantidad,
-                id_producto
+        # Descontar stock solo en productos inventariables.
+        if controla_stock:
+            cursor.execute(
+                """
+                UPDATE productos
+                SET stock = stock - ?
+                WHERE id_producto = ?
+                """,
+                (
+                    cantidad,
+                    id_producto
+                )
             )
-        )
 
         conexion.commit()
 
@@ -136,7 +150,12 @@ def registrar_venta(id_producto, cantidad, precio_unitario, fecha=None):
             "precio_unitario": precio_unitario,
             "total": total,
             "fecha": fecha,
-            "stock_restante": stock_actual - cantidad
+            "stock_restante": (
+                stock_actual - cantidad
+                if controla_stock
+                else None
+            ),
+            "controla_stock": controla_stock
         }
 
     except sqlite3.Error as error:
@@ -186,10 +205,13 @@ def anular_venta(id_venta, motivo):
         cursor.execute(
             """
             SELECT
-                id_producto,
-                cantidad,
-                anulada
+                ventas.id_producto,
+                ventas.cantidad,
+                ventas.anulada,
+                productos.controla_stock
             FROM ventas
+            INNER JOIN productos
+                ON ventas.id_producto = productos.id_producto
             WHERE id_venta = ?
             """,
             (id_venta,)
@@ -208,6 +230,7 @@ def anular_venta(id_venta, motivo):
         id_producto = venta[0]
         cantidad = venta[1]
         anulada = venta[2]
+        controla_stock = bool(venta[3])
 
         # Venta ya anulada
         if anulada == 1:
@@ -219,18 +242,19 @@ def anular_venta(id_venta, motivo):
 
         fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
 
-        # Devolver unidades al stock
-        cursor.execute(
-            """
-            UPDATE productos
-            SET stock = stock + ?
-            WHERE id_producto = ?
-            """,
-            (
-                cantidad,
-                id_producto
+        # Devolver unidades al stock solo si el producto lo controla.
+        if controla_stock:
+            cursor.execute(
+                """
+                UPDATE productos
+                SET stock = stock + ?
+                WHERE id_producto = ?
+                """,
+                (
+                    cantidad,
+                    id_producto
+                )
             )
-        )
 
         # Marcar la venta como anulada
         cursor.execute(
