@@ -455,6 +455,106 @@ def interpretar_anulacion_venta(texto):
     }
 
 
+
+def mensaje_menu():
+    return "\n".join([
+        "*MENÚ - Lo de Clau*",
+        "",
+        "*Consultas rápidas*",
+        "1. Stock",
+        "2. Precios",
+        "3. Caja",
+        "4. Resumen de hoy",
+        "5. Ventas de hoy",
+        "",
+        "*Movimientos*",
+        "6. Registrar venta",
+        "7. Registrar merma",
+        "8. Consumo interno",
+        "9. Inventario físico",
+        "10. Anular última venta",
+        "",
+        "Escribí *opcion N* para seleccionar.",
+        "Ejemplo: *opcion 1*",
+        "",
+        "También podés escribir *ayuda* para ver todos los comandos."
+    ])
+
+
+def interpretar_opcion_menu(texto):
+    coincidencia = re.match(
+        r"^(?:opcion|opción)\s+(\d+)$",
+        texto
+    )
+
+    if not coincidencia:
+        return {
+            "ok": False,
+            "codigo": "OPCION_MENU_INVALIDA",
+            "respuesta": (
+                "Usá el formato 'opcion N'. "
+                "Ejemplo: opcion 1"
+            ),
+        }
+
+    opcion = int(coincidencia.group(1))
+
+    comandos_directos = {
+        1: "stock",
+        2: "precios",
+        3: "caja",
+        4: "resumen hoy",
+        5: "ventas hoy",
+    }
+
+    if opcion in comandos_directos:
+        return procesar_comando(
+            comandos_directos[opcion]
+        )
+
+    instrucciones = {
+        6: (
+            "*Registrar venta*\n"
+            "Ejemplos:\n"
+            "- venta 2 pepsi\n"
+            "- venta 2 pepsi, 1 chocotorta y 1 big mac doble"
+        ),
+        7: (
+            "*Registrar merma*\n"
+            "Ejemplo: merma 2 pepsi"
+        ),
+        8: (
+            "*Consumo interno*\n"
+            "Ejemplo: consumo 1 oreo"
+        ),
+        9: (
+            "*Inventario físico*\n"
+            "Indicá la cantidad real contada.\n"
+            "Ejemplo: inventario pepsi 8"
+        ),
+        10: (
+            "*Anular última venta*\n"
+            "Escribí: anular ultima venta"
+        ),
+    }
+
+    if opcion in instrucciones:
+        return {
+            "ok": True,
+            "codigo": "COMANDO_MENU_INSTRUCCION",
+            "respuesta": instrucciones[opcion],
+        }
+
+    return {
+        "ok": False,
+        "codigo": "OPCION_MENU_INVALIDA",
+        "respuesta": (
+            "Esa opción no existe. "
+            "Escribí 'menu' para ver las opciones disponibles."
+        ),
+    }
+
+
 def mensaje_ayuda():
     return "\n".join([
         "*Comandos disponibles*",
@@ -525,7 +625,17 @@ def procesar_comando(mensaje):
     ):
         return interpretar_anulacion_venta(texto)
 
-    if texto in {"ayuda", "menu", "comandos"}:
+    if texto == "menu":
+        return {
+            "ok": True,
+            "codigo": "COMANDO_MENU",
+            "respuesta": mensaje_menu(),
+        }
+
+    if texto.startswith("opcion ") or texto.startswith("opción "):
+        return interpretar_opcion_menu(texto)
+
+    if texto in {"ayuda", "comandos"}:
         return {
             "ok": True,
             "codigo": "COMANDO_AYUDA",
