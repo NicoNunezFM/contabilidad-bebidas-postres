@@ -64,3 +64,44 @@ anular operacion 14
 ```
 
 La anulación marca todas las líneas de la operación como anuladas y devuelve al stock los productos inventariables. Las ventas anuladas dejan de participar en los totales de caja y reportes.
+
+
+## Uso en grupo
+
+El flujo previsto para Lo de Clau es usar el bot dentro de un grupo específico.
+
+1. Crear el grupo y agregar la cuenta de WhatsApp vinculada al bot.
+2. Dejar `DEBUG_MESSAGES=true`.
+3. Enviar `menu` dentro del grupo.
+4. La terminal mostrará un valor `from` terminado en `@g.us`.
+5. Copiar ese ID completo a `ALLOWED_GROUP_IDS`.
+6. Configurar `ALLOW_GROUPS=true` y reiniciar el bot.
+
+Ejemplo:
+
+```env
+ALLOW_GROUPS=true
+ALLOWED_GROUP_IDS=1234567890-1234567890@g.us
+```
+
+Por seguridad, si `ALLOW_GROUPS=true` pero `ALLOWED_GROUP_IDS` está vacío, el bot ignora todos los grupos.
+
+Dentro de un grupo autorizado, cualquier integrante del grupo puede usar el bot. En chats privados se sigue aplicando `ALLOWED_NUMBERS`.
+
+## Menú de WhatsApp
+
+Enviar:
+
+```text
+menu
+```
+
+devuelve un menú numerado con consultas y movimientos frecuentes.
+
+Para elegir una opción:
+
+```text
+opcion 1
+```
+
+Las opciones de consulta, como stock, precios o caja, se ejecutan directamente. Las opciones que modifican datos muestran primero el formato que debe escribirse, por ejemplo cómo registrar una venta o una merma.
