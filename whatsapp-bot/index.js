@@ -16,6 +16,11 @@ const ALLOW_GROUPS =
     .trim()
     .toLowerCase() === "true";
 
+const DEBUG_MESSAGES =
+  String(process.env.DEBUG_MESSAGES || "true")
+    .trim()
+    .toLowerCase() === "true";
+
 function soloDigitos(valor) {
   return String(valor || "").replace(/\D/g, "");
 }
@@ -61,13 +66,125 @@ function esGrupo(message) {
   return String(message.from || "").endsWith("@g.us");
 }
 
-function remitenteDe(message) {
-  const identificador =
-    message.author || message.from || "";
-
-  return soloDigitos(
-    String(identificador).split("@")[0]
+function identificadorRemitente(message) {
+  return String(
+    message.author ||
+    message.from ||
+    ""
   );
+}
+
+function variantesNumero(numero) {
+  const limpio = soloDigitos(numero);
+  const variantes = new Set();
+
+  if (!limpio) {
+    return variantes;
+  }
+
+  variantes.add(limpio);
+
+  // En Argentina WhatsApp puede exponer el móvil con o sin el 9.
+  if (limpio.startsWith("549")) {
+    variantes.add("54" + limpio.slice(3));
+  } else if (
+    limpio.startsWith("54") &&
+    !limpio.startsWith("549")
+  ) {
+    variantes.add("549" + limpio.slice(2));
+  }
+
+  return variantes;
+}
+
+async function resolverNumeroRemitente(message) {
+  const identificador = identificadorRemitente(message);
+
+  if (!identificador) {
+    return {
+      numero: "",
+      identificador: "",
+      metodo: "sin_identificador",
+    };
+  }
+
+  if (!identificador.endsWith("@lid")) {
+    return {
+      numero: soloDigitos(
+        identificador.split("@")[0]
+      ),
+      identificador,
+      metodo: "jid_directo",
+    };
+  }
+
+  // WhatsApp está migrando algunos chats a IDs @lid.
+  // Intentamos resolverlos al número telefónico real.
+  try {
+    if (
+      typeof client.getContactLidAndPhone ===
+      "function"
+    ) {
+      const resultados =
+        await client.getContactLidAndPhone([
+          identificador,
+        ]);
+
+      const phoneId =
+        resultados?.[0]?.pn || "";
+
+      const numero = soloDigitos(
+        String(phoneId).split("@")[0]
+      );
+
+      if (numero) {
+        return {
+          numero,
+          identificador,
+          metodo: "lid_a_phone",
+        };
+      }
+    }
+  } catch (error) {
+    if (DEBUG_MESSAGES) {
+      console.warn(
+        "No se pudo resolver @lid con getContactLidAndPhone:",
+        error?.message || error
+      );
+    }
+  }
+
+  // Fallback para versiones/cuentas donde la resolución LID falla.
+  try {
+    const contacto = await message.getContact();
+
+    const numero = soloDigitos(
+      contacto?.number ||
+      contacto?.id?.user ||
+      ""
+    );
+
+    if (numero) {
+      return {
+        numero,
+        identificador,
+        metodo: "contacto",
+      };
+    }
+  } catch (error) {
+    if (DEBUG_MESSAGES) {
+      console.warn(
+        "No se pudo resolver el contacto del mensaje:",
+        error?.message || error
+      );
+    }
+  }
+
+  return {
+    numero: "",
+    identificador,
+    metodo: "lid_sin_resolver",
+  };
 }
 
 function grupoAutorizado(message) {
@@ -86,14 +203,20 @@ function grupoAutorizado(message) {
   return ALLOWED_GROUP_IDS.has(message.from);
 }
 
-function remitenteAutorizado(message) {
+function numeroAutorizado(numero) {
   if (ALLOWED_NUMBERS.size === 0) {
     return false;
   }
 
-  return ALLOWED_NUMBERS.has(
-    remitenteDe(message)
-  );
+  const variantes = variantesNumero(numero);
+
+  for (const variante of variantes) {
+    if (ALLOWED_NUMBERS.has(variante)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function enviarComandoApi(mensaje) {
@@ -185,6 +308,10 @@ client.on("ready", () => {
       "ATENCIÓN: ALLOWED_NUMBERS está vacío. " +
       "El bot no procesará mensajes hasta configurarlo."
     );
+  } else {
+    console.log(
+      `Números autorizados configurados: ${ALLOWED_NUMBERS.size}`
+    );
   }
 
   console.log(
@@ -194,11 +321,33 @@ client.on("ready", () => {
   console.log(
     `Grupos: ${ALLOW_GROUPS ? "habilitados" : "deshabilitados"}`
   );
+
+  console.log(
+    `Diagnóstico de mensajes: ${DEBUG_MESSAGES ? "activado" : "desactivado"}`
+  );
 });
 
 client.on("message", async (message) => {
   try {
+    if (DEBUG_MESSAGES) {
+      console.log(
+        "[RX]",
+        JSON.stringify({
+          from: message.from,
+          author: message.author || null,
+          fromMe: Boolean(message.fromMe),
+          type: message.type,
+          body: String(message.body || ""),
+        })
+      );
+    }
+
     if (message.fromMe) {
+      if (DEBUG_MESSAGES) {
+        console.log(
+          "Mensaje ignorado porque fromMe=true."
+        );
+      }
       return;
     }
 
@@ -206,20 +355,52 @@ client.on("message", async (message) => {
       message.from === "status@broadcast" ||
       String(message.from || "").endsWith("@newsletter")
     ) {
+      if (DEBUG_MESSAGES) {
+        console.log(
+          "Estado/newsletter ignorado."
+        );
+      }
       return;
     }
 
     if (!grupoAutorizado(message)) {
+      if (DEBUG_MESSAGES) {
+        console.log(
+          "Mensaje de grupo ignorado por configuración."
+        );
+      }
       return;
     }
 
-    if (!remitenteAutorizado(message)) {
+    const remitente =
+      await resolverNumeroRemitente(message);
+
+    if (DEBUG_MESSAGES) {
+      console.log(
+        "Remitente resuelto:",
+        JSON.stringify(remitente)
+      );
+    }
+
+    if (!numeroAutorizado(remitente.numero)) {
+      console.warn(
+        "Remitente no autorizado.",
+        "Número resuelto:",
+        remitente.numero || "(sin resolver)",
+        "ID:",
+        remitente.identificador || "(sin ID)"
+      );
       return;
     }
 
     const texto = String(message.body || "").trim();
 
     if (!texto) {
+      if (DEBUG_MESSAGES) {
+        console.log(
+          "Mensaje vacío ignorado."
+        );
+      }
       return;
     }
 
@@ -236,7 +417,7 @@ client.on("message", async (message) => {
     }
 
     console.log(
-      `Mensaje de ${remitenteDe(message)}: ${texto}`
+      `Mensaje autorizado de ${remitente.numero}: ${texto}`
     );
 
     const { status, datos } =
@@ -250,6 +431,10 @@ client.on("message", async (message) => {
     );
 
     await message.reply(respuesta);
+
+    console.log(
+      "Respuesta enviada a WhatsApp."
+    );
   } catch (error) {
     const esTimeout =
       error?.name === "AbortError";
