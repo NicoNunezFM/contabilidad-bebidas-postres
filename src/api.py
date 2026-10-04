@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from acciones import ejecutar_accion
 from ajustes_stock import registrar_inventario_fisico
 
 from caja import obtener_estado_caja
@@ -206,6 +207,11 @@ class CierreMensualEntrada(BaseModel):
 
 class ComandoEntrada(BaseModel):
     mensaje: str = Field(min_length=1)
+
+
+class AccionEntrada(BaseModel):
+    accion: str = Field(min_length=1)
+    datos: dict = Field(default_factory=dict)
 
 
 # ============================================================
@@ -608,5 +614,22 @@ def procesar_comando_api(
     resultado = procesar_comando(
         comando.mensaje
     )
+
+    return responder_resultado(resultado)
+
+
+# ============================================================
+# ACCIONES ESTRUCTURADAS PARA IA / VOZ / INTEGRACIONES
+# ============================================================
+
+@app.post("/acciones")
+def ejecutar_accion_api(
+    solicitud: AccionEntrada
+):
+
+    resultado = ejecutar_accion({
+        "accion": solicitud.accion,
+        "datos": solicitud.datos,
+    })
 
     return responder_resultado(resultado)
