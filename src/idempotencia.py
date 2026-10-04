@@ -79,6 +79,7 @@ def iniciar_procesamiento(
         }
 
     except sqlite3.IntegrityError:
+        conexion.rollback()
         cursor = conexion.cursor()
 
         cursor.execute(
