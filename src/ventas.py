@@ -100,26 +100,45 @@ def registrar_venta(id_producto, cantidad, precio_unitario=None, fecha=None):
     try:
         cursor = conexion.cursor()
 
-        # Registrar venta
+        # Toda venta se considera cobrada por defecto.
+        cursor.execute(
+            """
+            INSERT INTO ventas_operaciones (
+                fecha,
+                estado_pago
+            )
+            VALUES (?, ?)
+            """,
+            (
+                fecha,
+                "Cobrado"
+            )
+        )
+
+        id_operacion = cursor.lastrowid
+
+        # Registrar venta.
         cursor.execute(
             """
             INSERT INTO ventas (
                 id_producto,
                 fecha,
                 cantidad,
-                precio_unitario
+                precio_unitario,
+                id_operacion
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
                 id_producto,
                 fecha,
                 cantidad,
-                precio_unitario
+                precio_unitario,
+                id_operacion
             )
         )
 
-        # Guardar ID de la nueva venta
+        # Guardar ID de la nueva venta.
         id_venta = cursor.lastrowid
 
         # Descontar stock solo en productos inventariables.
@@ -145,6 +164,8 @@ def registrar_venta(id_producto, cantidad, precio_unitario=None, fecha=None):
             "codigo": "VENTA_REGISTRADA",
             "mensaje": "Venta registrada correctamente.",
             "id_venta": id_venta,
+            "id_operacion": id_operacion,
+            "estado_pago": "Cobrado",
             "producto": producto[1],
             "cantidad": cantidad,
             "precio_unitario": precio_unitario,
@@ -626,10 +647,16 @@ def registrar_venta_multiple(items, fecha=None):
 
         cursor.execute(
             """
-            INSERT INTO ventas_operaciones (fecha)
-            VALUES (?)
+            INSERT INTO ventas_operaciones (
+                fecha,
+                estado_pago
+            )
+            VALUES (?, ?)
             """,
-            (fecha,)
+            (
+                fecha,
+                "Cobrado"
+            )
         )
 
         id_operacion = cursor.lastrowid
@@ -705,6 +732,7 @@ def registrar_venta_multiple(items, fecha=None):
             "codigo": "VENTA_MULTIPLE_REGISTRADA",
             "mensaje": "Venta múltiple registrada correctamente.",
             "id_operacion": id_operacion,
+            "estado_pago": "Cobrado",
             "fecha": fecha,
             "cantidad_items": len(lineas),
             "items": lineas,
