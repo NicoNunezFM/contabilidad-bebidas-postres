@@ -384,6 +384,77 @@ def interpretar_venta(texto):
     }
 
 
+def interpretar_anulacion_venta(texto):
+    if texto in {
+        "anular ultima venta",
+        "anular ultimo",
+        "borrar ultima venta",
+        "borrar ultimo",
+        "eliminar ultima venta",
+        "eliminar ultimo",
+    }:
+        resultado = ejecutar_accion({
+            "accion": "anular_ultima_venta",
+            "datos": {
+                "motivo": "Corrección solicitada por WhatsApp",
+            },
+        })
+
+    else:
+        coincidencia = re.match(
+            r"^anular\s+operacion\s+(\d+)$",
+            texto
+        )
+
+        if not coincidencia:
+            return {
+                "ok": False,
+                "codigo": "FORMATO_ANULACION_INVALIDO",
+                "respuesta": (
+                    "Usá 'anular ultima venta' o "
+                    "'anular operacion 14'."
+                ),
+            }
+
+        resultado = ejecutar_accion({
+            "accion": "anular_operacion_venta",
+            "datos": {
+                "id_operacion": int(
+                    coincidencia.group(1)
+                ),
+                "motivo": "Corrección solicitada por WhatsApp",
+            },
+        })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    lineas = [
+        "*Venta anulada*",
+        f"Operación: #{datos['id_operacion']}",
+    ]
+
+    for item in datos["items"]:
+        lineas.append(
+            f"- {item['cantidad']} x {item['producto']}: "
+            f"{formatear_pesos(item['subtotal'])}"
+        )
+
+    lineas.append(
+        f"*Total anulado: "
+        f"{formatear_pesos(datos['total_anulado'])}*"
+    )
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": resultado["codigo"],
+        "respuesta": "\n".join(lineas),
+    }
+
+
 def mensaje_ayuda():
     return "\n".join([
         "*Comandos disponibles*",
@@ -393,6 +464,8 @@ def mensaje_ayuda():
         "- merma 2 pepsi",
         "- consumo 1 oreo",
         "- inventario pepsi 8",
+        "- anular ultima venta",
+        "- anular operacion 14",
         "- stock",
         "- ver stock",
         "- precios",
@@ -444,6 +517,13 @@ def procesar_comando(mensaje):
 
     if texto.startswith("inventario"):
         return interpretar_inventario(texto)
+
+    if (
+        texto.startswith("anular ")
+        or texto.startswith("borrar ")
+        or texto.startswith("eliminar ")
+    ):
+        return interpretar_anulacion_venta(texto)
 
     if texto in {"ayuda", "menu", "comandos"}:
         return {
