@@ -104,7 +104,10 @@ def crear_tabla_operaciones_venta():
         CREATE TABLE IF NOT EXISTS ventas_operaciones (
             id_operacion INTEGER PRIMARY KEY AUTOINCREMENT,
             fecha TEXT NOT NULL,
-            estado_pago TEXT NOT NULL DEFAULT 'Cobrado'
+            estado_pago TEXT NOT NULL DEFAULT 'Cobrado',
+            anulada INTEGER NOT NULL DEFAULT 0,
+            fecha_anulacion TEXT,
+            motivo_anulacion TEXT
         )
     """)
 
@@ -126,6 +129,24 @@ def actualizar_tabla_operaciones_venta():
         cursor.execute("""
             ALTER TABLE ventas_operaciones
             ADD COLUMN estado_pago TEXT NOT NULL DEFAULT 'Cobrado'
+        """)
+
+    if "anulada" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE ventas_operaciones
+            ADD COLUMN anulada INTEGER NOT NULL DEFAULT 0
+        """)
+
+    if "fecha_anulacion" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE ventas_operaciones
+            ADD COLUMN fecha_anulacion TEXT
+        """)
+
+    if "motivo_anulacion" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE ventas_operaciones
+            ADD COLUMN motivo_anulacion TEXT
         """)
 
     conexion.commit()
@@ -489,6 +510,28 @@ def crear_tabla_movimientos_diezmo():
     conexion.commit()
     conexion.close()
 
+def crear_tabla_mensajes_procesados():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mensajes_procesados (
+            id_registro INTEGER PRIMARY KEY AUTOINCREMENT,
+            canal TEXT NOT NULL,
+            id_externo TEXT NOT NULL,
+            fecha_recepcion TEXT NOT NULL,
+            mensaje TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'Procesando',
+            respuesta_json TEXT,
+            UNIQUE(canal, id_externo)
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -508,6 +551,7 @@ def inicializar_base_de_datos():
     actualizar_tabla_cierres_semanales()
     crear_tabla_cierres_mensuales()
     crear_tabla_movimientos_diezmo()
+    crear_tabla_mensajes_procesados()
 
 
 
