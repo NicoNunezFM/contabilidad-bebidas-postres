@@ -197,7 +197,7 @@ function grupoAutorizado(message) {
   }
 
   if (ALLOWED_GROUP_IDS.size === 0) {
-    return true;
+    return false;
   }
 
   return ALLOWED_GROUP_IDS.has(message.from);
@@ -327,6 +327,19 @@ client.on("ready", () => {
     `Grupos: ${ALLOW_GROUPS ? "habilitados" : "deshabilitados"}`
   );
 
+  if (ALLOW_GROUPS) {
+    console.log(
+      `Grupos autorizados configurados: ${ALLOWED_GROUP_IDS.size}`
+    );
+
+    if (ALLOWED_GROUP_IDS.size === 0) {
+      console.warn(
+        "ATENCIÓN: ALLOW_GROUPS=true pero ALLOWED_GROUP_IDS está vacío. " +
+        "Los mensajes de grupos serán ignorados hasta configurar un grupo."
+      );
+    }
+  }
+
   console.log(
     `Diagnóstico de mensajes: ${DEBUG_MESSAGES ? "activado" : "desactivado"}`
   );
@@ -392,7 +405,12 @@ async function procesarMensajeEntrante(message, origenEvento) {
       );
     }
 
-    if (!numeroAutorizado(remitente.numero)) {
+    const mensajeDeGrupo = esGrupo(message);
+
+    if (
+      !mensajeDeGrupo &&
+      !numeroAutorizado(remitente.numero)
+    ) {
       console.warn(
         "Remitente no autorizado.",
         "Número resuelto:",
@@ -401,6 +419,13 @@ async function procesarMensajeEntrante(message, origenEvento) {
         remitente.identificador || "(sin ID)"
       );
       return;
+    }
+
+    if (mensajeDeGrupo && DEBUG_MESSAGES) {
+      console.log(
+        "Mensaje aceptado por pertenecer a un grupo autorizado:",
+        message.from
+      );
     }
 
     const texto = String(message.body || "").trim();
