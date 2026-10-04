@@ -327,8 +327,13 @@ client.on("ready", () => {
   );
 });
 
-client.on("message", async (message) => {
+async function procesarMensajeEntrante(message, origenEvento) {
   try {
+    if (DEBUG_MESSAGES) {
+      console.log(
+        `[EVENTO ${origenEvento}]`
+      );
+    }
     if (DEBUG_MESSAGES) {
       console.log(
         "[RX]",
@@ -457,6 +462,43 @@ client.on("message", async (message) => {
       );
     }
   }
+}
+
+client.on("message", async (message) => {
+  await procesarMensajeEntrante(
+    message,
+    "message"
+  );
+});
+
+client.on("message_create", async (message) => {
+  await procesarMensajeEntrante(
+    message,
+    "message_create"
+  );
+});
+
+client.on("message_ciphertext", (message) => {
+  if (!DEBUG_MESSAGES) {
+    return;
+  }
+
+  console.log(
+    "[EVENTO message_ciphertext]",
+    JSON.stringify({
+      from: message.from,
+      author: message.author || null,
+      fromMe: Boolean(message.fromMe),
+      type: message.type,
+    })
+  );
+});
+
+client.on("change_state", (estado) => {
+  console.log(
+    "Estado de WhatsApp Web:",
+    estado
+  );
 });
 
 client.on("disconnected", (motivo) => {
