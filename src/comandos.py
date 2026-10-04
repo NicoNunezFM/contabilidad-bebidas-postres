@@ -245,6 +245,40 @@ def interpretar_inventario(texto):
         "respuesta": respuesta,
     }
 
+def interpretar_item_venta(texto_item):
+    texto_item = texto_item.strip()
+
+    if not texto_item:
+        return None
+
+    cantidad = 1
+    texto_producto = texto_item
+
+    coincidencia_inicio = re.match(
+        r"^x?(\d+)\s+(.+)$",
+        texto_item
+    )
+
+    if coincidencia_inicio:
+        cantidad = int(coincidencia_inicio.group(1))
+        texto_producto = coincidencia_inicio.group(2).strip()
+
+    else:
+        coincidencia_final = re.match(
+            r"^(.+?)\s+x(\d+)$",
+            texto_item
+        )
+
+        if coincidencia_final:
+            texto_producto = coincidencia_final.group(1).strip()
+            cantidad = int(coincidencia_final.group(2))
+
+    return {
+        "producto": texto_producto,
+        "cantidad": cantidad,
+    }
+
+
 def interpretar_venta(texto):
     contenido = texto[len("venta"):].strip()
 
@@ -258,34 +292,64 @@ def interpretar_venta(texto):
             ),
         }
 
-    cantidad = 1
-    texto_producto = contenido
-
-    coincidencia_inicio = re.match(
-        r"^x?(\d+)\s+(.+)$",
+    partes = re.split(
+        r",\s*|\s+y\s+(?=x?\d+\s)",
         contenido
     )
 
-    if coincidencia_inicio:
-        cantidad = int(coincidencia_inicio.group(1))
-        texto_producto = coincidencia_inicio.group(2).strip()
+    items = [
+        interpretar_item_venta(parte)
+        for parte in partes
+        if parte.strip()
+    ]
 
-    else:
-        coincidencia_final = re.match(
-            r"^(.+?)\s+x(\d+)$",
-            contenido
-        )
+    if not items:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_VENTA_INVALIDO",
+            "respuesta": "No se pudo interpretar la venta.",
+        }
 
-        if coincidencia_final:
-            texto_producto = coincidencia_final.group(1).strip()
-            cantidad = int(coincidencia_final.group(2))
+    if len(items) == 1:
+        item = items[0]
+
+        resultado = ejecutar_accion({
+            "accion": "registrar_venta",
+            "datos": item,
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        lineas = [
+            "*Venta registrada*",
+            f"{datos['cantidad']} x {datos['producto']}",
+            (
+                "Precio unitario: "
+                f"{formatear_pesos(datos['precio_unitario'])}"
+            ),
+            f"Total: {formatear_pesos(datos['total'])}",
+        ]
+
+        if datos["controla_stock"]:
+            lineas.append(
+                f"Stock restante: {datos['stock_restante']}"
+            )
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_VENTA_REGISTRADA",
+            "respuesta": "\n".join(lineas),
+        }
 
     resultado = ejecutar_accion({
         "accion": "registrar_venta",
         "datos": {
-            "producto": texto_producto,
-            "cantidad": cantidad,
-        }
+            "items": items,
+        },
     })
 
     if not resultado["ok"]:
@@ -293,23 +357,30 @@ def interpretar_venta(texto):
 
     datos = resultado["datos"]
 
-    lineas = [
-        "*Venta registrada*",
-        f"{datos['cantidad']} x {datos['producto']}",
-        f"Precio unitario: {formatear_pesos(datos['precio_unitario'])}",
-        f"Total: {formatear_pesos(datos['total'])}",
-    ]
+    lineas = ["*Venta registrada*"]
 
-    if datos["controla_stock"]:
-        lineas.append(
-            f"Stock restante: {datos['stock_restante']}"
+    for item in datos["items"]:
+        linea = (
+            f"- {item['cantidad']} x {item['producto']}: "
+            f"{formatear_pesos(item['subtotal'])}"
         )
 
+        if item["controla_stock"]:
+            linea += (
+                f" | stock: {item['stock_restante']}"
+            )
+
+        lineas.append(linea)
+
+    lineas.append(
+        f"*Total: {formatear_pesos(datos['total'])}*"
+    )
+
     return {
-        "ok": True,
-        "codigo": "COMANDO_VENTA_REGISTRADA",
-        "respuesta": "\n".join(lineas),
         **datos,
+        "ok": True,
+        "codigo": "COMANDO_VENTA_MULTIPLE_REGISTRADA",
+        "respuesta": "\n".join(lineas),
     }
 
 
@@ -318,6 +389,7 @@ def mensaje_ayuda():
         "*Comandos disponibles*",
         "- venta 2 manaos cola 600",
         "- venta big mac doble",
+        "- venta 2 pepsi, 1 chocotorta y 2 big mac doble",
         "- merma 2 pepsi",
         "- consumo 1 oreo",
         "- inventario pepsi 8",
