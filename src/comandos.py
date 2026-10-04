@@ -93,11 +93,45 @@ def formatear_caja():
     ])
 
 
+
+def formatear_precios():
+    productos = obtener_productos()
+
+    con_precio = [
+        producto
+        for producto in productos
+        if producto.get("precio_venta") is not None
+    ]
+
+    if not con_precio:
+        return "No hay precios configurados."
+
+    categorias = {}
+
+    for producto in con_precio:
+        categoria = producto["categoria"]
+        categorias.setdefault(categoria, []).append(producto)
+
+    lineas = ["*Lista de precios*"]
+
+    for categoria, items in categorias.items():
+        lineas.append(f"\n*{categoria}*")
+
+        for producto in items:
+            lineas.append(
+                f"- {producto['nombre']}: "
+                f"{formatear_pesos(producto['precio_venta'])}"
+            )
+
+    return "\n".join(lineas)
+
+
 def mensaje_ayuda():
     return "\n".join([
         "*Comandos disponibles*",
         "- stock",
         "- ver stock",
+        "- precios",
         "- caja",
         "- balance hoy",
         "- resumen hoy",
@@ -134,6 +168,13 @@ def procesar_comando(mensaje):
             "ok": True,
             "codigo": "COMANDO_STOCK",
             "respuesta": formatear_stock(),
+        }
+
+    if texto in {"precios", "ver precios"}:
+        return {
+            "ok": True,
+            "codigo": "COMANDO_PRECIOS",
+            "respuesta": formatear_precios(),
         }
 
     if texto == "caja":
