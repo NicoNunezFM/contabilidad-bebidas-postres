@@ -2,6 +2,11 @@ from datetime import datetime
 import re
 import unicodedata
 
+from ajustes_stock import (
+    registrar_consumo_interno,
+    registrar_inventario_fisico,
+    registrar_merma,
+)
 from caja import obtener_estado_caja
 from productos import obtener_productos
 from reportes import (
@@ -342,6 +347,152 @@ def accion_registrar_venta(datos):
     }
 
 
+
+
+def accion_registrar_merma(datos):
+    producto_texto = datos.get("producto")
+    cantidad = datos.get("cantidad")
+    motivo = datos.get("motivo") or "Merma"
+
+    if not isinstance(producto_texto, str) or not producto_texto.strip():
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La merma debe indicar un producto.",
+        }
+
+    if isinstance(cantidad, bool) or not isinstance(cantidad, int):
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La cantidad debe ser un número entero.",
+        }
+
+    if cantidad <= 0:
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La cantidad debe ser mayor que cero.",
+        }
+
+    resolucion = resolver_producto(producto_texto)
+
+    if not resolucion["ok"]:
+        return resolucion
+
+    producto = resolucion["producto"]
+
+    resultado = registrar_merma(
+        id_producto=producto["id_producto"],
+        cantidad=cantidad,
+        motivo=motivo,
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_MERMA_REGISTRADA",
+        "datos": resultado,
+    }
+
+
+def accion_registrar_consumo_interno(datos):
+    producto_texto = datos.get("producto")
+    cantidad = datos.get("cantidad")
+    motivo = datos.get("motivo") or "Consumo interno"
+
+    if not isinstance(producto_texto, str) or not producto_texto.strip():
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "El consumo interno debe indicar un producto.",
+        }
+
+    if isinstance(cantidad, bool) or not isinstance(cantidad, int):
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La cantidad debe ser un número entero.",
+        }
+
+    if cantidad <= 0:
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La cantidad debe ser mayor que cero.",
+        }
+
+    resolucion = resolver_producto(producto_texto)
+
+    if not resolucion["ok"]:
+        return resolucion
+
+    producto = resolucion["producto"]
+
+    resultado = registrar_consumo_interno(
+        id_producto=producto["id_producto"],
+        cantidad=cantidad,
+        motivo=motivo,
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_CONSUMO_INTERNO_REGISTRADO",
+        "datos": resultado,
+    }
+
+
+def accion_registrar_inventario(datos):
+    producto_texto = datos.get("producto")
+    cantidad_real = datos.get("cantidad_real")
+
+    if not isinstance(producto_texto, str) or not producto_texto.strip():
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "El inventario debe indicar un producto.",
+        }
+
+    if isinstance(cantidad_real, bool) or not isinstance(cantidad_real, int):
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La cantidad real debe ser un número entero.",
+        }
+
+    if cantidad_real < 0:
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La cantidad real no puede ser negativa.",
+        }
+
+    resolucion = resolver_producto(producto_texto)
+
+    if not resolucion["ok"]:
+        return resolucion
+
+    producto = resolucion["producto"]
+
+    resultado = registrar_inventario_fisico(
+        id_producto=producto["id_producto"],
+        cantidad_real=cantidad_real,
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_INVENTARIO_REGISTRADO",
+        "datos": resultado,
+    }
+
 def ejecutar_accion(solicitud):
     """
     Punto único de entrada para ejecutar acciones del negocio.
@@ -388,6 +539,15 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar venta":
         return accion_registrar_venta(datos)
+
+    if accion == "registrar merma":
+        return accion_registrar_merma(datos)
+
+    if accion == "registrar consumo interno":
+        return accion_registrar_consumo_interno(datos)
+
+    if accion == "registrar inventario":
+        return accion_registrar_inventario(datos)
 
     return {
         "ok": False,
