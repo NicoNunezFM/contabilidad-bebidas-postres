@@ -25,7 +25,7 @@ def responder_resultado(
         content=resultado
     )
 
-def test_api_rechaza_venta_sin_stock(
+def test_api_rechaza_venta_sin_stock_codigo(
     producto_prueba
 ):
 
@@ -440,3 +440,77 @@ def test_api_no_permite_anular_movimiento_caja_dos_veces(
         datos["codigo"]
         == "MOVIMIENTO_CAJA_YA_ANULADO"
     )
+
+# ============================================================
+# COMANDOS
+# ============================================================
+
+def test_api_comando_stock(
+    producto_prueba
+):
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "stock"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["codigo"] == "COMANDO_STOCK"
+    assert "Coca prueba" in datos["respuesta"]
+    assert "10" in datos["respuesta"]
+
+
+def test_api_comando_normaliza_acentos_y_mayusculas(
+    base_prueba
+):
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "  RESÚMEN   MES  "
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["codigo"] == "COMANDO_RESUMEN_MES"
+
+
+def test_api_comando_no_reconocido(
+    base_prueba
+):
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "esto no existe"
+        }
+    )
+
+    assert respuesta.status_code == 400
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is False
+    assert datos["codigo"] == "COMANDO_NO_RECONOCIDO"
+
+
+def test_api_comando_vacio_rechazado_por_pydantic():
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": ""
+        }
+    )
+
+    assert respuesta.status_code == 422
