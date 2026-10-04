@@ -8,3 +8,7 @@ src/__pycache__/
 __pycache__/
 .pytest_cache/
 .env
+whatsapp-bot/node_modules/
+whatsapp-bot/.env
+whatsapp-bot/.wwebjs_auth/
+whatsapp-bot/.wwebjs_cache/
