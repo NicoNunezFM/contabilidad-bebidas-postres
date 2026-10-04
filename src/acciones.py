@@ -14,7 +14,10 @@ from reportes import (
     resumen_por_periodo,
     resumen_semana_actual,
 )
-from ventas import registrar_venta
+from ventas import (
+    registrar_venta,
+    registrar_venta_multiple,
+)
 
 
 ALIASES_PRODUCTOS = {
@@ -349,6 +352,104 @@ def accion_registrar_venta(datos):
 
 
 
+def accion_registrar_venta_multiple(datos):
+    items = datos.get("items")
+
+    if not isinstance(items, list) or not items:
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La venta debe contener al menos un producto.",
+        }
+
+    items_resueltos = []
+
+    for indice, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            return {
+                "ok": False,
+                "codigo": "DATOS_ACCION_INVALIDOS",
+                "mensaje": (
+                    f"El item {indice} de la venta no es válido."
+                ),
+            }
+
+        producto_texto = item.get("producto")
+        cantidad = item.get("cantidad", 1)
+
+        if (
+            not isinstance(producto_texto, str)
+            or not producto_texto.strip()
+        ):
+            return {
+                "ok": False,
+                "codigo": "DATOS_ACCION_INVALIDOS",
+                "mensaje": (
+                    f"El item {indice} debe indicar un producto."
+                ),
+            }
+
+        if isinstance(cantidad, bool) or not isinstance(cantidad, int):
+            return {
+                "ok": False,
+                "codigo": "DATOS_ACCION_INVALIDOS",
+                "mensaje": (
+                    f"La cantidad del item {indice} "
+                    "debe ser un número entero."
+                ),
+            }
+
+        if cantidad <= 0:
+            return {
+                "ok": False,
+                "codigo": "DATOS_ACCION_INVALIDOS",
+                "mensaje": (
+                    f"La cantidad del item {indice} "
+                    "debe ser mayor que cero."
+                ),
+            }
+
+        resolucion = resolver_producto(producto_texto)
+
+        if not resolucion["ok"]:
+            resultado = dict(resolucion)
+            resultado["item"] = indice
+            return resultado
+
+        producto = resolucion["producto"]
+
+        item_resuelto = {
+            "id_producto": producto["id_producto"],
+            "cantidad": cantidad,
+        }
+
+        precio_unitario = item.get("precio_unitario")
+
+        if precio_unitario is not None:
+            item_resuelto["precio_unitario"] = precio_unitario
+
+        items_resueltos.append(item_resuelto)
+
+    resultado = registrar_venta_multiple(
+        items=items_resueltos
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    datos_resultado = {
+        clave: valor
+        for clave, valor in resultado.items()
+        if clave not in {"ok", "codigo", "mensaje"}
+    }
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_VENTA_MULTIPLE_REGISTRADA",
+        "datos": datos_resultado,
+    }
+
+
 def accion_registrar_merma(datos):
     producto_texto = datos.get("producto")
     cantidad = datos.get("cantidad")
@@ -556,7 +657,13 @@ def ejecutar_accion(solicitud):
         return accion_consultar_total(datos)
 
     if accion == "registrar venta":
+        if "items" in datos:
+            return accion_registrar_venta_multiple(datos)
+
         return accion_registrar_venta(datos)
+
+    if accion == "registrar venta multiple":
+        return accion_registrar_venta_multiple(datos)
 
     if accion == "registrar merma":
         return accion_registrar_merma(datos)
