@@ -219,7 +219,10 @@ function numeroAutorizado(numero) {
   return false;
 }
 
-async function enviarComandoApi(mensaje) {
+async function enviarComandoApi(
+  mensaje,
+  idMensaje
+) {
   const controlador = new AbortController();
 
   const timeout = setTimeout(
@@ -235,6 +238,8 @@ async function enviarComandoApi(mensaje) {
       },
       body: JSON.stringify({
         mensaje,
+        id_mensaje: idMensaje,
+        canal: "whatsapp",
       }),
       signal: controlador.signal,
     });
@@ -426,7 +431,10 @@ async function procesarMensajeEntrante(message, origenEvento) {
     );
 
     const { status, datos } =
-      await enviarComandoApi(texto);
+      await enviarComandoApi(
+        texto,
+        idMensaje
+      );
 
     const respuesta =
       textoRespuestaApi(datos);
