@@ -42,3 +42,9 @@ La sesión queda almacenada localmente mediante `LocalAuth`, por lo que normalme
 - Los grupos están deshabilitados por defecto.
 - Los mensajes duplicados se ignoran mientras el proceso está encendido.
 - Los archivos de sesión y `.env` no deben subirse a Git.
+
+## Si el mensaje llega a WhatsApp pero el bot no responde
+
+Con `DEBUG_MESSAGES=true`, la terminal muestra el identificador recibido, el número resuelto y el motivo si el mensaje fue ignorado. Algunas cuentas nuevas de WhatsApp usan IDs `@lid`; el bot intenta convertirlos al número telefónico antes de aplicar la lista blanca.
+
+Si aparece `Remitente no autorizado`, copiá el número que figura como `Número resuelto` a `ALLOWED_NUMBERS` y reiniciá el bot.
