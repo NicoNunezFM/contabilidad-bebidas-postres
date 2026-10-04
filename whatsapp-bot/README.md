@@ -48,3 +48,19 @@ La sesión queda almacenada localmente mediante `LocalAuth`, por lo que normalme
 Con `DEBUG_MESSAGES=true`, la terminal muestra el identificador recibido, el número resuelto y el motivo si el mensaje fue ignorado. Algunas cuentas nuevas de WhatsApp usan IDs `@lid`; el bot intenta convertirlos al número telefónico antes de aplicar la lista blanca.
 
 Si aparece `Remitente no autorizado`, copiá el número que figura como `Número resuelto` a `ALLOWED_NUMBERS` y reiniciá el bot.
+
+
+## Protección contra mensajes duplicados
+
+El bot envía a la API el ID único de cada mensaje de WhatsApp. La API lo guarda en SQLite antes de ejecutar el comando y conserva la respuesta final. Si el mismo mensaje vuelve a llegar después de reiniciar Node, la API devuelve la respuesta guardada sin repetir la venta, merma, consumo o anulación.
+
+## Corrección de ventas
+
+Las ventas se agrupan por operación. Desde WhatsApp se puede usar:
+
+```text
+anular ultima venta
+anular operacion 14
+```
+
+La anulación marca todas las líneas de la operación como anuladas y devuelve al stock los productos inventariables. Las ventas anuladas dejan de participar en los totales de caja y reportes.
