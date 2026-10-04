@@ -13,7 +13,9 @@ def agregar_producto(
     presentacion,
     contenido,
     unidad_medida,
-    unidades_por_pack
+    unidades_por_pack,
+    precio_venta=None,
+    controla_stock=True
 ):
     """
     Registra un producto nuevo.
@@ -70,6 +72,25 @@ def agregar_producto(
             "mensaje": "Las unidades por pack deben ser mayores que cero."
         }
 
+    if precio_venta is not None:
+        if isinstance(precio_venta, bool) or not isinstance(precio_venta, (int, float)):
+            return {
+                "ok": False,
+                "mensaje": "El precio de venta debe ser un número."
+            }
+
+        if precio_venta <= 0:
+            return {
+                "ok": False,
+                "mensaje": "El precio de venta debe ser mayor que cero."
+            }
+
+    if not isinstance(controla_stock, bool):
+        return {
+            "ok": False,
+            "mensaje": "controla_stock debe ser verdadero o falso."
+        }
+
     conexion = obtener_conexion()
 
     try:
@@ -82,16 +103,20 @@ def agregar_producto(
                 presentacion,
                 contenido,
                 unidad_medida,
-                unidades_por_pack
+                unidades_por_pack,
+                precio_venta,
+                controla_stock
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             nombre.strip(),
             categoria.strip(),
             presentacion.strip(),
             contenido,
             unidad_medida.strip(),
-            unidades_por_pack
+            unidades_por_pack,
+            precio_venta,
+            int(controla_stock)
         ))
 
         conexion.commit()
@@ -135,7 +160,9 @@ def obtener_productos():
             contenido,
             unidad_medida,
             unidades_por_pack,
-            stock
+            stock,
+            precio_venta,
+            controla_stock
         FROM productos
         ORDER BY id_producto
     """)
@@ -155,7 +182,9 @@ def obtener_productos():
             "contenido": producto[4],
             "unidad_medida": producto[5],
             "unidades_por_pack": producto[6],
-            "stock": producto[7]
+            "stock": producto[7],
+            "precio_venta": producto[8],
+            "controla_stock": bool(producto[9])
         }
 
         productos.append(producto_python)
@@ -438,6 +467,72 @@ def eliminar_producto(id_producto):
         return {
             "ok": False,
             "mensaje": f"Error al eliminar el producto: {error}"
+        }
+
+    finally:
+        conexion.close()
+
+
+# ============================================================
+# ACTUALIZAR PRECIO DE VENTA
+# ============================================================
+
+def actualizar_precio_venta(id_producto, precio_venta):
+
+    producto = buscar_producto_por_id(id_producto)
+
+    if producto is None:
+        return {
+            "ok": False,
+            "codigo": "PRODUCTO_NO_ENCONTRADO",
+            "mensaje": "Producto no encontrado."
+        }
+
+    if isinstance(precio_venta, bool) or not isinstance(precio_venta, (int, float)):
+        return {
+            "ok": False,
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": "El precio de venta debe ser un número."
+        }
+
+    if precio_venta <= 0:
+        return {
+            "ok": False,
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": "El precio de venta debe ser mayor que cero."
+        }
+
+    conexion = obtener_conexion()
+
+    try:
+        cursor = conexion.cursor()
+
+        cursor.execute("""
+            UPDATE productos
+            SET precio_venta = ?
+            WHERE id_producto = ?
+        """, (
+            precio_venta,
+            id_producto
+        ))
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "codigo": "PRECIO_ACTUALIZADO",
+            "mensaje": "Precio de venta actualizado correctamente.",
+            "id_producto": id_producto,
+            "precio_venta": precio_venta
+        }
+
+    except sqlite3.Error as error:
+        conexion.rollback()
+
+        return {
+            "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": f"Error al actualizar el precio: {error}"
         }
 
     finally:
