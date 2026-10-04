@@ -434,3 +434,293 @@ def listar_ventas():
         )
         print(f"Total: ${venta['total']:.2f}")
         print("-----------------------\n")
+
+
+# ============================================================
+# REGISTRAR VENTA MÚLTIPLE / OPERACIÓN AGRUPADA
+# ============================================================
+
+def registrar_venta_multiple(items, fecha=None):
+    """
+    Registra varios productos como una sola operación de venta.
+
+    La operación es atómica: si cualquier item es inválido,
+    no se registra ninguna línea y no se modifica ningún stock.
+    """
+
+    if not isinstance(items, list) or not items:
+        return {
+            "ok": False,
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": "La venta debe contener al menos un producto."
+        }
+
+    if fecha is None:
+        fecha = datetime.now().strftime("%Y-%m-%d")
+
+    agrupados = {}
+
+    for item in items:
+        if not isinstance(item, dict):
+            return {
+                "ok": False,
+                "codigo": "DATOS_INVALIDOS",
+                "mensaje": "Cada item de la venta debe ser un objeto."
+            }
+
+        id_producto = item.get("id_producto")
+        cantidad = item.get("cantidad")
+        precio_informado = item.get("precio_unitario")
+
+        if isinstance(id_producto, bool) or not isinstance(id_producto, int):
+            return {
+                "ok": False,
+                "codigo": "DATOS_INVALIDOS",
+                "mensaje": "El ID del producto debe ser un número entero."
+            }
+
+        if isinstance(cantidad, bool) or not isinstance(cantidad, int):
+            return {
+                "ok": False,
+                "codigo": "DATOS_INVALIDOS",
+                "mensaje": "La cantidad debe ser un número entero."
+            }
+
+        if cantidad <= 0:
+            return {
+                "ok": False,
+                "codigo": "DATOS_INVALIDOS",
+                "mensaje": "La cantidad debe ser mayor que cero."
+            }
+
+        if precio_informado is not None:
+            if isinstance(precio_informado, bool) or not isinstance(
+                precio_informado,
+                (int, float)
+            ):
+                return {
+                    "ok": False,
+                    "codigo": "DATOS_INVALIDOS",
+                    "mensaje": "El precio unitario debe ser un número."
+                }
+
+            if precio_informado <= 0:
+                return {
+                    "ok": False,
+                    "codigo": "DATOS_INVALIDOS",
+                    "mensaje": "El precio unitario debe ser mayor que cero."
+                }
+
+        if id_producto not in agrupados:
+            agrupados[id_producto] = {
+                "cantidad": cantidad,
+                "precio_unitario": precio_informado,
+            }
+
+        else:
+            precio_anterior = agrupados[id_producto]["precio_unitario"]
+
+            if (
+                precio_anterior is not None
+                and precio_informado is not None
+                and precio_anterior != precio_informado
+            ):
+                return {
+                    "ok": False,
+                    "codigo": "DATOS_INVALIDOS",
+                    "mensaje": (
+                        "El mismo producto no puede tener dos precios "
+                        "diferentes dentro de la misma venta."
+                    )
+                }
+
+            agrupados[id_producto]["cantidad"] += cantidad
+
+            if precio_anterior is None and precio_informado is not None:
+                agrupados[id_producto]["precio_unitario"] = precio_informado
+
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("BEGIN IMMEDIATE")
+        cursor = conexion.cursor()
+
+        items_validados = []
+
+        for id_producto, item in agrupados.items():
+            cursor.execute(
+                """
+                SELECT
+                    id_producto,
+                    nombre,
+                    stock,
+                    precio_venta,
+                    controla_stock
+                FROM productos
+                WHERE id_producto = ?
+                """,
+                (id_producto,)
+            )
+
+            producto = cursor.fetchone()
+
+            if producto is None:
+                conexion.rollback()
+
+                return {
+                    "ok": False,
+                    "codigo": "PRODUCTO_NO_ENCONTRADO",
+                    "mensaje": (
+                        f"Producto no encontrado. ID: {id_producto}"
+                    )
+                }
+
+            nombre = producto[1]
+            stock_actual = producto[2]
+            precio_configurado = producto[3]
+            controla_stock = bool(producto[4])
+
+            precio_unitario = item["precio_unitario"]
+
+            if precio_unitario is None:
+                precio_unitario = precio_configurado
+
+            if precio_unitario is None:
+                conexion.rollback()
+
+                return {
+                    "ok": False,
+                    "codigo": "PRECIO_NO_CONFIGURADO",
+                    "mensaje": (
+                        f"{nombre} no tiene un precio de venta configurado."
+                    )
+                }
+
+            cantidad = item["cantidad"]
+
+            if controla_stock and cantidad > stock_actual:
+                conexion.rollback()
+
+                return {
+                    "ok": False,
+                    "codigo": "STOCK_INSUFICIENTE",
+                    "mensaje": (
+                        f"Stock insuficiente para {nombre}. "
+                        f"Disponible: {stock_actual}. "
+                        f"Solicitado: {cantidad}."
+                    ),
+                    "id_producto": id_producto,
+                    "producto": nombre,
+                    "stock_disponible": stock_actual,
+                    "cantidad_solicitada": cantidad,
+                }
+
+            items_validados.append({
+                "id_producto": id_producto,
+                "producto": nombre,
+                "cantidad": cantidad,
+                "precio_unitario": precio_unitario,
+                "stock_anterior": stock_actual,
+                "controla_stock": controla_stock,
+            })
+
+        cursor.execute(
+            """
+            INSERT INTO ventas_operaciones (fecha)
+            VALUES (?)
+            """,
+            (fecha,)
+        )
+
+        id_operacion = cursor.lastrowid
+        total_operacion = 0
+        lineas = []
+
+        for item in items_validados:
+            cursor.execute(
+                """
+                INSERT INTO ventas (
+                    id_producto,
+                    fecha,
+                    cantidad,
+                    precio_unitario,
+                    id_operacion
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    item["id_producto"],
+                    fecha,
+                    item["cantidad"],
+                    item["precio_unitario"],
+                    id_operacion,
+                )
+            )
+
+            id_venta = cursor.lastrowid
+
+            if item["controla_stock"]:
+                cursor.execute(
+                    """
+                    UPDATE productos
+                    SET stock = stock - ?
+                    WHERE id_producto = ?
+                    """,
+                    (
+                        item["cantidad"],
+                        item["id_producto"],
+                    )
+                )
+
+                stock_restante = (
+                    item["stock_anterior"]
+                    - item["cantidad"]
+                )
+
+            else:
+                stock_restante = None
+
+            subtotal = (
+                item["cantidad"]
+                * item["precio_unitario"]
+            )
+
+            total_operacion += subtotal
+
+            lineas.append({
+                "id_venta": id_venta,
+                "id_producto": item["id_producto"],
+                "producto": item["producto"],
+                "cantidad": item["cantidad"],
+                "precio_unitario": item["precio_unitario"],
+                "subtotal": subtotal,
+                "controla_stock": item["controla_stock"],
+                "stock_restante": stock_restante,
+            })
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "codigo": "VENTA_MULTIPLE_REGISTRADA",
+            "mensaje": "Venta múltiple registrada correctamente.",
+            "id_operacion": id_operacion,
+            "fecha": fecha,
+            "cantidad_items": len(lineas),
+            "items": lineas,
+            "total": total_operacion,
+        }
+
+    except sqlite3.Error as error:
+        conexion.rollback()
+
+        return {
+            "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": (
+                f"Error al registrar la venta múltiple: {error}"
+            )
+        }
+
+    finally:
+        conexion.close()
