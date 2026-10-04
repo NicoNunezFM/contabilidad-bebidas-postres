@@ -46,6 +46,7 @@ def normalizar_texto(texto):
     texto = texto.replace("+", " ")
     texto = texto.replace("-", " ")
     texto = texto.replace("/", " ")
+    texto = texto.replace("_", " ")
 
     return " ".join(texto.split())
 
