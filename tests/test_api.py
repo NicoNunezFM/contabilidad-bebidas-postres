@@ -783,3 +783,82 @@ def test_api_comando_venta_detecta_producto_ambiguo(
 
     assert datos["ok"] is False
     assert datos["codigo"] == "PRODUCTO_AMBIGUO"
+
+
+def test_api_menu_whatsapp(
+    base_prueba
+):
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "menu"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["codigo"] == "COMANDO_MENU"
+    assert "MENÚ - Lo de Clau" in datos["respuesta"]
+    assert "1. Stock" in datos["respuesta"]
+    assert "10. Anular última venta" in datos["respuesta"]
+    assert "opcion 1" in datos["respuesta"]
+
+
+def test_api_menu_opcion_stock(
+    producto_prueba
+):
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "opcion 1"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["codigo"] == "COMANDO_STOCK"
+    assert "Coca prueba" in datos["respuesta"]
+
+
+def test_api_menu_opcion_venta_muestra_instrucciones(
+    base_prueba
+):
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "opcion 6"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["codigo"] == "COMANDO_MENU_INSTRUCCION"
+    assert "Registrar venta" in datos["respuesta"]
+    assert "venta 2 pepsi" in datos["respuesta"]
+
+
+def test_api_menu_opcion_inexistente(
+    base_prueba
+):
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "opcion 99"
+        }
+    )
+
+    assert respuesta.status_code == 400
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is False
+    assert datos["codigo"] == "OPCION_MENU_INVALIDA"
