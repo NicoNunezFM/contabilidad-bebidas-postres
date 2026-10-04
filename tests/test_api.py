@@ -514,3 +514,272 @@ def test_api_comando_vacio_rechazado_por_pydantic():
     )
 
     assert respuesta.status_code == 422
+
+
+def test_api_comando_stock_muestra_solo_productos_inventariables(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Manaos Cola 600ml",
+            "Bebidas",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            4,
+            1300,
+            1
+        )
+    )
+
+    conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Big mac doble",
+            "Hamburguesas",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            0,
+            9000,
+            0
+        )
+    )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "stock"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert "Manaos Cola 600ml" in datos["respuesta"]
+    assert "Big mac doble" not in datos["respuesta"]
+
+
+def test_api_comando_venta_usa_precio_configurado_y_descuenta_stock(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    cursor = conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Manaos Cola 600ml",
+            "Bebidas",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            5,
+            1300,
+            1
+        )
+    )
+
+    id_producto = cursor.lastrowid
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "venta 2 manaos cola 600"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["codigo"] == "COMANDO_VENTA_REGISTRADA"
+    assert datos["cantidad"] == 2
+    assert datos["precio_unitario"] == 1300
+    assert datos["total"] == 2600
+    assert datos["stock_restante"] == 3
+
+    conexion = obtener_conexion()
+
+    stock = conexion.execute(
+        "SELECT stock FROM productos WHERE id_producto = ?",
+        (id_producto,)
+    ).fetchone()[0]
+
+    conexion.close()
+
+    assert stock == 3
+
+
+def test_api_comando_venta_producto_sin_stock_no_descuenta(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    cursor = conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Big mac doble",
+            "Hamburguesas",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            0,
+            9000,
+            0
+        )
+    )
+
+    id_producto = cursor.lastrowid
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "venta bigmac doble"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["total"] == 9000
+    assert datos["stock_restante"] is None
+
+    conexion = obtener_conexion()
+
+    stock = conexion.execute(
+        "SELECT stock FROM productos WHERE id_producto = ?",
+        (id_producto,)
+    ).fetchone()[0]
+
+    conexion.close()
+
+    assert stock == 0
+
+
+def test_api_comando_venta_detecta_producto_ambiguo(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    productos = [
+        ("Manaos Cola 600ml", 1300),
+        ("Manaos Cola 2.25l", 2000),
+    ]
+
+    for nombre, precio in productos:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Bebidas",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                10,
+                precio,
+                1
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "venta manaos cola"}
+    )
+
+    assert respuesta.status_code == 400
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is False
+    assert datos["codigo"] == "PRODUCTO_AMBIGUO"
