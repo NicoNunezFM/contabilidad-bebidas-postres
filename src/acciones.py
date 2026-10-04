@@ -391,10 +391,16 @@ def accion_registrar_merma(datos):
     if not resultado["ok"]:
         return resultado
 
+    datos_resultado = {
+        clave: valor
+        for clave, valor in resultado.items()
+        if clave not in {"ok", "codigo", "mensaje"}
+    }
+
     return {
         "ok": True,
         "codigo": "ACCION_MERMA_REGISTRADA",
-        "datos": resultado,
+        "datos": datos_resultado,
     }
 
 
@@ -440,10 +446,16 @@ def accion_registrar_consumo_interno(datos):
     if not resultado["ok"]:
         return resultado
 
+    datos_resultado = {
+        clave: valor
+        for clave, valor in resultado.items()
+        if clave not in {"ok", "codigo", "mensaje"}
+    }
+
     return {
         "ok": True,
         "codigo": "ACCION_CONSUMO_INTERNO_REGISTRADO",
-        "datos": resultado,
+        "datos": datos_resultado,
     }
 
 
@@ -487,10 +499,16 @@ def accion_registrar_inventario(datos):
     if not resultado["ok"]:
         return resultado
 
+    datos_resultado = {
+        clave: valor
+        for clave, valor in resultado.items()
+        if clave not in {"ok", "codigo", "mensaje"}
+    }
+
     return {
         "ok": True,
         "codigo": "ACCION_INVENTARIO_REGISTRADO",
-        "datos": resultado,
+        "datos": datos_resultado,
     }
 
 def ejecutar_accion(solicitud):
