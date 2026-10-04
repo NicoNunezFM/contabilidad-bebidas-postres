@@ -339,6 +339,8 @@ def accion_registrar_venta(datos):
         "codigo": "ACCION_VENTA_REGISTRADA",
         "datos": {
             "id_venta": resultado["id_venta"],
+            "id_operacion": resultado["id_operacion"],
+            "estado_pago": resultado["estado_pago"],
             "id_producto": producto["id_producto"],
             "producto": resultado["producto"],
             "cantidad": resultado["cantidad"],
