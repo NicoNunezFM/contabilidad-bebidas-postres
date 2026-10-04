@@ -103,9 +103,30 @@ def crear_tabla_operaciones_venta():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ventas_operaciones (
             id_operacion INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha TEXT NOT NULL
+            fecha TEXT NOT NULL,
+            estado_pago TEXT NOT NULL DEFAULT 'Cobrado'
         )
     """)
+
+    conexion.commit()
+    conexion.close()
+
+
+def actualizar_tabla_operaciones_venta():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("PRAGMA table_info(ventas_operaciones)")
+    columnas = cursor.fetchall()
+
+    nombres_columnas = [columna[1] for columna in columnas]
+
+    if "estado_pago" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE ventas_operaciones
+            ADD COLUMN estado_pago TEXT NOT NULL DEFAULT 'Cobrado'
+        """)
 
     conexion.commit()
     conexion.close()
@@ -473,6 +494,7 @@ def inicializar_base_de_datos():
     actualizar_tabla_productos()
     crear_tabla_compras()
     crear_tabla_operaciones_venta()
+    actualizar_tabla_operaciones_venta()
     crear_tabla_ventas()
     crear_tabla_gastos()
     crear_tabla_ajustes_stock()
