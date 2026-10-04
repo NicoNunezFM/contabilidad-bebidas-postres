@@ -752,3 +752,299 @@ def registrar_venta_multiple(items, fecha=None):
 
     finally:
         conexion.close()
+
+
+
+# ============================================================
+# ANULAR OPERACIÓN DE VENTA
+# ============================================================
+
+def _asegurar_campos_operacion_venta(conexion):
+    cursor = conexion.cursor()
+
+    cursor.execute("PRAGMA table_info(ventas_operaciones)")
+    columnas = cursor.fetchall()
+
+    nombres = [columna[1] for columna in columnas]
+
+    if "anulada" not in nombres:
+        cursor.execute(
+            """
+            ALTER TABLE ventas_operaciones
+            ADD COLUMN anulada INTEGER NOT NULL DEFAULT 0
+            """
+        )
+
+    if "fecha_anulacion" not in nombres:
+        cursor.execute(
+            """
+            ALTER TABLE ventas_operaciones
+            ADD COLUMN fecha_anulacion TEXT
+            """
+        )
+
+    if "motivo_anulacion" not in nombres:
+        cursor.execute(
+            """
+            ALTER TABLE ventas_operaciones
+            ADD COLUMN motivo_anulacion TEXT
+            """
+        )
+
+    conexion.commit()
+
+
+def anular_operacion_venta(
+    id_operacion,
+    motivo
+):
+    if isinstance(id_operacion, bool) or not isinstance(
+        id_operacion,
+        int
+    ):
+        return {
+            "ok": False,
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": "El ID de operación debe ser un número entero."
+        }
+
+    if id_operacion <= 0:
+        return {
+            "ok": False,
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": "El ID de operación debe ser mayor que cero."
+        }
+
+    if not isinstance(motivo, str) or not motivo.strip():
+        return {
+            "ok": False,
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": "El motivo de anulación no puede estar vacío."
+        }
+
+    conexion = obtener_conexion()
+
+    try:
+        _asegurar_campos_operacion_venta(conexion)
+
+        conexion.execute("BEGIN IMMEDIATE")
+        cursor = conexion.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id_operacion,
+                fecha,
+                estado_pago,
+                anulada
+            FROM ventas_operaciones
+            WHERE id_operacion = ?
+            """,
+            (id_operacion,)
+        )
+
+        operacion = cursor.fetchone()
+
+        if operacion is None:
+            conexion.rollback()
+
+            return {
+                "ok": False,
+                "codigo": "OPERACION_VENTA_NO_ENCONTRADA",
+                "mensaje": "Operación de venta no encontrada."
+            }
+
+        if operacion[3] == 1:
+            conexion.rollback()
+
+            return {
+                "ok": False,
+                "codigo": "OPERACION_VENTA_YA_ANULADA",
+                "mensaje": "La operación de venta ya está anulada."
+            }
+
+        cursor.execute(
+            """
+            SELECT
+                ventas.id_venta,
+                ventas.id_producto,
+                productos.nombre,
+                ventas.cantidad,
+                ventas.precio_unitario,
+                ventas.anulada,
+                productos.controla_stock
+            FROM ventas
+            INNER JOIN productos
+                ON ventas.id_producto = productos.id_producto
+            WHERE ventas.id_operacion = ?
+            ORDER BY ventas.id_venta
+            """,
+            (id_operacion,)
+        )
+
+        filas = cursor.fetchall()
+
+        if not filas:
+            conexion.rollback()
+
+            return {
+                "ok": False,
+                "codigo": "OPERACION_VENTA_SIN_ITEMS",
+                "mensaje": "La operación no contiene ventas asociadas."
+            }
+
+        if any(fila[5] == 1 for fila in filas):
+            conexion.rollback()
+
+            return {
+                "ok": False,
+                "codigo": "OPERACION_VENTA_PARCIALMENTE_ANULADA",
+                "mensaje": (
+                    "La operación tiene líneas anuladas previamente "
+                    "y no puede anularse completa automáticamente."
+                )
+            }
+
+        fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
+        motivo_limpio = motivo.strip()
+
+        items = []
+        total_anulado = 0
+
+        for fila in filas:
+            id_venta = fila[0]
+            id_producto = fila[1]
+            nombre = fila[2]
+            cantidad = fila[3]
+            precio_unitario = fila[4]
+            controla_stock = bool(fila[6])
+
+            subtotal = cantidad * precio_unitario
+            total_anulado += subtotal
+
+            if controla_stock:
+                cursor.execute(
+                    """
+                    UPDATE productos
+                    SET stock = stock + ?
+                    WHERE id_producto = ?
+                    """,
+                    (
+                        cantidad,
+                        id_producto,
+                    )
+                )
+
+            cursor.execute(
+                """
+                UPDATE ventas
+                SET
+                    anulada = 1,
+                    fecha_anulacion = ?,
+                    motivo_anulacion = ?
+                WHERE id_venta = ?
+                """,
+                (
+                    fecha_anulacion,
+                    motivo_limpio,
+                    id_venta,
+                )
+            )
+
+            items.append({
+                "id_venta": id_venta,
+                "id_producto": id_producto,
+                "producto": nombre,
+                "cantidad": cantidad,
+                "precio_unitario": precio_unitario,
+                "subtotal": subtotal,
+                "controla_stock": controla_stock,
+            })
+
+        cursor.execute(
+            """
+            UPDATE ventas_operaciones
+            SET
+                anulada = 1,
+                fecha_anulacion = ?,
+                motivo_anulacion = ?
+            WHERE id_operacion = ?
+            """,
+            (
+                fecha_anulacion,
+                motivo_limpio,
+                id_operacion,
+            )
+        )
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "codigo": "OPERACION_VENTA_ANULADA",
+            "mensaje": "Operación de venta anulada correctamente.",
+            "id_operacion": id_operacion,
+            "fecha_anulacion": fecha_anulacion,
+            "motivo": motivo_limpio,
+            "items": items,
+            "total_anulado": total_anulado,
+        }
+
+    except sqlite3.Error as error:
+        conexion.rollback()
+
+        return {
+            "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": (
+                f"Error al anular la operación de venta: {error}"
+            )
+        }
+
+    finally:
+        conexion.close()
+
+
+def anular_ultima_operacion_venta(
+    motivo="Corrección de última venta"
+):
+    conexion = obtener_conexion()
+
+    try:
+        _asegurar_campos_operacion_venta(conexion)
+
+        cursor = conexion.cursor()
+
+        cursor.execute(
+            """
+            SELECT id_operacion
+            FROM ventas_operaciones
+            WHERE anulada = 0
+              AND EXISTS (
+                  SELECT 1
+                  FROM ventas
+                  WHERE ventas.id_operacion =
+                        ventas_operaciones.id_operacion
+                    AND ventas.anulada = 0
+              )
+            ORDER BY id_operacion DESC
+            LIMIT 1
+            """
+        )
+
+        fila = cursor.fetchone()
+
+    finally:
+        conexion.close()
+
+    if fila is None:
+        return {
+            "ok": False,
+            "codigo": "OPERACION_VENTA_NO_ENCONTRADA",
+            "mensaje": "No hay ventas activas para anular."
+        }
+
+    return anular_operacion_venta(
+        id_operacion=fila[0],
+        motivo=motivo,
+    )
