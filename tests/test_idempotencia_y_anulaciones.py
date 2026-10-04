@@ -185,6 +185,9 @@ def test_anular_ultima_venta_restaura_todo_el_stock(
     assert obtener_stock(id_oreo) == 2
     assert obtener_stock(id_bigmac) == 0
 
+    caja_antes = client.get("/caja").json()
+    assert caja_antes["ventas"] == 16700
+
     anulacion = client.post(
         "/comandos",
         json={
@@ -206,6 +209,9 @@ def test_anular_ultima_venta_restaura_todo_el_stock(
     assert obtener_stock(id_pepsi) == 5
     assert obtener_stock(id_oreo) == 3
     assert obtener_stock(id_bigmac) == 0
+
+    caja_despues = client.get("/caja").json()
+    assert caja_despues["ventas"] == 0
 
     conexion = obtener_conexion()
 
