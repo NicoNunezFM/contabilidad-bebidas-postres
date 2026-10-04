@@ -96,6 +96,21 @@ def crear_tabla_compras():
     conexion.commit()
     conexion.close()
 
+def crear_tabla_operaciones_venta():
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ventas_operaciones (
+            id_operacion INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT NOT NULL
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
+
 def crear_tabla_ventas():
     conexion = obtener_conexion()
     cursor = conexion.cursor()
@@ -107,8 +122,11 @@ def crear_tabla_ventas():
         fecha TEXT NOT NULL,
         cantidad INTEGER NOT NULL,
         precio_unitario REAL NOT NULL,
+        id_operacion INTEGER,
         FOREIGN KEY (id_producto)
-            REFERENCES productos(id_producto)
+            REFERENCES productos(id_producto),
+        FOREIGN KEY (id_operacion)
+            REFERENCES ventas_operaciones(id_operacion)
         )
     """)
 
@@ -204,6 +222,13 @@ def actualizar_tabla_ventas():
         cursor.execute("""
             ALTER TABLE ventas
             ADD COLUMN motivo_anulacion TEXT
+        """)
+
+    if "id_operacion" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE ventas
+            ADD COLUMN id_operacion INTEGER
+            REFERENCES ventas_operaciones(id_operacion)
         """)
 
     conexion.commit()
@@ -447,6 +472,7 @@ def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
     crear_tabla_compras()
+    crear_tabla_operaciones_venta()
     crear_tabla_ventas()
     crear_tabla_gastos()
     crear_tabla_ajustes_stock()
