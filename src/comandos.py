@@ -164,6 +164,7 @@ def interpretar_salida_stock(texto, accion, prefijos, titulo):
     datos = resultado["datos"]
 
     return {
+        **datos,
         "ok": True,
         "codigo": resultado["codigo"],
         "respuesta": "\n".join([
@@ -173,7 +174,6 @@ def interpretar_salida_stock(texto, accion, prefijos, titulo):
             f"Stock actual: {datos['stock_nuevo']}",
             f"Motivo: {datos['motivo']}",
         ]),
-        **datos,
     }
 
 
@@ -239,10 +239,10 @@ def interpretar_inventario(texto):
         ])
 
     return {
+        **datos,
         "ok": True,
         "codigo": resultado["codigo"],
         "respuesta": respuesta,
-        **datos,
     }
 
 def interpretar_venta(texto):
