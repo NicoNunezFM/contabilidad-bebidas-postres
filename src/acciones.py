@@ -15,6 +15,8 @@ from reportes import (
     resumen_semana_actual,
 )
 from ventas import (
+    anular_operacion_venta,
+    anular_ultima_operacion_venta,
     registrar_venta,
     registrar_venta_multiple,
 )
@@ -452,6 +454,60 @@ def accion_registrar_venta_multiple(datos):
     }
 
 
+def accion_anular_operacion_venta(datos):
+    id_operacion = datos.get("id_operacion")
+    motivo = (
+        datos.get("motivo")
+        or "Corrección solicitada por el usuario"
+    )
+
+    resultado = anular_operacion_venta(
+        id_operacion=id_operacion,
+        motivo=motivo,
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    datos_resultado = {
+        clave: valor
+        for clave, valor in resultado.items()
+        if clave not in {"ok", "codigo", "mensaje"}
+    }
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_OPERACION_VENTA_ANULADA",
+        "datos": datos_resultado,
+    }
+
+
+def accion_anular_ultima_venta(datos):
+    motivo = (
+        datos.get("motivo")
+        or "Corrección de última venta"
+    )
+
+    resultado = anular_ultima_operacion_venta(
+        motivo=motivo
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    datos_resultado = {
+        clave: valor
+        for clave, valor in resultado.items()
+        if clave not in {"ok", "codigo", "mensaje"}
+    }
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_ULTIMA_VENTA_ANULADA",
+        "datos": datos_resultado,
+    }
+
+
 def accion_registrar_merma(datos):
     producto_texto = datos.get("producto")
     cantidad = datos.get("cantidad")
@@ -666,6 +722,12 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar venta multiple":
         return accion_registrar_venta_multiple(datos)
+
+    if accion == "anular operacion venta":
+        return accion_anular_operacion_venta(datos)
+
+    if accion == "anular ultima venta":
+        return accion_anular_ultima_venta(datos)
 
     if accion == "registrar merma":
         return accion_registrar_merma(datos)
