@@ -8,6 +8,8 @@ from ajustes_stock import registrar_inventario_fisico
 
 from caja import obtener_estado_caja
 
+from comandos import procesar_comando
+
 from cierres import (
     registrar_cierre_semanal,
     registrar_cierre_mensual,
@@ -200,6 +202,10 @@ class CierreSemanalEntrada(BaseModel):
 class CierreMensualEntrada(BaseModel):
     anio: int = Field(gt=0)
     mes: int = Field(ge=1, le=12)
+
+
+class ComandoEntrada(BaseModel):
+    mensaje: str = Field(min_length=1)
 
 
 # ============================================================
@@ -589,3 +595,18 @@ def obtener_cierres_mensuales_api():
         "ok": True,
         "cierres": obtener_cierres_mensuales()
     }
+
+# ============================================================
+# COMANDOS PARA WHATSAPP / OTRAS INTERFACES
+# ============================================================
+
+@app.post("/comandos")
+def procesar_comando_api(
+    comando: ComandoEntrada
+):
+
+    resultado = procesar_comando(
+        comando.mensaje
+    )
+
+    return responder_resultado(resultado)
