@@ -78,7 +78,7 @@ def test_catalogo_no_pisa_producto_existente(
 
     fila = conexion.execute(
         """
-        SELECT stock, precio_venta
+        SELECT stock, precio_venta, unidades_por_pack
         FROM productos
         WHERE nombre = ?
         """,
@@ -90,4 +90,5 @@ def test_catalogo_no_pisa_producto_existente(
     assert fila == (
         7,
         2500,
+        6,
     )
