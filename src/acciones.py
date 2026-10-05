@@ -8,6 +8,7 @@ from ajustes_stock import (
     registrar_merma,
 )
 from caja import obtener_estado_caja
+from gastos import registrar_gasto
 from productos import obtener_productos
 from reportes import (
     resumen_mes_actual,
@@ -540,6 +541,47 @@ def accion_consultar_total(datos):
     }
 
 
+def accion_registrar_gasto(datos):
+    descripcion = datos.get("descripcion")
+    monto = datos.get("monto")
+    categoria = datos.get("categoria") or "Otros"
+
+    if not isinstance(descripcion, str) or not descripcion.strip():
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "El gasto debe indicar una descripción.",
+        }
+
+    if isinstance(monto, bool) or not isinstance(monto, (int, float)):
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "El monto del gasto debe ser numérico.",
+        }
+
+    resultado = registrar_gasto(
+        categoria=categoria,
+        descripcion_gasto=descripcion.strip(),
+        valor_final=monto,
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_GASTO_REGISTRADO",
+        "datos": {
+            "id_gasto": resultado["id_gasto"],
+            "categoria": resultado["categoria"],
+            "descripcion": resultado["descripcion"],
+            "monto": resultado["valor"],
+            "fecha": resultado["fecha"],
+        },
+    }
+
+
 def accion_registrar_venta(datos):
     producto_texto = datos.get("producto")
     cantidad = datos.get("cantidad", 1)
@@ -961,6 +1003,9 @@ def ejecutar_accion(solicitud):
 
     if accion == "consultar total":
         return accion_consultar_total(datos)
+
+    if accion == "registrar gasto":
+        return accion_registrar_gasto(datos)
 
     if accion == "registrar venta":
         if "items" in datos:
