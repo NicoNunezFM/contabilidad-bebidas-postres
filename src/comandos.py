@@ -5,6 +5,12 @@ from acciones import (
     formatear_pesos,
     normalizar_texto,
 )
+from contexto_conversacion import (
+    activar_contexto,
+    obtener_contexto_activo,
+    tocar_contexto,
+)
+from productos import obtener_productos
 
 
 def error_comando(resultado):
@@ -482,6 +488,369 @@ def interpretar_anulacion_venta(
 
 
 
+PALABRAS_CANTIDAD = {
+    "un": 1,
+    "una": 1,
+    "uno": 1,
+    "dos": 2,
+    "tres": 3,
+    "cuatro": 4,
+    "cinco": 5,
+    "seis": 6,
+}
+
+
+def normalizar_cantidad_escrita(texto):
+    partes = texto.split()
+
+    if not partes:
+        return texto
+
+    primera = partes[0]
+
+    if primera in PALABRAS_CANTIDAD:
+        partes[0] = str(
+            PALABRAS_CANTIDAD[primera]
+        )
+
+    return " ".join(partes)
+
+
+def normalizar_importe(texto):
+    if texto is None:
+        return None
+
+    valor = normalizar_texto(
+        str(texto)
+    )
+
+    valor = valor.replace("$", "").strip()
+    valor = valor.replace("mil", "000")
+    valor = valor.replace(".", "")
+    valor = valor.replace(" ", "")
+
+    if not valor.isdigit():
+        return None
+
+    numero = int(valor)
+
+    # En el grupo "6", "7", "8", "9", etc. significan miles.
+    if 1 <= numero < 100:
+        numero *= 1000
+
+    return numero
+
+
+def _categoria_precio_coincide(
+    producto,
+    contexto_activo
+):
+    categoria = normalizar_texto(
+        producto.get("categoria")
+    )
+
+    if contexto_activo == "postres":
+        return categoria == "postres"
+
+    if contexto_activo == "bebidas":
+        return categoria == "bebidas"
+
+    if contexto_activo == "comida":
+        return categoria not in {
+            "postres",
+            "bebidas",
+        }
+
+    return True
+
+
+def resolver_producto_por_precio(
+    precio,
+    contexto_activo=None
+):
+    candidatos = [
+        producto
+        for producto in obtener_productos()
+        if producto.get("precio_venta") is not None
+        and float(producto["precio_venta"]) == float(precio)
+        and _categoria_precio_coincide(
+            producto,
+            contexto_activo
+        )
+    ]
+
+    if len(candidatos) == 1:
+        return {
+            "ok": True,
+            "producto": candidatos[0],
+        }
+
+    if len(candidatos) > 1:
+        return {
+            "ok": False,
+            "codigo": "PRODUCTO_AMBIGUO",
+            "candidatos": [
+                {
+                    "id_producto": producto["id_producto"],
+                    "nombre": producto["nombre"],
+                    "precio_venta": producto["precio_venta"],
+                }
+                for producto in candidatos
+            ],
+            "mensaje": (
+                "Ese precio coincide con más de un producto."
+            ),
+        }
+
+    return {
+        "ok": False,
+        "codigo": "PRODUCTO_NO_ENCONTRADO",
+        "mensaje": (
+            "No encontré un producto con precio "
+            f"{formatear_pesos(precio)}."
+        ),
+    }
+
+
+def interpretar_venta_por_precio(
+    texto,
+    contexto=None,
+    contexto_activo=None
+):
+    texto = normalizar_cantidad_escrita(
+        normalizar_texto(texto)
+    )
+
+    coincidencia = re.match(
+        r"^(\d+)\s*(?:x|de|-)?\s*(.+)$",
+        texto
+    )
+
+    if not coincidencia:
+        return None
+
+    cantidad = int(coincidencia.group(1))
+    resto = coincidencia.group(2).strip()
+
+    precio = normalizar_importe(resto)
+
+    if precio is None:
+        return None
+
+    resolucion = resolver_producto_por_precio(
+        precio,
+        contexto_activo=contexto_activo,
+    )
+
+    if not resolucion["ok"]:
+        return error_comando(resolucion)
+
+    producto = resolucion["producto"]
+
+    resultado = ejecutar_accion({
+        "accion": "registrar_venta",
+        "datos": {
+            "producto": producto["nombre"],
+            "cantidad": cantidad,
+            "contexto": contexto or {},
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_VENTA_REGISTRADA",
+        "respuesta": "\n".join([
+            "*Venta registrada*",
+            f"Operación: #{datos['id_operacion']}",
+            f"{datos['cantidad']} x {datos['producto']}",
+            f"Total: {formatear_pesos(datos['total'])}",
+        ]),
+    }
+
+
+def detectar_encabezado_contexto(texto):
+    limpio = normalizar_texto(texto).rstrip(":").strip()
+
+    if limpio in {"gasto", "gastos", "gastos 2"}:
+        return "gastos"
+
+    if limpio in {"postre", "postres"}:
+        return "postres"
+
+    if limpio in {"bebida", "bebidas"}:
+        return "bebidas"
+
+    if limpio in {"comida", "comidas"}:
+        return "comida"
+
+    return None
+
+
+def es_total_informativo(texto):
+    normalizado = normalizar_texto(texto)
+
+    return bool(
+        re.match(
+            r"^(?:total|total gastado|gasto total)\b",
+            normalizado
+        )
+    )
+
+
+def interpretar_gasto_natural(
+    texto,
+    contexto=None,
+    forzar=False
+):
+    normalizado = normalizar_texto(texto)
+
+    if es_total_informativo(normalizado):
+        return {
+            "ok": True,
+            "codigo": "COMANDO_TOTAL_INFORMATIVO",
+            "respuesta": (
+                "Total informado detectado. "
+                "No lo registré como un gasto adicional."
+            ),
+        }
+
+    tiene_palabra_gasto = bool(
+        re.search(r"\bgastos?\b", normalizado)
+    )
+
+    if not forzar and not tiene_palabra_gasto:
+        return None
+
+    limpio = re.sub(
+        r"\bgastos?\b",
+        " ",
+        normalizado
+    )
+    limpio = " ".join(limpio.split())
+
+    coincidencias = list(
+        re.finditer(
+            r"\b\d[\d\.]*\s*(?:mil)?\b",
+            limpio
+        )
+    )
+
+    if not coincidencias:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_GASTO_INVALIDO",
+            "respuesta": (
+                "Indicá el gasto y el monto. "
+                "Ejemplo: verdulería 9000"
+            ),
+        }
+
+    ultima = coincidencias[-1]
+    importe_texto = ultima.group(0)
+    monto = normalizar_importe(importe_texto)
+
+    if monto is None:
+        return None
+
+    descripcion = (
+        limpio[:ultima.start()]
+        + " "
+        + limpio[ultima.end():]
+    )
+    descripcion = " ".join(
+        descripcion.replace(":", " ").split()
+    )
+    descripcion = re.sub(
+        r"^(?:en|de)\s+",
+        "",
+        descripcion
+    ).strip()
+
+    if not descripcion:
+        return {
+            "ok": False,
+            "codigo": "GASTO_SIN_DESCRIPCION",
+            "respuesta": (
+                f"Detecté un gasto de {formatear_pesos(monto)}, "
+                "pero necesito saber en qué fue."
+            ),
+        }
+
+    resultado = ejecutar_accion({
+        "accion": "registrar_gasto",
+        "datos": {
+            "descripcion": descripcion,
+            "monto": monto,
+            "categoria": "Otros",
+            "contexto": contexto or {},
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_GASTO_REGISTRADO",
+        "respuesta": (
+            "*Gasto registrado*\n"
+            f"{datos['descripcion']}: "
+            f"{formatear_pesos(datos['monto'])}"
+        ),
+    }
+
+
+def procesar_bloque(
+    mensaje,
+    contexto=None
+):
+    lineas = [
+        linea.strip()
+        for linea in str(mensaje).splitlines()
+        if linea.strip()
+    ]
+
+    if len(lineas) <= 1:
+        return None
+
+    respuestas = []
+    ok_general = True
+
+    for linea in lineas:
+        resultado = procesar_comando(
+            linea,
+            contexto=contexto,
+            _desde_bloque=True,
+        )
+
+        if resultado.get("respuesta"):
+            respuestas.append(
+                resultado["respuesta"]
+            )
+
+        if resultado.get("ok") is False:
+            ok_general = False
+
+    return {
+        "ok": ok_general,
+        "codigo": (
+            "COMANDO_BLOQUE_PROCESADO"
+            if ok_general
+            else "COMANDO_BLOQUE_CON_OBSERVACIONES"
+        ),
+        "respuesta": "\n\n".join(respuestas),
+    }
+
+
 def parece_venta_rapida(texto):
     """
     Detecta mensajes operativos cortos del grupo, por ejemplo:
@@ -492,6 +861,8 @@ def parece_venta_rapida(texto):
     No convierte conversaciones normales en ventas: exige
     que el mensaje empiece con una cantidad.
     """
+    texto = normalizar_cantidad_escrita(texto)
+
     return bool(
         re.match(
             r"^x?\d+\s+\S+",
@@ -505,7 +876,7 @@ def interpretar_venta_rapida(
     contexto=None
 ):
     return interpretar_venta(
-        "venta " + texto,
+        "venta " + normalizar_cantidad_escrita(texto),
         contexto=contexto,
     )
 
