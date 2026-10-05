@@ -15,7 +15,17 @@ def ventas_del_dia(fecha=None):
     cursor = conexion.cursor()
 
     cursor.execute("""
-        SELECT SUM(cantidad * precio_unitario)
+        SELECT SUM(
+            cantidad * precio_unitario
+            + COALESCE(
+                (
+                    SELECT SUM(precio_total)
+                    FROM venta_adicionales
+                    WHERE venta_adicionales.id_venta = ventas.id_venta
+                ),
+                0
+            )
+        )
         FROM ventas
         WHERE fecha = ?
         AND anulada = 0
@@ -102,7 +112,17 @@ def ventas_por_periodo(fecha_desde, fecha_hasta):
     cursor = conexion.cursor()
 
     cursor.execute("""
-        SELECT SUM(cantidad * precio_unitario)
+        SELECT SUM(
+            cantidad * precio_unitario
+            + COALESCE(
+                (
+                    SELECT SUM(precio_total)
+                    FROM venta_adicionales
+                    WHERE venta_adicionales.id_venta = ventas.id_venta
+                ),
+                0
+            )
+        )
         FROM ventas
         WHERE fecha BETWEEN ? AND ?
         AND anulada = 0
