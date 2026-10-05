@@ -16,8 +16,10 @@ from compras import registrar_compra
 from costos_postres import (
     estimar_costo_receta,
     historial_gastos_postres,
+    historial_producciones_postres,
     obtener_receta,
     registrar_compra_insumo,
+    registrar_produccion_postre,
 )
 from gastos import registrar_gasto
 from productos import obtener_productos
@@ -752,6 +754,37 @@ def accion_registrar_compra_pack(datos):
     }
 
 
+def accion_registrar_produccion_postre(datos):
+    resultado = registrar_produccion_postre(
+        producto=datos.get("producto"),
+        cantidad=datos.get("cantidad"),
+        contexto=datos.get("contexto"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_PRODUCCION_POSTRE_REGISTRADA",
+        "datos": resultado,
+    }
+
+
+def accion_historial_producciones_postres(datos):
+    limite = datos.get("limite", 10)
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_HISTORIAL_PRODUCCIONES_POSTRES",
+        "datos": {
+            "producciones": historial_producciones_postres(
+                limite=limite
+            ),
+        },
+    }
+
+
 def accion_registrar_compra_insumo(datos):
     resultado = registrar_compra_insumo(
         nombre_insumo=datos.get("insumo"),
@@ -1309,6 +1342,12 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar compra insumo":
         return accion_registrar_compra_insumo(datos)
+
+    if accion == "registrar produccion postre":
+        return accion_registrar_produccion_postre(datos)
+
+    if accion == "historial producciones postres":
+        return accion_historial_producciones_postres(datos)
 
     if accion == "consultar receta":
         return accion_consultar_receta(datos)
