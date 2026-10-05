@@ -1267,3 +1267,121 @@ def test_api_manaos_chica_requiere_indicar_chica_o_600(
 
     assert respuesta.status_code == 200
     assert respuesta.json()["producto"] == "Manaos Cola 600ml"
+
+
+
+def test_api_sanguche_chico_asume_pollo_con_papas(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    productos = [
+        ("Chico de pollo + papas", 6000),
+        ("Chico de carne + papas", 7000),
+    ]
+
+    for nombre, precio in productos:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Sanguches",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                0,
+                precio,
+                0,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "1 sanguche chico"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["producto"] == "Chico de pollo + papas"
+    assert datos["precio_unitario"] == 6000
+
+
+def test_api_sanguche_grande_asume_pollo_con_papas(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    productos = [
+        ("Grande de pollo + papas", 8000),
+        ("Grande de carne + papas", 9000),
+        ("Grande de pollo individual", 6500),
+    ]
+
+    for nombre, precio in productos:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Sanguches",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                0,
+                precio,
+                0,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "2 sándwich grande"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["cantidad"] == 2
+    assert datos["producto"] == "Grande de pollo + papas"
+    assert datos["precio_unitario"] == 8000
+    assert datos["total"] == 16000
