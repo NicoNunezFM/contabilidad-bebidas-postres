@@ -1253,6 +1253,138 @@ def interpretar_compra_insumo(
     }
 
 
+def interpretar_produccion_postre(
+    texto,
+    contexto=None
+):
+    coincidencia = re.match(
+        r"^produccion\s+(\d+)\s+(.+)$",
+        texto
+    )
+
+    if not coincidencia:
+        return None
+
+    cantidad = int(
+        coincidencia.group(1)
+    )
+    producto = coincidencia.group(2).strip()
+
+    resultado = ejecutar_accion({
+        "accion": "registrar_produccion_postre",
+        "datos": {
+            "producto": producto,
+            "cantidad": cantidad,
+            "contexto": contexto or {},
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    lineas = [
+        "*Producción registrada*",
+        f"Producción: #{datos['id_produccion']}",
+        (
+            f"{datos['cantidad_producida']} x "
+            f"{datos['producto']}"
+        ),
+        f"Receta: v{datos['version_receta']}",
+        (
+            "Costo de insumos: "
+            f"{formatear_pesos(datos['costo_insumos'])}"
+        ),
+        (
+            "Costo de elaboración: "
+            f"{formatear_pesos(datos['costo_fijo'])}"
+        ),
+        (
+            "*Costo total estimado: "
+            f"{formatear_pesos(datos['costo_total'])}*"
+        ),
+        (
+            "Costo por unidad: "
+            f"{formatear_pesos(datos['costo_unitario'])}"
+        ),
+        (
+            f"Stock {datos['producto']}: "
+            f"{datos['stock_anterior']} -> {datos['stock_nuevo']}"
+        ),
+        "",
+        (
+            "_Se guardó el consumo teórico de insumos de esta tanda. "
+            "El descuento de stock de materias primas se habilitará "
+            "cuando activemos inventario de insumos._"
+        ),
+    ]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_PRODUCCION_POSTRE_REGISTRADA",
+        "respuesta": "\n".join(lineas),
+    }
+
+
+def interpretar_historial_producciones_postres(
+    texto
+):
+    if texto not in {
+        "historial produccion",
+        "historial producciones",
+        "historial produccion postres",
+        "producciones postres",
+    }:
+        return None
+
+    resultado = ejecutar_accion({
+        "accion": "historial_producciones_postres",
+        "datos": {
+            "limite": 10,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    producciones = resultado["datos"][
+        "producciones"
+    ]
+
+    if not producciones:
+        return {
+            "ok": True,
+            "codigo": "COMANDO_HISTORIAL_PRODUCCIONES_POSTRES",
+            "producciones": [],
+            "respuesta": (
+                "Todavía no hay producciones de postres registradas."
+            ),
+        }
+
+    lineas = [
+        "*Últimas producciones de postres*",
+    ]
+
+    for produccion in producciones:
+        lineas.append(
+            f"- #{produccion['id_produccion']} | "
+            f"{produccion['fecha_hora']} | "
+            f"{produccion['cantidad_producida']} x "
+            f"{produccion['producto']} | "
+            f"{formatear_pesos(produccion['costo_total'])} "
+            f"({formatear_pesos(produccion['costo_unitario'])}/u)"
+        )
+
+    return {
+        "ok": True,
+        "codigo": "COMANDO_HISTORIAL_PRODUCCIONES_POSTRES",
+        "producciones": producciones,
+        "respuesta": "\n".join(lineas),
+    }
+
+
 def interpretar_receta_postre(texto):
     coincidencia = re.match(
         r"^receta\s+(.+)$",
@@ -1835,6 +1967,9 @@ def mensaje_ayuda():
         "- merma 2 pepsi",
         "- consumo 1 oreo",
         "- inventario pepsi 8",
+        "- produccion 10 oreo",
+        "- produccion 10 chocotorta",
+        "- historial produccion",
         "- anular ultima venta",
         "- anular operacion 14",
         "- stock",
@@ -1926,6 +2061,21 @@ def procesar_comando(
 
     if compra_insumo is not None:
         return compra_insumo
+
+    produccion_postre = interpretar_produccion_postre(
+        texto,
+        contexto=contexto,
+    )
+
+    if produccion_postre is not None:
+        return produccion_postre
+
+    historial_produccion = interpretar_historial_producciones_postres(
+        texto
+    )
+
+    if historial_produccion is not None:
+        return historial_produccion
 
     receta_postre = interpretar_receta_postre(
         texto
