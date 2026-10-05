@@ -591,6 +591,26 @@ def actualizar_tabla_mensajes_procesados():
     conexion.close()
 
 
+def crear_tabla_contextos_conversacion():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contextos_conversacion (
+            id_contexto INTEGER PRIMARY KEY AUTOINCREMENT,
+            canal TEXT NOT NULL,
+            clave_contexto TEXT NOT NULL,
+            tipo_contexto TEXT NOT NULL,
+            fecha_actualizacion TEXT NOT NULL,
+            UNIQUE(canal, clave_contexto)
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -612,6 +632,7 @@ def inicializar_base_de_datos():
     crear_tabla_movimientos_diezmo()
     crear_tabla_mensajes_procesados()
     actualizar_tabla_mensajes_procesados()
+    crear_tabla_contextos_conversacion()
 
 
 
