@@ -309,3 +309,45 @@ insumo pote 100 unidades 35000 Papelera
 ```
 
 Las recetas versión 1 permanecen guardadas como historial pero quedan inactivas.
+
+
+## Producción de postres
+
+La producción conecta receta, costos históricos y stock del postre terminado.
+
+Ejemplos:
+
+```text
+produccion 10 oreo
+produccion 10 chocotorta
+historial produccion
+```
+
+Al registrar una producción, Abadion:
+
+1. Busca la receta activa y su versión.
+2. Calcula las cantidades teóricas necesarias para la tanda.
+3. Calcula el costo estimado usando el promedio ponderado de las últimas 3 compras de cada insumo.
+4. Guarda una fotografía de esos costos en la producción, para que los cambios de precio futuros no modifiquen el costo histórico de la tanda.
+5. Guarda el detalle de insumos consumidos teóricamente.
+6. Aumenta el stock del postre terminado.
+
+Una producción no genera otro gasto de caja. Los egresos ya fueron registrados cuando se compraron los insumos.
+
+Por seguridad, si falta el precio histórico de algún insumo, la producción no se registra y el stock del postre no cambia. Primero deben cargarse los costos faltantes.
+
+Ejemplo de respuesta:
+
+```text
+Producción registrada
+Producción: #12
+10 x Oreo
+Receta: v2
+Costo de insumos: $26.300
+Costo de elaboración: $5.000
+Costo total estimado: $31.300
+Costo por unidad: $3.130
+Stock Oreo: 4 -> 14
+```
+
+En esta etapa se guarda el consumo teórico de materias primas, pero todavía no se descuenta un stock físico de insumos. Ese control se implementará sobre este mismo historial en la etapa de inventario de materias primas.
