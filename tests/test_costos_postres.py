@@ -49,6 +49,7 @@ def test_compra_insumos_oreo_alimenta_estimacion(
         "insumo dulce de leche 900 g 9000 Carrefour",
         "insumo crema de leche 600 ml 6000 Carrefour",
         "insumo leche 300 ml 300 Carrefour",
+        "insumo pote 10 unidades 3000 Carrefour",
     ]
 
     for mensaje in compras:
@@ -73,9 +74,9 @@ def test_compra_insumos_oreo_alimenta_estimacion(
 
     assert datos["codigo"] == "COSTO_RECETA_ESTIMADO"
     assert datos["version_receta"] == 2
-    assert datos["costo_insumos"] == 23300
+    assert datos["costo_insumos"] == 26300
     assert datos["costo_fijo"] == 5000
-    assert datos["costo_total_estimado"] == 28300
+    assert datos["costo_total_estimado"] == 31300
     assert datos["faltantes"] == []
 
 
@@ -101,6 +102,7 @@ def test_costo_oreo_incompleto_informa_faltantes(
     assert "Dulce de leche" in datos["faltantes"]
     assert "Crema de leche" in datos["faltantes"]
     assert "Leche" in datos["faltantes"]
+    assert "Pote" in datos["faltantes"]
 
 
 def test_receta_oreo_se_guarda_en_base(
@@ -138,6 +140,7 @@ def test_receta_oreo_se_guarda_en_base(
         "Dulce de leche": 900,
         "Crema de leche": 600,
         "Leche": 300,
+        "Pote": 10,
     }
 
 
@@ -243,6 +246,7 @@ def test_receta_chocotorta_actual_v2(
         "Queso crema": 500,
         "Dulce de leche": 500,
         "Café con leche preparado": 900,
+        "Pote": 10,
     }
 
     assert "50/50" in receta["notas"]
