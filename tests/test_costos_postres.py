@@ -180,3 +180,30 @@ def test_historial_gastos_postres_muestra_insumos(
     conexion.close()
 
     assert compra == 1
+
+
+
+def test_insumos_habituales_de_postres_se_reconocen(
+    base_prueba
+):
+    from costos_postres import resolver_insumo
+
+    inicializar_costos_postres()
+
+    nombres = [
+        "crema de leche",
+        "dulce de leche",
+        "galletitas oreo",
+        "chocolinas",
+        "queso crema",
+        "azucar impalpable",
+    ]
+
+    for nombre in nombres:
+        resultado = resolver_insumo(nombre)
+
+        assert resultado["ok"] is True
+        assert (
+            resultado["insumo"]["seccion"]
+            == "bebidas_postres"
+        )
