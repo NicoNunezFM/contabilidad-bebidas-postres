@@ -279,7 +279,10 @@ def interpretar_item_venta(texto_item):
     }
 
 
-def interpretar_venta(texto):
+def interpretar_venta(
+    texto,
+    contexto=None
+):
     contenido = texto[len("venta"):].strip()
 
     if not contenido:
@@ -313,9 +316,12 @@ def interpretar_venta(texto):
     if len(items) == 1:
         item = items[0]
 
+        datos_accion = dict(item)
+        datos_accion["contexto"] = contexto or {}
+
         resultado = ejecutar_accion({
             "accion": "registrar_venta",
-            "datos": item,
+            "datos": datos_accion,
         })
 
         if not resultado["ok"]:
@@ -325,6 +331,7 @@ def interpretar_venta(texto):
 
         lineas = [
             "*Venta registrada*",
+            f"Operación: #{datos['id_operacion']}",
             f"{datos['cantidad']} x {datos['producto']}",
             (
                 "Precio unitario: "
@@ -349,6 +356,7 @@ def interpretar_venta(texto):
         "accion": "registrar_venta",
         "datos": {
             "items": items,
+            "contexto": contexto or {},
         },
     })
 
@@ -357,7 +365,10 @@ def interpretar_venta(texto):
 
     datos = resultado["datos"]
 
-    lineas = ["*Venta registrada*"]
+    lineas = [
+        "*Venta registrada*",
+        f"Operación: #{datos['id_operacion']}",
+    ]
 
     for item in datos["items"]:
         linea = (
@@ -384,7 +395,10 @@ def interpretar_venta(texto):
     }
 
 
-def interpretar_anulacion_venta(texto):
+def interpretar_anulacion_venta(
+    texto,
+    contexto=None
+):
     if texto in {
         "anular ultima venta",
         "anular ultimo",
@@ -397,6 +411,7 @@ def interpretar_anulacion_venta(texto):
             "accion": "anular_ultima_venta",
             "datos": {
                 "motivo": "Corrección solicitada por WhatsApp",
+                "contexto": contexto or {},
             },
         })
 
@@ -423,6 +438,7 @@ def interpretar_anulacion_venta(texto):
                     coincidencia.group(1)
                 ),
                 "motivo": "Corrección solicitada por WhatsApp",
+                "contexto": contexto or {},
             },
         })
 
@@ -481,7 +497,10 @@ def mensaje_menu():
     ])
 
 
-def interpretar_opcion_menu(texto):
+def interpretar_opcion_menu(
+    texto,
+    contexto=None
+):
     coincidencia = re.match(
         r"^(?:opcion|opción)\s+(\d+)$",
         texto
@@ -509,7 +528,8 @@ def interpretar_opcion_menu(texto):
 
     if opcion in comandos_directos:
         return procesar_comando(
-            comandos_directos[opcion]
+            comandos_directos[opcion],
+            contexto=contexto,
         )
 
     instrucciones = {
@@ -583,7 +603,10 @@ def mensaje_ayuda():
     ])
 
 
-def procesar_comando(mensaje):
+def procesar_comando(
+    mensaje,
+    contexto=None
+):
     texto = normalizar_texto(mensaje)
 
     if not texto:
@@ -594,7 +617,10 @@ def procesar_comando(mensaje):
         }
 
     if texto.startswith("venta"):
-        return interpretar_venta(texto)
+        return interpretar_venta(
+            texto,
+            contexto=contexto,
+        )
 
     if texto.startswith("merma ") or texto.startswith("perdida "):
         return interpretar_salida_stock(
@@ -623,7 +649,10 @@ def procesar_comando(mensaje):
         or texto.startswith("borrar ")
         or texto.startswith("eliminar ")
     ):
-        return interpretar_anulacion_venta(texto)
+        return interpretar_anulacion_venta(
+            texto,
+            contexto=contexto,
+        )
 
     if texto == "menu":
         return {
@@ -633,7 +662,10 @@ def procesar_comando(mensaje):
         }
 
     if texto.startswith("opcion ") or texto.startswith("opción "):
-        return interpretar_opcion_menu(texto)
+        return interpretar_opcion_menu(
+            texto,
+            contexto=contexto,
+        )
 
     if texto in {"ayuda", "comandos"}:
         return {
