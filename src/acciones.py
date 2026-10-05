@@ -848,6 +848,7 @@ def accion_registrar_gasto(datos):
         descripcion_gasto=descripcion.strip(),
         valor_final=monto,
         seccion=datos.get("seccion"),
+        subseccion=datos.get("subseccion"),
     )
 
     if not resultado["ok"]:
@@ -863,6 +864,7 @@ def accion_registrar_gasto(datos):
             "monto": resultado["valor"],
             "fecha": resultado["fecha"],
             "seccion": resultado.get("seccion"),
+            "subseccion": resultado.get("subseccion"),
         },
     }
 
