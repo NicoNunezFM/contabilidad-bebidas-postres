@@ -24,7 +24,8 @@ def registrar_gasto(
     categoria,
     descripcion_gasto,
     valor_final,
-    fecha=None
+    fecha=None,
+    seccion=None
 ):
     """
     Registra un gasto en la base de datos.
@@ -92,15 +93,22 @@ def registrar_gasto(
                 fecha,
                 categoria,
                 descripcion_gasto,
-                valor_final
+                valor_final,
+                seccion
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
                 fecha,
                 categoria.strip(),
                 descripcion_gasto.strip(),
-                valor_final
+                valor_final,
+                (
+                    seccion.strip()
+                    if isinstance(seccion, str)
+                    and seccion.strip()
+                    else None
+                )
             )
         )
 
@@ -116,7 +124,13 @@ def registrar_gasto(
             "fecha": fecha,
             "categoria": categoria.strip(),
             "descripcion": descripcion_gasto.strip(),
-            "valor": valor_final
+            "valor": valor_final,
+            "seccion": (
+                seccion.strip()
+                if isinstance(seccion, str)
+                and seccion.strip()
+                else None
+            )
         }
 
     except sqlite3.Error as error:
