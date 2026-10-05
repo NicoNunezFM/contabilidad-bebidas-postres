@@ -2036,7 +2036,7 @@ def procesar_comando(
             tocar_contexto(contexto or {})
         return venta_precio
 
-    if texto.startswith("venta"):
+    if texto == "venta" or texto.startswith("venta "):
         return interpretar_venta(
             texto,
             contexto=contexto,
