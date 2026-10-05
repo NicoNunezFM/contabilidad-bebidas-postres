@@ -213,6 +213,32 @@ def crear_tabla_ventas():
     conexion.commit()
     conexion.close()
 
+def crear_tabla_venta_adicionales():
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS venta_adicionales (
+            id_adicional INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_venta INTEGER NOT NULL,
+            descripcion TEXT NOT NULL,
+            cantidad INTEGER NOT NULL DEFAULT 1,
+            precio_total REAL NOT NULL DEFAULT 0,
+            FOREIGN KEY (id_venta)
+                REFERENCES ventas(id_venta)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_venta_adicionales_id_venta
+        ON venta_adicionales (id_venta)
+    """)
+
+    conexion.commit()
+    conexion.close()
+
+
 def crear_tabla_gastos():
     conexion = obtener_conexion()
     cursor = conexion.cursor()
@@ -618,6 +644,7 @@ def inicializar_base_de_datos():
     crear_tabla_operaciones_venta()
     actualizar_tabla_operaciones_venta()
     crear_tabla_ventas()
+    crear_tabla_venta_adicionales()
     crear_tabla_gastos()
     crear_tabla_ajustes_stock()
     actualizar_tabla_ajustes_stock()
