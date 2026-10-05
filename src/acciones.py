@@ -54,6 +54,24 @@ ALIASES_PRODUCTOS = {
     "postre chocotorta": "chocotorta",
     "bigmac simple": "big mac simple",
     "bigmac doble": "big mac doble",
+
+    # Regla de sanguches:
+    # "chico" y "grande" sin aclarar carne/pollo
+    # se interpretan como pollo con papas.
+    "sanguche chico": "chico de pollo papas",
+    "sandwich chico": "chico de pollo papas",
+    "sanguche chico con papas": "chico de pollo papas",
+    "sandwich chico con papas": "chico de pollo papas",
+    "sanguches chicos": "chico de pollo papas",
+    "sandwiches chicos": "chico de pollo papas",
+
+    "sanguche grande": "grande de pollo papas",
+    "sandwich grande": "grande de pollo papas",
+    "sanguche grande con papas": "grande de pollo papas",
+    "sandwich grande con papas": "grande de pollo papas",
+    "sanguches grandes": "grande de pollo papas",
+    "sandwiches grandes": "grande de pollo papas",
+
     "sandwich": "sanguche",
     "sándwich": "sanguche",
     "sandwiches": "sanguche",
