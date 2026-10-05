@@ -8,6 +8,7 @@ from ajustes_stock import (
     registrar_merma,
 )
 from caja import obtener_estado_caja
+from compras import registrar_compra
 from gastos import registrar_gasto
 from productos import obtener_productos
 from reportes import (
@@ -541,6 +542,157 @@ def accion_consultar_total(datos):
     }
 
 
+def accion_registrar_compra_pack(datos):
+    producto_texto = datos.get("producto")
+    cantidad_packs = datos.get("cantidad_packs")
+    costo_total = datos.get("costo_total")
+    precio_pack = datos.get("precio_pack")
+
+    if (
+        not isinstance(producto_texto, str)
+        or not producto_texto.strip()
+    ):
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": "La compra debe indicar un producto.",
+        }
+
+    if (
+        isinstance(cantidad_packs, bool)
+        or not isinstance(cantidad_packs, int)
+        or cantidad_packs <= 0
+    ):
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": (
+                "La cantidad de packs debe ser un entero "
+                "mayor que cero."
+            ),
+        }
+
+    if costo_total is None and precio_pack is None:
+        return {
+            "ok": False,
+            "codigo": "COSTO_COMPRA_REQUERIDO",
+            "mensaje": (
+                "Indicá el costo de la compra. "
+                "Ejemplos: 'compra 2 packs manaos cola por 17000' "
+                "o 'compra 2 packs manaos cola a 8500 cada pack'."
+            ),
+        }
+
+    if costo_total is not None and precio_pack is not None:
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": (
+                "Indicá costo total o precio por pack, no ambos."
+            ),
+        }
+
+    resolucion = resolver_producto(
+        producto_texto
+    )
+
+    if not resolucion["ok"]:
+        return resolucion
+
+    producto = resolucion["producto"]
+    unidades_por_pack = producto.get(
+        "unidades_por_pack"
+    )
+
+    if (
+        isinstance(unidades_por_pack, bool)
+        or not isinstance(unidades_por_pack, int)
+        or unidades_por_pack <= 1
+    ):
+        return {
+            "ok": False,
+            "codigo": "PACK_NO_CONFIGURADO",
+            "mensaje": (
+                f"{producto['nombre']} no tiene una cantidad "
+                "por pack configurada."
+            ),
+        }
+
+    valor_informado = (
+        costo_total
+        if costo_total is not None
+        else precio_pack
+    )
+
+    if (
+        isinstance(valor_informado, bool)
+        or not isinstance(
+            valor_informado,
+            (int, float)
+        )
+        or valor_informado <= 0
+    ):
+        return {
+            "ok": False,
+            "codigo": "DATOS_ACCION_INVALIDOS",
+            "mensaje": (
+                "El costo de compra debe ser un número "
+                "mayor que cero."
+            ),
+        }
+
+    cantidad_unidades = (
+        cantidad_packs
+        * unidades_por_pack
+    )
+
+    if costo_total is not None:
+        total_compra = float(costo_total)
+    else:
+        total_compra = (
+            cantidad_packs
+            * float(precio_pack)
+        )
+
+    precio_unitario = (
+        total_compra
+        / cantidad_unidades
+    )
+
+    resultado = registrar_compra(
+        id_producto=producto["id_producto"],
+        cantidad=cantidad_unidades,
+        precio_unitario=precio_unitario,
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_COMPRA_PACK_REGISTRADA",
+        "datos": {
+            "id_compra": resultado["id_compra"],
+            "id_producto": producto["id_producto"],
+            "producto": resultado["producto"],
+            "cantidad_packs": cantidad_packs,
+            "unidades_por_pack": unidades_por_pack,
+            "cantidad_unidades": cantidad_unidades,
+            "precio_unitario_compra": precio_unitario,
+            "precio_pack": (
+                float(precio_pack)
+                if precio_pack is not None
+                else (
+                    total_compra
+                    / cantidad_packs
+                )
+            ),
+            "total": total_compra,
+            "stock_actual": resultado["stock_actual"],
+        },
+    }
+
+
 def accion_registrar_gasto(datos):
     descripcion = datos.get("descripcion")
     monto = datos.get("monto")
@@ -1013,6 +1165,9 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar gasto":
         return accion_registrar_gasto(datos)
+
+    if accion == "registrar compra pack":
+        return accion_registrar_compra_pack(datos)
 
     if accion == "registrar venta":
         if "items" in datos:
