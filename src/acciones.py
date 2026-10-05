@@ -331,6 +331,7 @@ def accion_registrar_venta(datos):
     resultado = registrar_venta(
         id_producto=producto["id_producto"],
         cantidad=cantidad,
+        contexto=datos.get("contexto"),
     )
 
     if not resultado["ok"]:
@@ -435,7 +436,8 @@ def accion_registrar_venta_multiple(datos):
         items_resueltos.append(item_resuelto)
 
     resultado = registrar_venta_multiple(
-        items=items_resueltos
+        items=items_resueltos,
+        contexto=datos.get("contexto"),
     )
 
     if not resultado["ok"]:
@@ -464,6 +466,7 @@ def accion_anular_operacion_venta(datos):
     resultado = anular_operacion_venta(
         id_operacion=id_operacion,
         motivo=motivo,
+        contexto=datos.get("contexto"),
     )
 
     if not resultado["ok"]:
@@ -489,7 +492,8 @@ def accion_anular_ultima_venta(datos):
     )
 
     resultado = anular_ultima_operacion_venta(
-        motivo=motivo
+        motivo=motivo,
+        contexto=datos.get("contexto"),
     )
 
     if not resultado["ok"]:
