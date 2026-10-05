@@ -9,6 +9,7 @@ from ajustes_stock import registrar_inventario_fisico
 from backups import crear_backup_diario
 
 from caja import obtener_estado_caja
+from catalogo import asegurar_productos_catalogo
 
 from comandos import procesar_comando
 from database import inicializar_base_de_datos
@@ -244,6 +245,13 @@ class AccionEntrada(BaseModel):
 @app.on_event("startup")
 def preparar_base_de_datos():
     inicializar_base_de_datos()
+    resultado_catalogo = asegurar_productos_catalogo()
+
+    if resultado_catalogo.get("creados"):
+        print(
+            "Productos nuevos agregados al catálogo:",
+            resultado_catalogo["creados"]
+        )
 
     resultado_backup = crear_backup_diario()
 
