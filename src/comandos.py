@@ -4,6 +4,7 @@ from acciones import (
     ejecutar_accion,
     formatear_pesos,
     normalizar_texto,
+    resolver_producto,
 )
 from contexto_conversacion import (
     activar_contexto,
@@ -612,46 +613,138 @@ def resolver_producto_por_precio(
     }
 
 
-def interpretar_venta_por_precio(
-    texto,
-    contexto=None,
-    contexto_activo=None
-):
-    texto = normalizar_cantidad_escrita(
+def _parsear_segmento_precio(texto):
+    original = normalizar_cantidad_escrita(
         normalizar_texto(texto)
     )
 
+    pista = None
+    coincidencia_pista = re.search(
+        r"\(([^)]+)\)",
+        original
+    )
+
+    if coincidencia_pista:
+        pista = coincidencia_pista.group(1).strip()
+        original = re.sub(
+            r"\([^)]+\)",
+            "",
+            original
+        ).strip()
+
+    importe_solo = normalizar_importe(original)
+
+    if importe_solo is not None:
+        return {
+            "cantidad": 1,
+            "precio": importe_solo,
+            "pista": pista,
+        }
+
     coincidencia = re.match(
         r"^(\d+)\s*(?:x|de|-)?\s*(.+)$",
-        texto
+        original
     )
 
     if not coincidencia:
         return None
 
     cantidad = int(coincidencia.group(1))
-    resto = coincidencia.group(2).strip()
-
-    precio = normalizar_importe(resto)
+    precio = normalizar_importe(
+        coincidencia.group(2).strip()
+    )
 
     if precio is None:
         return None
 
-    resolucion = resolver_producto_por_precio(
-        precio,
-        contexto_activo=contexto_activo,
-    )
+    return {
+        "cantidad": cantidad,
+        "precio": precio,
+        "pista": pista,
+    }
 
-    if not resolucion["ok"]:
-        return error_comando(resolucion)
 
-    producto = resolucion["producto"]
+def interpretar_venta_por_precio(
+    texto,
+    contexto=None,
+    contexto_activo=None
+):
+    normalizado = normalizar_texto(texto)
+
+    segmentos = [
+        segmento.strip()
+        for segmento in re.split(
+            r"\s+y\s+",
+            normalizado
+        )
+        if segmento.strip()
+    ]
+
+    items_resueltos = []
+
+    for segmento in segmentos:
+        datos_segmento = _parsear_segmento_precio(
+            segmento
+        )
+
+        if datos_segmento is None:
+            return None
+
+        if datos_segmento["pista"]:
+            resolucion = resolver_producto(
+                datos_segmento["pista"]
+            )
+        else:
+            resolucion = resolver_producto_por_precio(
+                datos_segmento["precio"],
+                contexto_activo=contexto_activo,
+            )
+
+        if not resolucion["ok"]:
+            return error_comando(resolucion)
+
+        producto = resolucion["producto"]
+
+        items_resueltos.append({
+            "producto": producto["nombre"],
+            "cantidad": datos_segmento["cantidad"],
+        })
+
+    if not items_resueltos:
+        return None
+
+    if len(items_resueltos) == 1:
+        item = items_resueltos[0]
+
+        resultado = ejecutar_accion({
+            "accion": "registrar_venta",
+            "datos": {
+                **item,
+                "contexto": contexto or {},
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_VENTA_REGISTRADA",
+            "respuesta": "\n".join([
+                "*Venta registrada*",
+                f"Operación: #{datos['id_operacion']}",
+                f"{datos['cantidad']} x {datos['producto']}",
+                f"Total: {formatear_pesos(datos['total'])}",
+            ]),
+        }
 
     resultado = ejecutar_accion({
         "accion": "registrar_venta",
         "datos": {
-            "producto": producto["nombre"],
-            "cantidad": cantidad,
+            "items": items_resueltos,
             "contexto": contexto or {},
         },
     })
@@ -660,17 +753,26 @@ def interpretar_venta_por_precio(
         return error_comando(resultado)
 
     datos = resultado["datos"]
+    lineas = [
+        "*Venta registrada*",
+        f"Operación: #{datos['id_operacion']}",
+    ]
+
+    for item in datos["items"]:
+        lineas.append(
+            f"- {item['cantidad']} x {item['producto']}: "
+            f"{formatear_pesos(item['subtotal'])}"
+        )
+
+    lineas.append(
+        f"*Total: {formatear_pesos(datos['total'])}*"
+    )
 
     return {
         **datos,
         "ok": True,
-        "codigo": "COMANDO_VENTA_REGISTRADA",
-        "respuesta": "\n".join([
-            "*Venta registrada*",
-            f"Operación: #{datos['id_operacion']}",
-            f"{datos['cantidad']} x {datos['producto']}",
-            f"Total: {formatear_pesos(datos['total'])}",
-        ]),
+        "codigo": "COMANDO_VENTA_MULTIPLE_REGISTRADA",
+        "respuesta": "\n".join(lineas),
     }
 
 
