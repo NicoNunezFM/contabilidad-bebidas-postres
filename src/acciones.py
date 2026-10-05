@@ -55,6 +55,38 @@ ALIASES_PRODUCTOS = {
     "bigmac simple": "big mac simple",
     "bigmac doble": "big mac doble",
 
+    # Hamburguesa genérica = clásica.
+    "hamburguesa simple": "clasica simple",
+    "hamburguesas simples": "clasica simple",
+    "hamburguesa doble": "clasica doble",
+    "hamburguesas dobles": "clasica doble",
+
+    # Napo genérica = pollo con fritas.
+    "napo": "napo de pollo con fritas",
+    "napo pollo": "napo de pollo con fritas",
+    "napo de pollo": "napo de pollo con fritas",
+    "napo con fritas": "napo de pollo con fritas",
+    "napo con pure": "napo de pollo con pure",
+    "napo carne": "napo de carne con fritas",
+    "napo de carne": "napo de carne con fritas",
+    "napo carne con pure": "napo de carne con pure",
+    "napo de carne con pure": "napo de carne con pure",
+
+    # Mila sola define guarnición fritas, pero no inventa la carne.
+    "mila": "milanesa con fritas",
+    "mila con fritas": "milanesa con fritas",
+    "mila con pure": "milanesa con pure",
+    "mila pollo": "milanesa de pollo con fritas",
+    "mila de pollo": "milanesa de pollo con fritas",
+    "mila carne": "milanesa de carne con fritas",
+    "mila de carne": "milanesa de carne con fritas",
+
+    # Abreviaturas habituales de postres.
+    "choco": "chocotorta",
+    "chocolina": "chocotorta",
+    "postre choco": "chocotorta",
+    "postre de chocolina": "chocotorta",
+
     # Regla de sanguches:
     # "chico" y "grande" sin aclarar carne/pollo
     # se interpretan como pollo con papas.
