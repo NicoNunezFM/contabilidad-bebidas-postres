@@ -133,7 +133,15 @@ def obtener_contexto_activo(contexto):
                 fila[1]
             )
         except (TypeError, ValueError):
-            limpiar_contexto(contexto)
+            conexion.execute(
+                """
+                DELETE FROM contextos_conversacion
+                WHERE canal = ?
+                  AND clave_contexto = ?
+                """,
+                (canal, clave)
+            )
+            conexion.commit()
             return None
 
         if (
@@ -142,7 +150,15 @@ def obtener_contexto_activo(contexto):
                 minutes=DURACION_CONTEXTO_MINUTOS
             )
         ):
-            limpiar_contexto(contexto)
+            conexion.execute(
+                """
+                DELETE FROM contextos_conversacion
+                WHERE canal = ?
+                  AND clave_contexto = ?
+                """,
+                (canal, clave)
+            )
+            conexion.commit()
             return None
 
         return fila[0]
