@@ -559,12 +559,33 @@ def crear_tabla_mensajes_procesados():
             canal TEXT NOT NULL,
             id_externo TEXT NOT NULL,
             fecha_recepcion TEXT NOT NULL,
+            fecha_actualizacion TEXT,
             mensaje TEXT NOT NULL,
             estado TEXT NOT NULL DEFAULT 'Procesando',
             respuesta_json TEXT,
             UNIQUE(canal, id_externo)
         )
     """)
+
+    conexion.commit()
+    conexion.close()
+
+
+def actualizar_tabla_mensajes_procesados():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("PRAGMA table_info(mensajes_procesados)")
+    columnas = cursor.fetchall()
+
+    nombres_columnas = [columna[1] for columna in columnas]
+
+    if "fecha_actualizacion" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE mensajes_procesados
+            ADD COLUMN fecha_actualizacion TEXT
+        """)
 
     conexion.commit()
     conexion.close()
@@ -590,6 +611,7 @@ def inicializar_base_de_datos():
     crear_tabla_cierres_mensuales()
     crear_tabla_movimientos_diezmo()
     crear_tabla_mensajes_procesados()
+    actualizar_tabla_mensajes_procesados()
 
 
 
