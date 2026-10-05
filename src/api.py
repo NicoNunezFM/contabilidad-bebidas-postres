@@ -224,6 +224,9 @@ class ComandoEntrada(BaseModel):
         default="api",
         min_length=1
     )
+    usuario_id: str | None = None
+    usuario_numero: str | None = None
+    grupo_id: str | None = None
 
 
 class AccionEntrada(BaseModel):
@@ -643,8 +646,17 @@ def procesar_comando_api(
                 reserva["resultado"]
             )
 
+    contexto = {
+        "canal": comando.canal,
+        "id_mensaje": comando.id_mensaje,
+        "usuario_id": comando.usuario_id,
+        "usuario_numero": comando.usuario_numero,
+        "grupo_id": comando.grupo_id,
+    }
+
     resultado = procesar_comando(
-        comando.mensaje
+        comando.mensaje,
+        contexto=contexto,
     )
 
     if comando.id_mensaje:
