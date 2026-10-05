@@ -18,7 +18,17 @@ def ventas_caja():
 
     cursor.execute(
         """
-        SELECT SUM(cantidad * precio_unitario)
+        SELECT SUM(
+            cantidad * precio_unitario
+            + COALESCE(
+                (
+                    SELECT SUM(precio_total)
+                    FROM venta_adicionales
+                    WHERE venta_adicionales.id_venta = ventas.id_venta
+                ),
+                0
+            )
+        )
         FROM ventas
         WHERE anulada = 0
         """
