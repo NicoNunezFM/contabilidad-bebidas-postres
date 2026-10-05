@@ -189,7 +189,7 @@ def test_accion_inexistente_devuelve_400(
     assert datos["codigo"] == "ACCION_NO_RECONOCIDA"
 
 
-def test_accion_rechaza_producto_ambiguo(
+def test_accion_manaos_cola_sin_tamano_asume_grande(
     base_prueba
 ):
     crear_producto(
@@ -219,10 +219,12 @@ def test_accion_rechaza_producto_ambiguo(
         }
     )
 
-    assert respuesta.status_code == 400
+    assert respuesta.status_code == 200
 
     datos = respuesta.json()
 
-    assert datos["ok"] is False
-    assert datos["codigo"] == "PRODUCTO_AMBIGUO"
-    assert len(datos["candidatos"]) == 2
+    assert datos["ok"] is True
+    assert datos["codigo"] == "ACCION_VENTA_REGISTRADA"
+    assert datos["datos"]["producto"] == "Manaos Cola 2.25l"
+    assert datos["datos"]["precio_unitario"] == 2000
+    assert datos["datos"]["stock_restante"] == 9
