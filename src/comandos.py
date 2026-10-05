@@ -128,6 +128,52 @@ def formatear_caja(estado):
     ])
 
 
+def formatear_caja_seccion(estado):
+    lineas = [
+        f"*Caja {estado['nombre']}*",
+    ]
+
+    if estado["seccion"] == "bebidas_postres":
+        lineas.extend([
+            (
+                "Recaudado bebidas: "
+                f"{formatear_pesos(estado['recaudado_bebidas'])}"
+            ),
+            (
+                "Recaudado postres: "
+                f"{formatear_pesos(estado['recaudado_postres'])}"
+            ),
+        ])
+
+    else:
+        lineas.append(
+            "Recaudado comidas: "
+            f"{formatear_pesos(estado['recaudado_comidas'])}"
+        )
+
+    lineas.extend([
+        (
+            "Ventas de la sección: "
+            f"{formatear_pesos(estado['ventas'])}"
+        ),
+        (
+            "Compras directas: "
+            f"{formatear_pesos(estado['compras_directas'])}"
+        ),
+        (
+            "Saldo operativo: "
+            f"{formatear_pesos(estado['saldo_operativo'])}"
+        ),
+        "",
+        (
+            "_Los gastos generales todavía quedan en la caja general "
+            "hasta que los clasifiquemos por sección._"
+        ),
+    ])
+
+    return "\n".join(lineas)
+
+
 
 
 def interpretar_salida_stock(texto, accion, prefijos, titulo):
@@ -1307,7 +1353,7 @@ def mensaje_menu():
         "*Consultas rápidas*",
         "1. Stock",
         "2. Precios",
-        "3. Caja",
+        "3. Caja general",
         "4. Resumen de hoy",
         "5. Ventas de hoy",
         "",
@@ -1320,6 +1366,14 @@ def mensaje_menu():
         "",
         "Escribí *opcion N* para seleccionar.",
         "Ejemplo: *opcion 1*",
+        "",
+        "",
+        "*Cajas por sección*",
+        "- caja bebidas postres",
+        "- caja comidas",
+        "- recaudado bebidas",
+        "- recaudado postres",
+        "- recaudado comidas",
         "",
         "También podés escribir *ayuda* para ver todos los comandos."
     ])
@@ -1420,6 +1474,11 @@ def mensaje_ayuda():
         "- ver stock",
         "- precios",
         "- caja",
+        "- caja bebidas postres",
+        "- caja comidas",
+        "- recaudado bebidas",
+        "- recaudado postres",
+        "- recaudado comidas",
         "- balance hoy",
         "- resumen hoy",
         "- ventas hoy",
@@ -1674,6 +1733,68 @@ def procesar_comando(
             "codigo": "COMANDO_PRECIOS",
             "respuesta": formatear_precios(
                 resultado["datos"]["productos"]
+            ),
+        }
+
+    cajas_seccion = {
+        "caja bebidas postres": "bebidas_postres",
+        "caja bebidas y postres": "bebidas_postres",
+        "caja postres y bebidas": "bebidas_postres",
+        "caja comidas": "comidas",
+        "caja general comidas": "comidas",
+    }
+
+    if texto in cajas_seccion:
+        resultado = ejecutar_accion({
+            "accion": "consultar_caja_seccion",
+            "datos": {
+                "seccion": cajas_seccion[texto],
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        return {
+            "ok": True,
+            "codigo": "COMANDO_CAJA_SECCION",
+            "respuesta": formatear_caja_seccion(
+                resultado["datos"]
+            ),
+            **resultado["datos"],
+        }
+
+    coincidencia_recaudado = re.match(
+        r"^(?:cuanto\s+|cuanta\s+plata\s+)?"
+        r"(?:recaude|recaudado|recaudamos|ventas?)"
+        r"(?:\s+en|\s+de)?\s+"
+        r"(bebidas|postres|comidas)$",
+        texto
+    )
+
+    if coincidencia_recaudado:
+        categoria = coincidencia_recaudado.group(1)
+
+        resultado = ejecutar_accion({
+            "accion": "consultar_recaudado",
+            "datos": {
+                "categoria": categoria,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        total = resultado["datos"]["total"]
+
+        return {
+            "ok": True,
+            "codigo": "COMANDO_RECAUDADO_CATEGORIA",
+            "categoria": categoria,
+            "total": total,
+            "respuesta": (
+                f"*Recaudado en {categoria}*\n"
+                f"{formatear_pesos(total)}"
             ),
         }
 
