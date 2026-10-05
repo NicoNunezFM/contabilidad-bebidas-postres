@@ -126,3 +126,28 @@ Para empezar, escriban menu.
 La bienvenida se envía una sola vez por grupo. El estado queda almacenado localmente en `.welcome_state.json`, por lo que no vuelve a enviarse aunque Node o la PC se reinicien.
 
 La bienvenida nunca se envía en chats privados ni en grupos que no estén autorizados.
+
+
+## Auditoría y seguridad de ventas
+
+Los comandos enviados desde WhatsApp incluyen información de origen para que las operaciones puedan auditarse. Las ventas guardan el canal, operador, grupo e ID del mensaje que las originó.
+
+Las respuestas de venta muestran el número de operación:
+
+```text
+Operación: #123
+```
+
+En un grupo, `anular ultima venta` busca la última venta activa registrada por la misma persona que envía el comando. Esto evita que una persona anule accidentalmente la venta más reciente de otro integrante.
+
+La anulación también registra quién la realizó y qué mensaje de WhatsApp la solicitó.
+
+## Backups automáticos
+
+Al iniciar FastAPI, Abadion crea como máximo un backup diario de SQLite en la carpeta `backups/`.
+
+Los backups se crean usando la API de backup de SQLite y se conservan los últimos 14 archivos diarios. La carpeta queda excluida de Git.
+
+## Comandos interrumpidos
+
+Si un mensaje queda marcado como `Procesando` durante más de cinco minutos por un cierre inesperado, Abadion no lo ejecuta nuevamente de forma automática. Lo marca como `Requiere_revision` para evitar duplicar ventas o movimientos.
