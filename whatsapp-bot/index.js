@@ -353,28 +353,77 @@ function guardarEstadoBienvenidas() {
 async function enviarBienvenidaSiCorresponde(
   idGrupo
 ) {
-  if (
-    !SEND_GROUP_WELCOME ||
-    !ALLOW_GROUPS ||
-    !ALLOWED_GROUP_IDS.has(idGrupo)
-  ) {
+  if (!SEND_GROUP_WELCOME) {
+    if (DEBUG_MESSAGES) {
+      console.log(
+        "Bienvenida omitida: SEND_GROUP_WELCOME=false."
+      );
+    }
+    return false;
+  }
+
+  if (!ALLOW_GROUPS) {
+    if (DEBUG_MESSAGES) {
+      console.log(
+        "Bienvenida omitida: ALLOW_GROUPS=false."
+      );
+    }
+    return false;
+  }
+
+  if (!ALLOWED_GROUP_IDS.has(idGrupo)) {
+    if (DEBUG_MESSAGES) {
+      console.log(
+        "Bienvenida omitida: grupo no autorizado:",
+        idGrupo
+      );
+    }
     return false;
   }
 
   if (
     estadoBienvenidas[idGrupo]?.enviada
   ) {
+    if (DEBUG_MESSAGES) {
+      console.log(
+        "Bienvenida ya enviada previamente al grupo:",
+        idGrupo
+      );
+    }
     return false;
   }
 
-  await client.sendMessage(
+  const chat =
+    await client.getChatById(idGrupo);
+
+  if (!chat) {
+    throw new Error(
+      `No se encontró el chat del grupo ${idGrupo}. ` +
+      "Verificá ALLOWED_GROUP_IDS."
+    );
+  }
+
+  if (!chat.isGroup) {
+    throw new Error(
+      `El ID configurado no corresponde a un grupo: ${idGrupo}`
+    );
+  }
+
+  console.log(
+    "Enviando bienvenida de Abadion al grupo:",
     idGrupo,
+    "| Nombre:",
+    chat.name || "(sin nombre)"
+  );
+
+  await chat.sendMessage(
     WELCOME_MESSAGE
   );
 
   estadoBienvenidas[idGrupo] = {
     enviada: true,
     fecha: new Date().toISOString(),
+    nombre: chat.name || null,
   };
 
   guardarEstadoBienvenidas();
@@ -465,6 +514,17 @@ client.on("ready", async () => {
     ALLOW_GROUPS &&
     SEND_GROUP_WELCOME
   ) {
+    if (DEBUG_MESSAGES) {
+      console.log(
+        "IDs de grupos autorizados:",
+        Array.from(ALLOWED_GROUP_IDS)
+      );
+      console.log(
+        "Estado local de bienvenidas:",
+        estadoBienvenidas
+      );
+    }
+
     for (
       const idGrupo
       of ALLOWED_GROUP_IDS
