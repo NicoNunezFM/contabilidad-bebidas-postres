@@ -13,11 +13,11 @@ def _normalizar_contexto(contexto):
     usuario_numero = contexto.get("usuario_numero")
 
     usuario_origen = (
-        str(usuario_id).strip()
-        if usuario_id
+        str(usuario_numero).strip()
+        if usuario_numero
         else (
-            str(usuario_numero).strip()
-            if usuario_numero
+            str(usuario_id).strip()
+            if usuario_id
             else None
         )
     )
