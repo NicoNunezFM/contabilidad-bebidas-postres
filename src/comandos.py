@@ -11,14 +11,24 @@ def error_comando(resultado):
     if resultado.get("codigo") == "PRODUCTO_AMBIGUO":
         candidatos = resultado.get("candidatos", [])
 
-        nombres = ", ".join(
-            candidato["nombre"]
-            for candidato in candidatos
-        )
+        opciones = []
+
+        for candidato in candidatos:
+            texto = candidato["nombre"]
+
+            if candidato.get("precio_venta") is not None:
+                texto += (
+                    " "
+                    f"({formatear_pesos(candidato['precio_venta'])})"
+                )
+
+            opciones.append(texto)
 
         respuesta = (
-            "El producto es ambiguo. "
-            f"Coincide con: {nombres}."
+            "Necesito que especifiques cuál producto. "
+            "Opciones: "
+            + ", ".join(opciones)
+            + "."
         )
 
     else:
@@ -472,6 +482,34 @@ def interpretar_anulacion_venta(
 
 
 
+def parece_venta_rapida(texto):
+    """
+    Detecta mensajes operativos cortos del grupo, por ejemplo:
+    - 1 pepsi
+    - 2 sandwich de 6000
+    - 1 hamburguesa simple
+
+    No convierte conversaciones normales en ventas: exige
+    que el mensaje empiece con una cantidad.
+    """
+    return bool(
+        re.match(
+            r"^x?\d+\s+\S+",
+            texto
+        )
+    )
+
+
+def interpretar_venta_rapida(
+    texto,
+    contexto=None
+):
+    return interpretar_venta(
+        "venta " + texto,
+        contexto=contexto,
+    )
+
+
 def mensaje_menu():
     return "\n".join([
         "*MENÚ - Lo de Clau*",
@@ -618,6 +656,12 @@ def procesar_comando(
 
     if texto.startswith("venta"):
         return interpretar_venta(
+            texto,
+            contexto=contexto,
+        )
+
+    if parece_venta_rapida(texto):
+        return interpretar_venta_rapida(
             texto,
             contexto=contexto,
         )
@@ -806,6 +850,6 @@ def procesar_comando(
         "codigo": "COMANDO_NO_RECONOCIDO",
         "respuesta": (
             "No entendí el comando. "
-            "Escribí 'ayuda' para ver las opciones disponibles."
+            "Podés escribir 'menu' para ver las opciones disponibles."
         ),
     }
