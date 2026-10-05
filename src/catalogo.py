@@ -9,6 +9,7 @@ CATALOGO_PRECIOS = [
     {"nombre": "Manaos Naranja 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
     {"nombre": "Manaos Manzana 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
     {"nombre": "Manaos Pomelo 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
+    {"nombre": "Manaos Lima 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
     {"nombre": "Pepsi lata", "categoria": "Bebidas", "precio": 1600, "controla_stock": True},
     {"nombre": "7up lata", "categoria": "Bebidas", "precio": 1600, "controla_stock": True},
 
@@ -49,6 +50,75 @@ CATALOGO_PRECIOS = [
     {"nombre": "Chocotorta", "categoria": "Postres", "precio": 4500, "controla_stock": True},
     {"nombre": "Oreo", "categoria": "Postres", "precio": 4500, "controla_stock": True},
 ]
+
+
+def asegurar_productos_catalogo():
+    """
+    Crea únicamente los productos del catálogo que todavía no existen.
+
+    No modifica precios, stock, categoría ni control de stock de
+    productos ya existentes. Es seguro ejecutarlo en cada arranque.
+    """
+
+    conexion = obtener_conexion()
+    creados = 0
+
+    try:
+        cursor = conexion.cursor()
+
+        for item in CATALOGO_PRECIOS:
+            cursor.execute(
+                """
+                SELECT id_producto
+                FROM productos
+                WHERE LOWER(nombre) = LOWER(?)
+                """,
+                (item["nombre"],)
+            )
+
+            if cursor.fetchone() is not None:
+                continue
+
+            cursor.execute(
+                """
+                INSERT INTO productos (
+                    nombre,
+                    categoria,
+                    presentacion,
+                    contenido,
+                    unidad_medida,
+                    unidades_por_pack,
+                    stock,
+                    precio_venta,
+                    controla_stock
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item["nombre"],
+                    item["categoria"],
+                    "Unidad",
+                    1,
+                    "unidad",
+                    1,
+                    0,
+                    item["precio"],
+                    int(item["controla_stock"]),
+                )
+            )
+
+            creados += 1
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "creados": creados,
+            "total_catalogo": len(CATALOGO_PRECIOS),
+        }
+
+    finally:
+        conexion.close()
 
 
 def sincronizar_catalogo():
