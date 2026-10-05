@@ -16,6 +16,7 @@ INSUMOS_BASE = [
     ("Café con leche preparado", "ml"),
     ("Café", "g"),
     ("Azúcar impalpable", "g"),
+    ("Pote", "un"),
 ]
 
 ALIASES_INSUMOS = {
@@ -37,6 +38,10 @@ ALIASES_INSUMOS = {
     "cafe con leche": "cafe con leche preparado",
     "cafe con leche preparado": "cafe con leche preparado",
     "azucar impalpable": "azucar impalpable",
+    "pote": "pote",
+    "potes": "pote",
+    "envase": "pote",
+    "envases": "pote",
 }
 
 RECETAS_BASE = [
@@ -70,14 +75,16 @@ RECETAS_BASE = [
             "Por unidad: 70 g de Oreo base, 30 ml de leche, "
             "90 g de dulce de leche y 60 ml de crema. "
             "Los 100 g de decoración equivalen a unos 10 g extra "
-            "de Oreo por unidad. El azúcar impalpable se usa a ojo "
-            "y no se incluye todavía en el costo cuantificado."
+            "de Oreo por unidad. Se usa 1 pote por postre. "
+            "El azúcar impalpable se usa a ojo y no se incluye "
+            "todavía en el costo cuantificado."
         ),
         "insumos": [
             ("Galletitas Oreo", 800),
             ("Dulce de leche", 900),
             ("Crema de leche", 600),
             ("Leche", 300),
+            ("Pote", 10),
         ],
     },
     {
@@ -112,7 +119,7 @@ RECETAS_BASE = [
             "+ 500 g de queso crema. "
             "Armado orientativo por unidad: 45 g Chocolinas + "
             "45 ml café, 50 g relleno, otra capa igual, "
-            "y 20 g finales de Chocolinas. "
+            "y 20 g finales de Chocolinas. Se usa 1 pote por postre. "
             "Ingredientes usados a ojo no se incluyen en el costo "
             "exacto hasta que se mida su consumo."
         ),
@@ -121,6 +128,7 @@ RECETAS_BASE = [
             ("Queso crema", 500),
             ("Dulce de leche", 500),
             ("Café con leche preparado", 900),
+            ("Pote", 10),
         ],
     },
 ]
