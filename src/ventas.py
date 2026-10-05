@@ -1131,7 +1131,15 @@ def anular_operacion_venta(
                 ventas.cantidad,
                 ventas.precio_unitario,
                 ventas.anulada,
-                productos.controla_stock
+                productos.controla_stock,
+                COALESCE(
+                    (
+                        SELECT SUM(precio_total)
+                        FROM venta_adicionales
+                        WHERE venta_adicionales.id_venta = ventas.id_venta
+                    ),
+                    0
+                ) AS total_adicionales
             FROM ventas
             INNER JOIN productos
                 ON ventas.id_producto = productos.id_producto
@@ -1178,8 +1186,10 @@ def anular_operacion_venta(
             cantidad = fila[3]
             precio_unitario = fila[4]
             controla_stock = bool(fila[6])
+            total_adicionales = float(fila[7] or 0)
 
-            subtotal = cantidad * precio_unitario
+            subtotal_producto = cantidad * precio_unitario
+            subtotal = subtotal_producto + total_adicionales
             total_anulado += subtotal
 
             if controla_stock:
@@ -1217,6 +1227,8 @@ def anular_operacion_venta(
                 "producto": nombre,
                 "cantidad": cantidad,
                 "precio_unitario": precio_unitario,
+                "subtotal_producto": subtotal_producto,
+                "total_adicionales": total_adicionales,
                 "subtotal": subtotal,
                 "controla_stock": controla_stock,
             })
