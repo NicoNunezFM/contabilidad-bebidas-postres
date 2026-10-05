@@ -702,9 +702,23 @@ def crear_tablas_costos_postres():
             rendimiento REAL NOT NULL,
             costo_fijo_por_unidad REAL NOT NULL DEFAULT 0,
             activa INTEGER NOT NULL DEFAULT 1,
+            notas TEXT,
             UNIQUE(producto, version)
         )
     """)
+
+    cursor.execute("PRAGMA table_info(recetas)")
+    columnas_recetas = cursor.fetchall()
+    nombres_columnas_recetas = [
+        columna[1]
+        for columna in columnas_recetas
+    ]
+
+    if "notas" not in nombres_columnas_recetas:
+        cursor.execute("""
+            ALTER TABLE recetas
+            ADD COLUMN notas TEXT
+        """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS receta_insumos (
