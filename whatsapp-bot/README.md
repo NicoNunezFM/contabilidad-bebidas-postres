@@ -238,3 +238,38 @@ La caja Bebidas + Postres muestra por separado cuánto se recaudó en bebidas y 
 Las cajas se calculan a partir de la categoría de cada producto, por lo que también separan ventas históricas ya registradas. Las compras vinculadas a productos se descuentan de la sección correspondiente.
 
 Por ahora los gastos generales no tienen sección asignada y continúan apareciendo únicamente en la caja general. Por ese motivo el valor de cada caja de sección se denomina saldo operativo y no saldo final. El siguiente paso será permitir gastos asociados a Bebidas + Postres o Comidas.
+
+
+## Costos y recetas de postres
+
+Abadion guarda un historial de insumos de postres con cantidad comprada, costo y comercio. Cada compra detallada se registra también como gasto de la caja Bebidas + Postres.
+
+Ejemplos:
+
+```text
+insumo galletitas oreo 700 g 7000 Carrefour
+insumo dulce de leche 1 kg 11000 Carrefour
+gasto postres crema de leche 500 ml 5000 en Carrefour
+```
+
+También se pueden registrar gastos generales de postres sin desglose:
+
+```text
+gasto postres Carrefour 20000
+```
+
+Un gasto general queda en el historial y en la caja de Bebidas + Postres, pero no se usa para calcular el costo de una receta porque no informa qué cantidad de cada insumo se compró. No conviene registrar el mismo ticket como gasto general y además volver a cargar todas sus líneas como insumos, porque duplicaría el egreso.
+
+Consultas disponibles:
+
+```text
+historial gastos postres
+receta oreo
+receta chocotorta
+costo 10 oreos
+cuanto me vale hacer 10 oreos
+```
+
+El costo estimado usa el promedio ponderado de las últimas 3 compras de cada insumo y escala la receta según la cantidad solicitada. Si falta historial de precio de algún ingrediente, Abadion muestra un costo parcial y detalla los insumos faltantes.
+
+Las recetas se guardan versionadas en SQLite. La versión base actual mantiene el rendimiento de 10 postres y el costo fijo de elaboración de $500 por postre definido para el proyecto.
