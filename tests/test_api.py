@@ -728,7 +728,7 @@ def test_api_comando_venta_producto_sin_stock_no_descuenta(
     assert stock == 0
 
 
-def test_api_comando_venta_detecta_producto_ambiguo(
+def test_api_comando_venta_manaos_cola_asume_grande(
     base_prueba
 ):
     from database import obtener_conexion
@@ -777,12 +777,15 @@ def test_api_comando_venta_detecta_producto_ambiguo(
         json={"mensaje": "venta manaos cola"}
     )
 
-    assert respuesta.status_code == 400
+    assert respuesta.status_code == 200
 
     datos = respuesta.json()
 
-    assert datos["ok"] is False
-    assert datos["codigo"] == "PRODUCTO_AMBIGUO"
+    assert datos["ok"] is True
+    assert datos["codigo"] == "COMANDO_VENTA_REGISTRADA"
+    assert datos["producto"] == "Manaos Cola 2.25l"
+    assert datos["precio_unitario"] == 2000
+    assert datos["stock_restante"] == 9
 
 
 def test_api_menu_whatsapp(
