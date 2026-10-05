@@ -351,7 +351,8 @@ function guardarEstadoBienvenidas() {
 }
 
 async function enviarBienvenidaSiCorresponde(
-  idGrupo
+  idGrupo,
+  mensajeGrupo = null
 ) {
   if (!SEND_GROUP_WELCOME) {
     if (DEBUG_MESSAGES) {
@@ -393,37 +394,32 @@ async function enviarBienvenidaSiCorresponde(
     return false;
   }
 
-  const chat =
-    await client.getChatById(idGrupo);
-
-  if (!chat) {
-    throw new Error(
-      `No se encontró el chat del grupo ${idGrupo}. ` +
-      "Verificá ALLOWED_GROUP_IDS."
-    );
-  }
-
-  if (!chat.isGroup) {
-    throw new Error(
-      `El ID configurado no corresponde a un grupo: ${idGrupo}`
-    );
-  }
-
   console.log(
     "Enviando bienvenida de Abadion al grupo:",
-    idGrupo,
-    "| Nombre:",
-    chat.name || "(sin nombre)"
+    idGrupo
   );
 
-  await chat.sendMessage(
-    WELCOME_MESSAGE
-  );
+  // Evitamos getChatById porque versiones recientes de WhatsApp Web
+  // pueden fallar al resolver grupos restaurados desde LocalAuth.
+  // Si estamos procesando un mensaje del grupo, reply() es el camino
+  // más estable; al iniciar el bot usamos client.sendMessage().
+  if (
+    mensajeGrupo &&
+    typeof mensajeGrupo.reply === "function"
+  ) {
+    await mensajeGrupo.reply(
+      WELCOME_MESSAGE
+    );
+  } else {
+    await client.sendMessage(
+      idGrupo,
+      WELCOME_MESSAGE
+    );
+  }
 
   estadoBienvenidas[idGrupo] = {
     enviada: true,
     fecha: new Date().toISOString(),
-    nombre: chat.name || null,
   };
 
   guardarEstadoBienvenidas();
@@ -537,7 +533,7 @@ client.on("ready", async () => {
         console.error(
           "No se pudo enviar la bienvenida al grupo:",
           idGrupo,
-          error?.message || error
+          error?.stack || error?.message || error
         );
       }
     }
@@ -597,12 +593,13 @@ async function procesarMensajeEntrante(message, origenEvento) {
     if (esGrupo(message)) {
       try {
         await enviarBienvenidaSiCorresponde(
-          message.from
+          message.from,
+          message
         );
       } catch (error) {
         console.error(
           "No se pudo enviar la bienvenida al recibir mensaje de grupo:",
-          error?.message || error
+          error?.stack || error?.message || error
         );
       }
     }
