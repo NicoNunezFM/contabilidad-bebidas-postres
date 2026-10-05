@@ -618,6 +618,7 @@ def accion_registrar_venta(datos):
         id_producto=producto["id_producto"],
         cantidad=cantidad,
         contexto=datos.get("contexto"),
+        adicionales=datos.get("adicionales"),
     )
 
     if not resultado["ok"]:
@@ -634,6 +635,9 @@ def accion_registrar_venta(datos):
             "producto": resultado["producto"],
             "cantidad": resultado["cantidad"],
             "precio_unitario": resultado["precio_unitario"],
+            "subtotal_producto": resultado["subtotal_producto"],
+            "adicionales": resultado["adicionales"],
+            "total_adicionales": resultado["total_adicionales"],
             "total": resultado["total"],
             "stock_restante": resultado["stock_restante"],
             "controla_stock": resultado["controla_stock"],
@@ -713,6 +717,9 @@ def accion_registrar_venta_multiple(datos):
             "id_producto": producto["id_producto"],
             "cantidad": cantidad,
         }
+
+        if "adicionales" in item:
+            item_resuelto["adicionales"] = item["adicionales"]
 
         precio_unitario = item.get("precio_unitario")
 
