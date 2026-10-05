@@ -1052,9 +1052,44 @@ def test_api_venta_rapida_hamburguesa_simple_pide_especificar(
     assert "Clasica simple" in datos["respuesta"]
 
 
-def test_api_venta_rapida_producto_no_catalogado_da_error_util(
+def test_api_venta_rapida_manaos_lima_asume_225l(
     base_prueba
 ):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Manaos Lima 2.25l",
+            "Bebidas",
+            "Botella",
+            2.25,
+            "Litros",
+            1,
+            5,
+            2000,
+            1,
+        )
+    )
+
+    conexion.commit()
+    conexion.close()
+
     respuesta = client.post(
         "/comandos",
         json={
@@ -1062,10 +1097,11 @@ def test_api_venta_rapida_producto_no_catalogado_da_error_util(
         }
     )
 
-    assert respuesta.status_code == 404
+    assert respuesta.status_code == 200
 
     datos = respuesta.json()
 
-    assert datos["ok"] is False
-    assert datos["codigo"] == "PRODUCTO_NO_ENCONTRADO"
-    assert "manaos lima" in datos["respuesta"].lower()
+    assert datos["ok"] is True
+    assert datos["producto"] == "Manaos Lima 2.25l"
+    assert datos["cantidad"] == 1
+    assert datos["stock_restante"] == 4
