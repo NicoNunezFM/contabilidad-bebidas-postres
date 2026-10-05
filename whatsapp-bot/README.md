@@ -207,3 +207,34 @@ En el segundo se agregan 12 botellas chicas.
 `a` indica el precio de cada pack.
 
 El costo es obligatorio para una compra, porque también debe quedar correctamente registrado en compras y caja. Si solo se quiere corregir el conteo físico, se usa `inventario <producto> <cantidad real>`.
+
+
+## Cajas por sección
+
+Abadion mantiene dos vistas virtuales de caja:
+
+- Bebidas + Postres.
+- Comidas, que por ahora agrupa todas las demás categorías.
+
+Comandos:
+
+```text
+caja bebidas postres
+caja comidas
+recaudado bebidas
+recaudado postres
+recaudado comidas
+```
+
+También entiende consultas como:
+
+```text
+cuanta plata recaude en bebidas
+ventas postres
+```
+
+La caja Bebidas + Postres muestra por separado cuánto se recaudó en bebidas y cuánto en postres, además del total de ventas, compras directas y saldo operativo.
+
+Las cajas se calculan a partir de la categoría de cada producto, por lo que también separan ventas históricas ya registradas. Las compras vinculadas a productos se descuentan de la sección correspondiente.
+
+Por ahora los gastos generales no tienen sección asignada y continúan apareciendo únicamente en la caja general. Por ese motivo el valor de cada caja de sección se denomina saldo operativo y no saldo final. El siguiente paso será permitir gastos asociados a Bebidas + Postres o Comidas.
