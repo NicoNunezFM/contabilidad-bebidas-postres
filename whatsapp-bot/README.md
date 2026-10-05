@@ -105,3 +105,24 @@ opcion 1
 ```
 
 Las opciones de consulta, como stock, precios o caja, se ejecutan directamente. Las opciones que modifican datos muestran primero el formato que debe escribirse, por ejemplo cómo registrar una venta o una merma.
+
+
+## Bienvenida de Abadion
+
+Cuando `SEND_GROUP_WELCOME=true`, el bot envía automáticamente una presentación breve de Abadion a cada grupo incluido en `ALLOWED_GROUP_IDS`.
+
+El mensaje es:
+
+```text
+Bienvenidos a Abadion.
+
+Desde este grupo, Abadion va a centralizar la gestión de Lo de Clau: ventas, stock, caja, movimientos y consultas.
+
+Pueden interactuar directamente con el sistema escribiendo los comandos disponibles.
+
+Para empezar, escriban menu.
+```
+
+La bienvenida se envía una sola vez por grupo. El estado queda almacenado localmente en `.welcome_state.json`, por lo que no vuelve a enviarse aunque Node o la PC se reinicien.
+
+La bienvenida nunca se envía en chats privados ni en grupos que no estén autorizados.
