@@ -161,13 +161,17 @@ def formatear_caja_seccion(estado):
             f"{formatear_pesos(estado['compras_directas'])}"
         ),
         (
+            "Gastos asignados: "
+            f"{formatear_pesos(estado.get('gastos_seccion', 0))}"
+        ),
+        (
             "Saldo operativo: "
             f"{formatear_pesos(estado['saldo_operativo'])}"
         ),
         "",
         (
-            "_Los gastos generales todavía quedan en la caja general "
-            "hasta que los clasifiquemos por sección._"
+            "_Los gastos sin sección continúan únicamente "
+            "en la caja general._"
         ),
     ])
 
@@ -1168,6 +1172,292 @@ def interpretar_compra_pack(
     }
 
 
+def interpretar_compra_insumo(
+    texto,
+    contexto=None
+):
+    normalizado = normalizar_texto(texto)
+
+    coincidencia = re.match(
+        r"^(?:compra\s+)?insumo\s+"
+        r"(.+?)\s+"
+        r"(\d+(?:[\.,]\d+)?)\s*"
+        r"(kg|kilos?|g|gr|gramos?|l|lt|litros?|ml|mililitros?)\s+"
+        r"(\d[\d\.]*\s*(?:mil)?)"
+        r"(?:\s+(?:en\s+)?(.+))?$",
+        normalizado
+    )
+
+    if not coincidencia:
+        return None
+
+    insumo = coincidencia.group(1).strip()
+    cantidad = float(
+        coincidencia.group(2)
+        .replace(",", ".")
+    )
+    unidad = coincidencia.group(3)
+    costo = normalizar_importe(
+        coincidencia.group(4)
+    )
+    comercio = (
+        coincidencia.group(5).strip()
+        if coincidencia.group(5)
+        else None
+    )
+
+    if costo is None:
+        return {
+            "ok": False,
+            "codigo": "COSTO_INSUMO_INVALIDO",
+            "respuesta": "No pude interpretar el costo del insumo.",
+        }
+
+    resultado = ejecutar_accion({
+        "accion": "registrar_compra_insumo",
+        "datos": {
+            "insumo": insumo,
+            "cantidad": cantidad,
+            "unidad": unidad,
+            "costo_total": costo,
+            "comercio": comercio,
+            "contexto": contexto or {},
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    respuesta = [
+        "*Insumo de postres registrado*",
+        f"{datos['insumo']}: {cantidad:g} {unidad}",
+        f"Costo: {formatear_pesos(datos['costo_total'])}",
+    ]
+
+    if datos.get("comercio"):
+        respuesta.append(
+            f"Comercio: {datos['comercio']}"
+        )
+
+    respuesta.append(
+        "Se agregó al historial de costos de postres."
+    )
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_COMPRA_INSUMO_REGISTRADA",
+        "respuesta": "\n".join(respuesta),
+    }
+
+
+def interpretar_receta_postre(texto):
+    coincidencia = re.match(
+        r"^receta\s+(.+)$",
+        texto
+    )
+
+    if not coincidencia:
+        return None
+
+    producto = coincidencia.group(1).strip()
+
+    resultado = ejecutar_accion({
+        "accion": "consultar_receta",
+        "datos": {
+            "producto": producto,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    receta = resultado["datos"]
+
+    lineas = [
+        f"*Receta {receta['producto']}*",
+        (
+            f"Rendimiento base: "
+            f"{receta['rendimiento']:g} postres"
+        ),
+    ]
+
+    for insumo in receta["insumos"]:
+        lineas.append(
+            f"- {insumo['nombre']}: "
+            f"{insumo['cantidad_base']:g} "
+            f"{insumo['unidad_base']}"
+        )
+
+    lineas.append(
+        "Costo fijo por postre: "
+        f"{formatear_pesos(receta['costo_fijo_por_unidad'])}"
+    )
+
+    return {
+        "ok": True,
+        "codigo": "COMANDO_RECETA_POSTRE",
+        "receta": receta,
+        "respuesta": "\n".join(lineas),
+    }
+
+
+def interpretar_costo_postre(texto):
+    patrones = [
+        r"^costo\s+(\d+)\s+(.+)$",
+        r"^cuanto\s+cuesta\s+hacer\s+(\d+)\s+(.+)$",
+        r"^cuanto\s+me\s+vale\s+hacer\s+(\d+)\s+(.+)$",
+        r"^cuanto\s+sale\s+hacer\s+(\d+)\s+(.+)$",
+    ]
+
+    coincidencia = None
+
+    for patron in patrones:
+        coincidencia = re.match(
+            patron,
+            texto
+        )
+
+        if coincidencia:
+            break
+
+    if not coincidencia:
+        return None
+
+    cantidad = int(
+        coincidencia.group(1)
+    )
+    producto = coincidencia.group(2).strip()
+
+    resultado = ejecutar_accion({
+        "accion": "estimar_costo_receta",
+        "datos": {
+            "producto": producto,
+            "cantidad": cantidad,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    lineas = [
+        (
+            f"*Costo estimado: "
+            f"{cantidad} {datos['producto']}*"
+        ),
+    ]
+
+    for item in datos["detalle"]:
+        cantidad_texto = (
+            f"{item['cantidad']:g} {item['unidad']}"
+        )
+
+        if item["costo_estimado"] is None:
+            lineas.append(
+                f"- {item['insumo']}: "
+                f"{cantidad_texto} | sin historial de precio"
+            )
+        else:
+            lineas.append(
+                f"- {item['insumo']}: "
+                f"{cantidad_texto} | "
+                f"{formatear_pesos(item['costo_estimado'])}"
+            )
+
+    lineas.extend([
+        (
+            "Costo fijo de elaboración: "
+            f"{formatear_pesos(datos['costo_fijo'])}"
+        ),
+    ])
+
+    if datos["costo_total_estimado"] is not None:
+        lineas.append(
+            "*Total estimado: "
+            f"{formatear_pesos(datos['costo_total_estimado'])}*"
+        )
+        lineas.append(
+            "Costo estimado por unidad: "
+            f"{formatear_pesos(
+                datos['costo_total_estimado'] / cantidad
+            )}"
+        )
+    else:
+        lineas.append(
+            "Costo parcial conocido: "
+            f"{formatear_pesos(datos['costo_parcial_conocido'])}"
+        )
+        lineas.append(
+            "Faltan precios de: "
+            + ", ".join(datos["faltantes"])
+        )
+
+    lineas.append(
+        "_Estimación basada en el promedio ponderado "
+        "de las últimas 3 compras de cada insumo._"
+    )
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": datos["codigo"],
+        "respuesta": "\n".join(lineas),
+    }
+
+
+def interpretar_historial_gastos_postres(texto):
+    if texto not in {
+        "historial gastos postres",
+        "historial de gastos postres",
+        "gastos postres historial",
+    }:
+        return None
+
+    resultado = ejecutar_accion({
+        "accion": "historial_gastos_postres",
+        "datos": {
+            "limite": 10,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    gastos = resultado["datos"]["gastos"]
+
+    if not gastos:
+        return {
+            "ok": True,
+            "codigo": "COMANDO_HISTORIAL_GASTOS_POSTRES",
+            "gastos": [],
+            "respuesta": (
+                "Todavía no hay gastos asignados a Bebidas + Postres."
+            ),
+        }
+
+    lineas = [
+        "*Últimos gastos de Bebidas + Postres*",
+    ]
+
+    for gasto in gastos:
+        lineas.append(
+            f"- {gasto['fecha']} | "
+            f"{gasto['descripcion']}: "
+            f"{formatear_pesos(gasto['monto'])}"
+        )
+
+    return {
+        "ok": True,
+        "codigo": "COMANDO_HISTORIAL_GASTOS_POSTRES",
+        "gastos": gastos,
+        "respuesta": "\n".join(lineas),
+    }
+
+
 def interpretar_gasto_natural(
     texto,
     contexto=None,
@@ -1198,6 +1488,21 @@ def interpretar_gasto_natural(
         normalizado
     )
     limpio = " ".join(limpio.split())
+
+    seccion = None
+
+    for prefijo, seccion_detectada in (
+        ("postres ", "bebidas_postres"),
+        ("bebidas ", "bebidas_postres"),
+        ("bebidas postres ", "bebidas_postres"),
+        ("bebidas y postres ", "bebidas_postres"),
+        ("comidas ", "comidas"),
+        ("comida ", "comidas"),
+    ):
+        if limpio.startswith(prefijo):
+            seccion = seccion_detectada
+            limpio = limpio[len(prefijo):].strip()
+            break
 
     coincidencias = list(
         re.finditer(
@@ -1253,6 +1558,7 @@ def interpretar_gasto_natural(
             "descripcion": descripcion,
             "monto": monto,
             "categoria": "Otros",
+            "seccion": seccion,
             "contexto": contexto or {},
         },
     })
@@ -1270,6 +1576,15 @@ def interpretar_gasto_natural(
             "*Gasto registrado*\n"
             f"{datos['descripcion']}: "
             f"{formatear_pesos(datos['monto'])}"
+            + (
+                "\nCaja: Bebidas + Postres"
+                if datos.get("seccion") == "bebidas_postres"
+                else (
+                    "\nCaja: Comidas"
+                    if datos.get("seccion") == "comidas"
+                    else ""
+                )
+            )
         ),
     }
 
@@ -1374,6 +1689,12 @@ def mensaje_menu():
         "- recaudado bebidas",
         "- recaudado postres",
         "- recaudado comidas",
+        "",
+        "*Costos de postres*",
+        "- insumo crema de leche 1 l 9000 Carrefour",
+        "- receta oreo",
+        "- costo 10 oreos",
+        "- historial gastos postres",
         "",
         "También podés escribir *ayuda* para ver todos los comandos."
     ])
@@ -1551,6 +1872,35 @@ def procesar_comando(
                 "No lo registré como un movimiento adicional."
             ),
         }
+
+    compra_insumo = interpretar_compra_insumo(
+        texto,
+        contexto=contexto,
+    )
+
+    if compra_insumo is not None:
+        return compra_insumo
+
+    receta_postre = interpretar_receta_postre(
+        texto
+    )
+
+    if receta_postre is not None:
+        return receta_postre
+
+    costo_postre = interpretar_costo_postre(
+        texto
+    )
+
+    if costo_postre is not None:
+        return costo_postre
+
+    historial_postres = interpretar_historial_gastos_postres(
+        texto
+    )
+
+    if historial_postres is not None:
+        return historial_postres
 
     if texto.startswith("compra "):
         compra_pack = interpretar_compra_pack(
