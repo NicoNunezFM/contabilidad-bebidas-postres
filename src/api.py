@@ -30,6 +30,8 @@ from compras import (
     anular_compra
 )
 
+from costos_postres import inicializar_costos_postres
+
 from diezmo import (
     estado_diezmo_mes,
     registrar_reserva_diezmo,
@@ -249,6 +251,7 @@ class AccionEntrada(BaseModel):
 @app.on_event("startup")
 def preparar_base_de_datos():
     inicializar_base_de_datos()
+    inicializar_costos_postres()
     resultado_catalogo = asegurar_productos_catalogo()
 
     if resultado_catalogo.get("creados"):
