@@ -1278,6 +1278,7 @@ def interpretar_receta_postre(texto):
 
     lineas = [
         f"*Receta {receta['producto']}*",
+        f"Versión: {receta['version']}",
         (
             f"Rendimiento base: "
             f"{receta['rendimiento']:g} postres"
@@ -1295,6 +1296,13 @@ def interpretar_receta_postre(texto):
         "Costo fijo por postre: "
         f"{formatear_pesos(receta['costo_fijo_por_unidad'])}"
     )
+
+    if receta.get("notas"):
+        lineas.extend([
+            "",
+            "*Notas*",
+            receta["notas"],
+        ])
 
     return {
         "ok": True,
@@ -1401,6 +1409,11 @@ def interpretar_costo_postre(texto):
     lineas.append(
         "_Estimación basada en el promedio ponderado "
         "de las últimas 3 compras de cada insumo._"
+    )
+    lineas.append(
+        f"_Receta v{datos['version_receta']}. "
+        "Los consumos indicados como 'a ojo' no se suman "
+        "hasta tener una cantidad medible._"
     )
 
     return {
