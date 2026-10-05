@@ -113,6 +113,229 @@ def gastos_caja():
 
 
 # ============================================================
+# CAJAS VIRTUALES POR SECCIÓN
+# ============================================================
+
+CATEGORIAS_CAJA_BEBIDAS_POSTRES = {
+    "bebidas",
+    "postres",
+}
+
+
+def _ventas_por_categorias(
+    categorias=None,
+    excluir_categorias=None
+):
+    categorias = categorias or set()
+    excluir_categorias = excluir_categorias or set()
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    condiciones = [
+        "ventas.anulada = 0",
+    ]
+    parametros = []
+
+    if categorias:
+        placeholders = ",".join(
+            "?"
+            for _ in categorias
+        )
+        condiciones.append(
+            f"LOWER(productos.categoria) IN ({placeholders})"
+        )
+        parametros.extend(
+            sorted(categorias)
+        )
+
+    if excluir_categorias:
+        placeholders = ",".join(
+            "?"
+            for _ in excluir_categorias
+        )
+        condiciones.append(
+            f"LOWER(productos.categoria) NOT IN ({placeholders})"
+        )
+        parametros.extend(
+            sorted(excluir_categorias)
+        )
+
+    cursor.execute(
+        f"""
+        SELECT SUM(
+            ventas.cantidad * ventas.precio_unitario
+            + COALESCE(
+                (
+                    SELECT SUM(precio_total)
+                    FROM venta_adicionales
+                    WHERE venta_adicionales.id_venta = ventas.id_venta
+                ),
+                0
+            )
+        )
+        FROM ventas
+        INNER JOIN productos
+            ON ventas.id_producto = productos.id_producto
+        WHERE {" AND ".join(condiciones)}
+        """,
+        parametros
+    )
+
+    total = cursor.fetchone()[0]
+    conexion.close()
+
+    return total or 0
+
+
+def _compras_por_categorias(
+    categorias=None,
+    excluir_categorias=None
+):
+    categorias = categorias or set()
+    excluir_categorias = excluir_categorias or set()
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    condiciones = [
+        "compras.anulada = 0",
+    ]
+    parametros = []
+
+    if categorias:
+        placeholders = ",".join(
+            "?"
+            for _ in categorias
+        )
+        condiciones.append(
+            f"LOWER(productos.categoria) IN ({placeholders})"
+        )
+        parametros.extend(
+            sorted(categorias)
+        )
+
+    if excluir_categorias:
+        placeholders = ",".join(
+            "?"
+            for _ in excluir_categorias
+        )
+        condiciones.append(
+            f"LOWER(productos.categoria) NOT IN ({placeholders})"
+        )
+        parametros.extend(
+            sorted(excluir_categorias)
+        )
+
+    cursor.execute(
+        f"""
+        SELECT SUM(
+            compras.cantidad * compras.precio_unitario
+        )
+        FROM compras
+        INNER JOIN productos
+            ON compras.id_producto = productos.id_producto
+        WHERE {" AND ".join(condiciones)}
+        """,
+        parametros
+    )
+
+    total = cursor.fetchone()[0]
+    conexion.close()
+
+    return total or 0
+
+
+def recaudado_por_categoria(categoria):
+    categoria_normalizada = str(
+        categoria or ""
+    ).strip().lower()
+
+    if categoria_normalizada == "bebidas":
+        return _ventas_por_categorias(
+            categorias={"bebidas"}
+        )
+
+    if categoria_normalizada == "postres":
+        return _ventas_por_categorias(
+            categorias={"postres"}
+        )
+
+    if categoria_normalizada == "comidas":
+        return _ventas_por_categorias(
+            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
+        )
+
+    raise ValueError(
+        "La categoría debe ser bebidas, postres o comidas."
+    )
+
+
+def obtener_caja_seccion(seccion):
+    seccion_normalizada = str(
+        seccion or ""
+    ).strip().lower()
+
+    if seccion_normalizada in {
+        "bebidas_postres",
+        "bebidas y postres",
+        "bebidas postres",
+    }:
+        ventas_bebidas = recaudado_por_categoria(
+            "bebidas"
+        )
+        ventas_postres = recaudado_por_categoria(
+            "postres"
+        )
+        ventas = (
+            ventas_bebidas
+            + ventas_postres
+        )
+
+        compras = _compras_por_categorias(
+            categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
+        )
+
+        return {
+            "seccion": "bebidas_postres",
+            "nombre": "Bebidas + Postres",
+            "ventas": ventas,
+            "recaudado_bebidas": ventas_bebidas,
+            "recaudado_postres": ventas_postres,
+            "compras_directas": compras,
+            "saldo_operativo": ventas - compras,
+            "incluye_gastos_generales": False,
+        }
+
+    if seccion_normalizada in {
+        "comidas",
+        "general_comidas",
+        "general comidas",
+    }:
+        ventas = recaudado_por_categoria(
+            "comidas"
+        )
+
+        compras = _compras_por_categorias(
+            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
+        )
+
+        return {
+            "seccion": "comidas",
+            "nombre": "Comidas",
+            "ventas": ventas,
+            "recaudado_comidas": ventas,
+            "compras_directas": compras,
+            "saldo_operativo": ventas - compras,
+            "incluye_gastos_generales": False,
+        }
+
+    raise ValueError(
+        "La sección debe ser bebidas_postres o comidas."
+    )
+
+
+# ============================================================
 # OBTENER ESTADO DE CAJA
 # ============================================================
 
