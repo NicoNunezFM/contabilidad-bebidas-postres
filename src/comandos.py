@@ -1179,7 +1179,7 @@ def interpretar_compra_insumo(
     normalizado = normalizar_texto(texto)
 
     coincidencia = re.match(
-        r"^(?:compra\s+)?insumo\s+"
+        r"^(?:(?:compra|gasto)\s+(?:postres\s+)?(?:insumo\s+)?|insumo\s+)"
         r"(.+?)\s+"
         r"(\d+(?:[\.,]\d+)?)\s*"
         r"(kg|kilos?|g|gr|gramos?|l|lt|litros?|ml|mililitros?)\s+"
@@ -1380,11 +1380,13 @@ def interpretar_costo_postre(texto):
             "*Total estimado: "
             f"{formatear_pesos(datos['costo_total_estimado'])}*"
         )
+        costo_por_unidad = (
+            datos["costo_total_estimado"]
+            / cantidad
+        )
         lineas.append(
             "Costo estimado por unidad: "
-            f"{formatear_pesos(
-                datos['costo_total_estimado'] / cantidad
-            )}"
+            f"{formatear_pesos(costo_por_unidad)}"
         )
     else:
         lineas.append(
@@ -1492,10 +1494,10 @@ def interpretar_gasto_natural(
     seccion = None
 
     for prefijo, seccion_detectada in (
+        ("bebidas y postres ", "bebidas_postres"),
+        ("bebidas postres ", "bebidas_postres"),
         ("postres ", "bebidas_postres"),
         ("bebidas ", "bebidas_postres"),
-        ("bebidas postres ", "bebidas_postres"),
-        ("bebidas y postres ", "bebidas_postres"),
         ("comidas ", "comidas"),
         ("comida ", "comidas"),
     ):
