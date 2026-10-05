@@ -1182,7 +1182,7 @@ def interpretar_compra_insumo(
         r"^(?:(?:compra|gasto)\s+(?:postres\s+)?(?:insumo\s+)?|insumo\s+)"
         r"(.+?)\s+"
         r"(\d+(?:[\.,]\d+)?)\s*"
-        r"(kg|kilos?|g|gr|gramos?|l|lt|litros?|ml|mililitros?)\s+"
+        r"(kg|kilos?|g|gr|gramos?|l|lt|litros?|ml|mililitros?|un|u|unidad|unidades)\s+"
         r"(\d[\d\.]*\s*(?:mil)?)"
         r"(?:\s+(?:en\s+)?(.+))?$",
         normalizado
