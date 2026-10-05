@@ -45,10 +45,10 @@ def test_compra_insumos_oreo_alimenta_estimacion(
     inicializar_costos_postres()
 
     compras = [
-        "insumo galletitas oreo 700 g 7000 Carrefour",
+        "insumo galletitas oreo 800 g 8000 Carrefour",
         "insumo dulce de leche 900 g 9000 Carrefour",
-        "insumo crema de leche 500 ml 5000 Carrefour",
-        "insumo leche 400 ml 400 Carrefour",
+        "insumo crema de leche 600 ml 6000 Carrefour",
+        "insumo leche 300 ml 300 Carrefour",
     ]
 
     for mensaje in compras:
@@ -72,9 +72,10 @@ def test_compra_insumos_oreo_alimenta_estimacion(
     datos = costo.json()
 
     assert datos["codigo"] == "COSTO_RECETA_ESTIMADO"
-    assert datos["costo_insumos"] == 21400
+    assert datos["version_receta"] == 2
+    assert datos["costo_insumos"] == 23300
     assert datos["costo_fijo"] == 5000
-    assert datos["costo_total_estimado"] == 26400
+    assert datos["costo_total_estimado"] == 28300
     assert datos["faltantes"] == []
 
 
@@ -122,8 +123,10 @@ def test_receta_oreo_se_guarda_en_base(
     receta = datos["receta"]
 
     assert receta["producto"] == "Oreo"
+    assert receta["version"] == 2
     assert receta["rendimiento"] == 10
     assert receta["costo_fijo_por_unidad"] == 500
+    assert "100 g adicionales para decoración" in receta["notas"]
 
     ingredientes = {
         item["nombre"]: item["cantidad_base"]
@@ -131,10 +134,10 @@ def test_receta_oreo_se_guarda_en_base(
     }
 
     assert ingredientes == {
-        "Galletitas Oreo": 700,
+        "Galletitas Oreo": 800,
         "Dulce de leche": 900,
-        "Crema de leche": 500,
-        "Leche": 400,
+        "Crema de leche": 600,
+        "Leche": 300,
     }
 
 
@@ -207,3 +210,79 @@ def test_insumos_habituales_de_postres_se_reconocen(
             resultado["insumo"]["seccion"]
             == "bebidas_postres"
         )
+
+
+
+def test_receta_chocotorta_actual_v2(
+    base_prueba
+):
+    inicializar_costos_postres()
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "receta chocotorta"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    receta = respuesta.json()["receta"]
+
+    assert receta["producto"] == "Chocotorta"
+    assert receta["version"] == 2
+    assert receta["rendimiento"] == 10
+
+    ingredientes = {
+        item["nombre"]: item["cantidad_base"]
+        for item in receta["insumos"]
+    }
+
+    assert ingredientes == {
+        "Chocolinas": 1100,
+        "Queso crema": 500,
+        "Dulce de leche": 500,
+        "Café con leche preparado": 900,
+    }
+
+    assert "50/50" in receta["notas"]
+    assert "45 g Chocolinas" in receta["notas"]
+
+
+def test_recetas_historicas_quedan_inactivas(
+    base_prueba
+):
+    inicializar_costos_postres()
+
+    conexion = obtener_conexion()
+
+    filas = conexion.execute(
+        """
+        SELECT producto, version, activa
+        FROM recetas
+        ORDER BY producto, version
+        """
+    ).fetchall()
+
+    conexion.close()
+
+    assert (
+        "Oreo",
+        1,
+        0,
+    ) in filas
+    assert (
+        "Oreo",
+        2,
+        1,
+    ) in filas
+    assert (
+        "Chocotorta",
+        1,
+        0,
+    ) in filas
+    assert (
+        "Chocotorta",
+        2,
+        1,
+    ) in filas
