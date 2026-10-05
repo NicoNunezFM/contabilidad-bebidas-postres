@@ -822,3 +822,346 @@ def historial_gastos_postres(
 
     finally:
         conexion.close()
+
+
+def _normalizar_contexto_produccion(contexto):
+    if not isinstance(contexto, dict):
+        contexto = {}
+
+    usuario_numero = contexto.get("usuario_numero")
+    usuario_id = contexto.get("usuario_id")
+
+    usuario_origen = (
+        str(usuario_numero).strip()
+        if usuario_numero
+        else (
+            str(usuario_id).strip()
+            if usuario_id
+            else None
+        )
+    )
+
+    return {
+        "canal": (
+            str(contexto.get("canal")).strip()
+            if contexto.get("canal")
+            else None
+        ),
+        "usuario_origen": usuario_origen,
+        "grupo_origen": (
+            str(contexto.get("grupo_id")).strip()
+            if contexto.get("grupo_id")
+            else None
+        ),
+        "id_mensaje": (
+            str(contexto.get("id_mensaje")).strip()
+            if contexto.get("id_mensaje")
+            else None
+        ),
+    }
+
+
+def registrar_produccion_postre(
+    producto,
+    cantidad,
+    contexto=None,
+):
+    if (
+        isinstance(cantidad, bool)
+        or not isinstance(cantidad, int)
+        or cantidad <= 0
+    ):
+        return {
+            "ok": False,
+            "codigo": "CANTIDAD_PRODUCCION_INVALIDA",
+            "mensaje": (
+                "La cantidad producida debe ser un entero "
+                "mayor que cero."
+            ),
+        }
+
+    costo = estimar_costo_receta(
+        producto=producto,
+        cantidad_objetivo=cantidad,
+    )
+
+    if not costo["ok"]:
+        return costo
+
+    if costo["costo_total_estimado"] is None:
+        return {
+            "ok": False,
+            "codigo": "COSTO_PRODUCCION_INCOMPLETO",
+            "mensaje": (
+                "No puedo registrar la producción todavía porque "
+                "faltan precios de insumos. Cargá primero: "
+                + ", ".join(costo["faltantes"])
+                + "."
+            ),
+            "faltantes": costo["faltantes"],
+            "costo_parcial_conocido": costo[
+                "costo_parcial_conocido"
+            ],
+        }
+
+    receta_resultado = obtener_receta(
+        producto
+    )
+
+    if not receta_resultado["ok"]:
+        return receta_resultado
+
+    receta = receta_resultado["receta"]
+    contexto_normalizado = _normalizar_contexto_produccion(
+        contexto
+    )
+
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("BEGIN IMMEDIATE")
+        cursor = conexion.cursor()
+
+        producto_db = cursor.execute(
+            """
+            SELECT
+                id_producto,
+                nombre,
+                stock,
+                controla_stock
+            FROM productos
+            WHERE LOWER(nombre) = LOWER(?)
+            """,
+            (receta["producto"],)
+        ).fetchone()
+
+        if producto_db is None:
+            conexion.rollback()
+            return {
+                "ok": False,
+                "codigo": "PRODUCTO_NO_ENCONTRADO",
+                "mensaje": (
+                    "El postre de la receta no existe en el catálogo "
+                    "de productos."
+                ),
+            }
+
+        if not bool(producto_db[3]):
+            conexion.rollback()
+            return {
+                "ok": False,
+                "codigo": "PRODUCTO_SIN_CONTROL_STOCK",
+                "mensaje": (
+                    "El producto de esta receta no controla stock "
+                    "y no puede recibir producción."
+                ),
+            }
+
+        stock_anterior = int(producto_db[2] or 0)
+        fecha_hora = datetime.now().isoformat(
+            timespec="seconds"
+        )
+        costo_total = float(
+            costo["costo_total_estimado"]
+        )
+        costo_unitario = (
+            costo_total
+            / cantidad
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO producciones_postres (
+                fecha_hora,
+                id_producto,
+                producto,
+                cantidad_producida,
+                id_receta,
+                version_receta,
+                costo_insumos,
+                costo_fijo,
+                costo_total,
+                costo_unitario,
+                canal_origen,
+                usuario_origen,
+                grupo_origen,
+                id_mensaje_origen
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                fecha_hora,
+                producto_db[0],
+                producto_db[1],
+                cantidad,
+                receta["id_receta"],
+                receta["version"],
+                float(costo["costo_insumos"]),
+                float(costo["costo_fijo"]),
+                costo_total,
+                costo_unitario,
+                contexto_normalizado["canal"],
+                contexto_normalizado["usuario_origen"],
+                contexto_normalizado["grupo_origen"],
+                contexto_normalizado["id_mensaje"],
+            )
+        )
+
+        id_produccion = cursor.lastrowid
+
+        for item in costo["detalle"]:
+            if (
+                item["costo_unitario_base"] is None
+                or item["costo_estimado"] is None
+            ):
+                conexion.rollback()
+                return {
+                    "ok": False,
+                    "codigo": "COSTO_PRODUCCION_INCOMPLETO",
+                    "mensaje": (
+                        "La producción tiene un insumo "
+                        "sin costo conocido."
+                    ),
+                }
+
+            insumo_db = cursor.execute(
+                """
+                SELECT id_insumo
+                FROM insumos
+                WHERE nombre = ?
+                """,
+                (item["insumo"],)
+            ).fetchone()
+
+            if insumo_db is None:
+                conexion.rollback()
+                return {
+                    "ok": False,
+                    "codigo": "INSUMO_NO_ENCONTRADO",
+                    "mensaje": (
+                        f"No encontré el insumo "
+                        f"'{item['insumo']}'."
+                    ),
+                }
+
+            cursor.execute(
+                """
+                INSERT INTO produccion_postres_insumos (
+                    id_produccion,
+                    id_insumo,
+                    insumo,
+                    cantidad_base,
+                    unidad_base,
+                    costo_unitario_base,
+                    costo_estimado
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    id_produccion,
+                    insumo_db[0],
+                    item["insumo"],
+                    float(item["cantidad"]),
+                    item["unidad"],
+                    float(item["costo_unitario_base"]),
+                    float(item["costo_estimado"]),
+                )
+            )
+
+        cursor.execute(
+            """
+            UPDATE productos
+            SET stock = stock + ?
+            WHERE id_producto = ?
+            """,
+            (
+                cantidad,
+                producto_db[0],
+            )
+        )
+
+        stock_nuevo = stock_anterior + cantidad
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "codigo": "PRODUCCION_POSTRE_REGISTRADA",
+            "id_produccion": id_produccion,
+            "fecha_hora": fecha_hora,
+            "producto": producto_db[1],
+            "cantidad_producida": cantidad,
+            "version_receta": receta["version"],
+            "costo_insumos": float(
+                costo["costo_insumos"]
+            ),
+            "costo_fijo": float(
+                costo["costo_fijo"]
+            ),
+            "costo_total": costo_total,
+            "costo_unitario": costo_unitario,
+            "stock_anterior": stock_anterior,
+            "stock_nuevo": stock_nuevo,
+            "detalle_insumos": costo["detalle"],
+        }
+
+    except Exception as error:
+        conexion.rollback()
+        return {
+            "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": (
+                "Error al registrar la producción: "
+                f"{error}"
+            ),
+        }
+
+    finally:
+        conexion.close()
+
+
+def historial_producciones_postres(
+    limite=10
+):
+    if (
+        isinstance(limite, bool)
+        or not isinstance(limite, int)
+        or limite <= 0
+    ):
+        limite = 10
+
+    conexion = obtener_conexion()
+
+    try:
+        filas = conexion.execute(
+            """
+            SELECT
+                id_produccion,
+                fecha_hora,
+                producto,
+                cantidad_producida,
+                version_receta,
+                costo_total,
+                costo_unitario
+            FROM producciones_postres
+            ORDER BY id_produccion DESC
+            LIMIT ?
+            """,
+            (limite,)
+        ).fetchall()
+
+        return [
+            {
+                "id_produccion": fila[0],
+                "fecha_hora": fila[1],
+                "producto": fila[2],
+                "cantidad_producida": fila[3],
+                "version_receta": fila[4],
+                "costo_total": float(fila[5]),
+                "costo_unitario": float(fila[6]),
+            }
+            for fila in filas
+        ]
+
+    finally:
+        conexion.close()
