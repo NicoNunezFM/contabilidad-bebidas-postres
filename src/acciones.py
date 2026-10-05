@@ -13,6 +13,12 @@ from caja import (
     recaudado_por_categoria,
 )
 from compras import registrar_compra
+from costos_postres import (
+    estimar_costo_receta,
+    historial_gastos_postres,
+    obtener_receta,
+    registrar_compra_insumo,
+)
 from gastos import registrar_gasto
 from productos import obtener_productos
 from reportes import (
@@ -746,6 +752,78 @@ def accion_registrar_compra_pack(datos):
     }
 
 
+def accion_registrar_compra_insumo(datos):
+    resultado = registrar_compra_insumo(
+        nombre_insumo=datos.get("insumo"),
+        cantidad=datos.get("cantidad"),
+        unidad=datos.get("unidad"),
+        costo_total=datos.get("costo_total"),
+        comercio=datos.get("comercio"),
+        observaciones=datos.get("observaciones"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_COMPRA_INSUMO_REGISTRADA",
+        "datos": resultado,
+    }
+
+
+def accion_consultar_receta(datos):
+    resultado = obtener_receta(
+        datos.get("producto")
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_RECETA",
+        "datos": resultado["receta"],
+    }
+
+
+def accion_estimar_costo_receta(datos):
+    resultado = estimar_costo_receta(
+        producto=datos.get("producto"),
+        cantidad_objetivo=datos.get("cantidad"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": resultado["codigo"],
+        "datos": resultado,
+    }
+
+
+def accion_historial_gastos_postres(datos):
+    limite = datos.get("limite", 10)
+
+    if (
+        isinstance(limite, bool)
+        or not isinstance(limite, int)
+        or limite <= 0
+    ):
+        limite = 10
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_HISTORIAL_GASTOS_POSTRES",
+        "datos": {
+            "gastos": historial_gastos_postres(
+                limite=limite
+            ),
+        },
+    }
+
+
 def accion_registrar_gasto(datos):
     descripcion = datos.get("descripcion")
     monto = datos.get("monto")
@@ -769,6 +847,7 @@ def accion_registrar_gasto(datos):
         categoria=categoria,
         descripcion_gasto=descripcion.strip(),
         valor_final=monto,
+        seccion=datos.get("seccion"),
     )
 
     if not resultado["ok"]:
@@ -783,6 +862,7 @@ def accion_registrar_gasto(datos):
             "descripcion": resultado["descripcion"],
             "monto": resultado["valor"],
             "fecha": resultado["fecha"],
+            "seccion": resultado.get("seccion"),
         },
     }
 
@@ -1224,6 +1304,18 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar gasto":
         return accion_registrar_gasto(datos)
+
+    if accion == "registrar compra insumo":
+        return accion_registrar_compra_insumo(datos)
+
+    if accion == "consultar receta":
+        return accion_consultar_receta(datos)
+
+    if accion == "estimar costo receta":
+        return accion_estimar_costo_receta(datos)
+
+    if accion == "historial gastos postres":
+        return accion_historial_gastos_postres(datos)
 
     if accion == "registrar compra pack":
         return accion_registrar_compra_pack(datos)
