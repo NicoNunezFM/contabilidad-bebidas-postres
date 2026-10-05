@@ -373,6 +373,7 @@ def registrar_compra_insumo(
         valor_final=float(costo_total),
         fecha=fecha,
         seccion="bebidas_postres",
+        subseccion="postres",
     )
 
     if not gasto["ok"]:
@@ -702,6 +703,7 @@ def historial_gastos_postres(
             FROM gastos
             WHERE anulado = 0
               AND seccion = 'bebidas_postres'
+              AND subseccion = 'postres'
             ORDER BY id_gasto DESC
             LIMIT ?
             """,
