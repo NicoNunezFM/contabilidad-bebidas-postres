@@ -1014,8 +1014,18 @@ def mensaje_ayuda():
 
 def procesar_comando(
     mensaje,
-    contexto=None
+    contexto=None,
+    _desde_bloque=False
 ):
+    if not _desde_bloque:
+        bloque = procesar_bloque(
+            mensaje,
+            contexto=contexto,
+        )
+
+        if bloque is not None:
+            return bloque
+
     texto = normalizar_texto(mensaje)
 
     if not texto:
@@ -1025,6 +1035,117 @@ def procesar_comando(
             "respuesta": "El mensaje no puede estar vacío.",
         }
 
+    encabezado = detectar_encabezado_contexto(
+        texto
+    )
+
+    if encabezado:
+        activar_contexto(
+            contexto or {},
+            encabezado,
+        )
+
+        nombres = {
+            "gastos": "gastos",
+            "postres": "postres",
+            "bebidas": "bebidas",
+            "comida": "comida",
+        }
+
+        return {
+            "ok": True,
+            "codigo": "CONTEXTO_ACTIVADO",
+            "contexto": encabezado,
+            "respuesta": (
+                f"Contexto de {nombres[encabezado]} activado "
+                "por 15 minutos."
+            ),
+        }
+
+    if es_total_informativo(texto):
+        return {
+            "ok": True,
+            "codigo": "COMANDO_TOTAL_INFORMATIVO",
+            "respuesta": (
+                "Total informado detectado. "
+                "No lo registré como un movimiento adicional."
+            ),
+        }
+
+    # Los gastos explícitos se detectan antes que las ventas rápidas.
+    if (
+        re.search(r"\bgastos?\b", texto)
+        and texto not in {"gastos hoy"}
+    ):
+        gasto = interpretar_gasto_natural(
+            texto,
+            contexto=contexto,
+            forzar=True,
+        )
+
+        if gasto is not None:
+            return gasto
+
+    contexto_activo = obtener_contexto_activo(
+        contexto or {}
+    )
+
+    comandos_fuera_de_contexto = {
+        "menu",
+        "ayuda",
+        "comandos",
+        "stock",
+        "ver stock",
+        "precios",
+        "ver precios",
+        "caja",
+        "gastos hoy",
+        "ventas hoy",
+        "compras hoy",
+        "balance hoy",
+        "resumen hoy",
+        "balance semana",
+        "resumen semana",
+        "balance mes",
+        "resumen mes",
+    }
+
+    if (
+        contexto_activo == "gastos"
+        and texto not in comandos_fuera_de_contexto
+        and not texto.startswith(
+            (
+                "anular ",
+                "borrar ",
+                "eliminar ",
+                "merma ",
+                "perdida ",
+                "consumo ",
+                "inventario",
+            )
+        )
+    ):
+        gasto = interpretar_gasto_natural(
+            texto,
+            contexto=contexto,
+            forzar=True,
+        )
+
+        if gasto is not None:
+            tocar_contexto(contexto or {})
+            return gasto
+
+    venta_precio = interpretar_venta_por_precio(
+        texto,
+        contexto=contexto,
+        contexto_activo=contexto_activo,
+    )
+
+    if venta_precio is not None:
+        if contexto_activo:
+            tocar_contexto(contexto or {})
+        return venta_precio
+
     if texto.startswith("venta"):
         return interpretar_venta(
             texto,
@@ -1032,6 +1153,9 @@ def procesar_comando(
         )
 
     if parece_venta_rapida(texto):
+        if contexto_activo:
+            tocar_contexto(contexto or {})
+
         return interpretar_venta_rapida(
             texto,
             contexto=contexto,
