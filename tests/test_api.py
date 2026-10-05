@@ -1388,3 +1388,328 @@ def test_api_sanguche_grande_asume_pollo_con_papas(
     assert datos["producto"] == "Grande de pollo + papas"
     assert datos["precio_unitario"] == 8000
     assert datos["total"] == 16000
+
+
+
+def test_api_lenguaje_real_defaults_hamburguesa_y_napo(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    productos = [
+        ("Clasica simple", "Hamburguesas", 6500),
+        ("Big mac simple", "Hamburguesas", 7000),
+        ("Napo de pollo con fritas", "Al plato", 9500),
+        ("Napo de carne con fritas", "Al plato", 10500),
+    ]
+
+    for nombre, categoria, precio in productos:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                categoria,
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                0,
+                precio,
+                0,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    hamburguesa = client.post(
+        "/comandos",
+        json={"mensaje": "1 hamburguesa simple"}
+    )
+
+    assert hamburguesa.status_code == 200
+    assert hamburguesa.json()["producto"] == "Clasica simple"
+
+    napo = client.post(
+        "/comandos",
+        json={"mensaje": "una napo"}
+    )
+
+    assert napo.status_code == 200
+    assert napo.json()["producto"] == "Napo de pollo con fritas"
+
+
+def test_api_postre_generico_pregunta_cual(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    for nombre in ("Chocotorta", "Oreo"):
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Postres",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                5,
+                4500,
+                1,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "un postre"}
+    )
+
+    assert respuesta.status_code == 400
+    datos = respuesta.json()
+
+    assert datos["codigo"] == "PRODUCTO_AMBIGUO"
+    assert "Chocotorta" in datos["respuesta"]
+    assert "Oreo" in datos["respuesta"]
+
+
+def test_api_mila_sola_define_fritas_pero_pregunta_carne(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    for nombre, precio in (
+        ("Milanesa de pollo con fritas", 8500),
+        ("Milanesa de carne con fritas", 9500),
+    ):
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Al plato",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                0,
+                precio,
+                0,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "una mila"}
+    )
+
+    assert respuesta.status_code == 400
+    datos = respuesta.json()
+
+    assert datos["codigo"] == "PRODUCTO_AMBIGUO"
+    assert "Milanesa de pollo con fritas" in datos["respuesta"]
+    assert "Milanesa de carne con fritas" in datos["respuesta"]
+
+
+def test_api_contexto_gastos_registra_lineas_e_ignora_total(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    contexto = {
+        "canal": "whatsapp",
+        "usuario_numero": "operador-contexto",
+        "grupo_id": "grupo-contexto",
+    }
+
+    inicio = client.post(
+        "/comandos",
+        json={
+            "mensaje": "Gastos",
+            **contexto,
+        }
+    )
+
+    assert inicio.status_code == 200
+    assert inicio.json()["codigo"] == "CONTEXTO_ACTIVADO"
+
+    gasto = client.post(
+        "/comandos",
+        json={
+            "mensaje": "Verdulería 9000",
+            **contexto,
+        }
+    )
+
+    assert gasto.status_code == 200
+    assert gasto.json()["codigo"] == "COMANDO_GASTO_REGISTRADO"
+    assert gasto.json()["monto"] == 9000
+
+    total = client.post(
+        "/comandos",
+        json={
+            "mensaje": "Total gastado 9000",
+            **contexto,
+        }
+    )
+
+    assert total.status_code == 200
+    assert total.json()["codigo"] == "COMANDO_TOTAL_INFORMATIVO"
+
+    conexion = obtener_conexion()
+
+    cantidad = conexion.execute(
+        "SELECT COUNT(*) FROM gastos"
+    ).fetchone()[0]
+
+    conexion.close()
+
+    assert cantidad == 1
+
+
+def test_api_bloque_gastos_y_total_no_duplica(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                "Gastos:\n"
+                "Carne: 20000\n"
+                "Verdulería 11000\n"
+                "Total gastado: 31000"
+            ),
+            "canal": "whatsapp",
+            "usuario_numero": "operador-bloque",
+            "grupo_id": "grupo-bloque",
+        }
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["codigo"] == "COMANDO_BLOQUE_PROCESADO"
+
+    conexion = obtener_conexion()
+
+    filas = conexion.execute(
+        """
+        SELECT descripcion_gasto, valor_final
+        FROM gastos
+        ORDER BY id_gasto
+        """
+    ).fetchall()
+
+    conexion.close()
+
+    assert filas == [
+        ("carne", 20000),
+        ("verduleria", 11000),
+    ]
+
+
+def test_api_venta_por_precio_unico_y_multiple_abreviado(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    productos = [
+        ("Producto siete", 7000),
+        ("Producto ocho", 8000),
+    ]
+
+    for nombre, precio in productos:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Comida",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                0,
+                precio,
+                0,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "5x8 y 2x7"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["codigo"] == "COMANDO_VENTA_MULTIPLE_REGISTRADA"
+    assert datos["total"] == 54000
