@@ -273,3 +273,39 @@ cuanto me vale hacer 10 oreos
 El costo estimado usa el promedio ponderado de las últimas 3 compras de cada insumo y escala la receta según la cantidad solicitada. Si falta historial de precio de algún ingrediente, Abadion muestra un costo parcial y detalla los insumos faltantes.
 
 Las recetas se guardan versionadas en SQLite. La versión base actual mantiene el rendimiento de 10 postres y el costo fijo de elaboración de $500 por postre definido para el proyecto.
+
+
+### Recetas actuales
+
+Las recetas activas son versión 2 y rinden aproximadamente 10 unidades.
+
+**Oreo**
+
+- 700 g de galletitas Oreo para el armado.
+- 100 g extra de Oreo para decoración.
+- 900 g de dulce de leche.
+- 600 ml de crema de leche.
+- 300 ml de leche.
+- 10 potes.
+
+Equivale por unidad a aproximadamente 70 g de Oreo base + 10 g de decoración, 90 g de dulce de leche, 60 ml de crema, 30 ml de leche y 1 pote.
+
+**Chocotorta**
+
+- 1100 g de Chocolinas.
+- 500 g de dulce de leche.
+- 500 g de queso crema.
+- 900 ml de café con leche preparado.
+- 10 potes.
+
+El armado de una unidad se toma como 45 g de Chocolinas + 45 ml de café + 50 g de relleno, otra capa igual y 20 g finales de Chocolinas.
+
+Los ingredientes usados "a ojo", como azúcar impalpable o cantidades adicionales para humedecer, quedan anotados pero no se incluyen numéricamente en el costo hasta medir su consumo.
+
+El pote forma parte del costo de receta, pero Abadion no reutiliza el precio viejo de planillas históricas. Para que entre en el cálculo hay que cargar una compra actual, por ejemplo:
+
+```text
+insumo pote 100 unidades 35000 Papelera
+```
+
+Las recetas versión 1 permanecen guardadas como historial pero quedan inactivas.
