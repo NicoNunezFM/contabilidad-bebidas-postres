@@ -862,3 +862,210 @@ def test_api_menu_opcion_inexistente(
 
     assert datos["ok"] is False
     assert datos["codigo"] == "OPCION_MENU_INVALIDA"
+
+
+
+def test_api_venta_rapida_sandwich_por_precio(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    productos = [
+        (
+            "Grande de carne individual",
+            "Sanguches",
+            7500,
+        ),
+        (
+            "Chico de pollo + papas",
+            "Sanguches",
+            6000,
+        ),
+    ]
+
+    for nombre, categoria, precio in productos:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                categoria,
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                0,
+                precio,
+                0,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "1 sandwich de 7500"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["producto"] == "Grande de carne individual"
+    assert datos["total"] == 7500
+    assert "Operación: #" in datos["respuesta"]
+
+
+def test_api_venta_rapida_sandwich_con_acento_y_cantidad(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Chico de pollo + papas",
+            "Sanguches",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            0,
+            6000,
+            0,
+        )
+    )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "2 sándwich de 6000"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["cantidad"] == 2
+    assert datos["producto"] == "Chico de pollo + papas"
+    assert datos["total"] == 12000
+
+
+def test_api_venta_rapida_hamburguesa_simple_pide_especificar(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    hamburguesas = [
+        ("Pollo con papas simple", 5500),
+        ("Big mac simple", 7000),
+        ("Cheddar y huevo simple", 7000),
+        ("Clasica simple", 6500),
+    ]
+
+    for nombre, precio in hamburguesas:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Hamburguesas",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                0,
+                precio,
+                0,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "1 hamburguesa simple"
+        }
+    )
+
+    assert respuesta.status_code == 400
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is False
+    assert datos["codigo"] == "PRODUCTO_AMBIGUO"
+    assert "Pollo con papas simple" in datos["respuesta"]
+    assert "Clasica simple" in datos["respuesta"]
+
+
+def test_api_venta_rapida_producto_no_catalogado_da_error_util(
+    base_prueba
+):
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "1 manaos lima"
+        }
+    )
+
+    assert respuesta.status_code == 404
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is False
+    assert datos["codigo"] == "PRODUCTO_NO_ENCONTRADO"
+    assert "manaos lima" in datos["respuesta"].lower()
