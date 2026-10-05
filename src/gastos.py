@@ -25,7 +25,8 @@ def registrar_gasto(
     descripcion_gasto,
     valor_final,
     fecha=None,
-    seccion=None
+    seccion=None,
+    subseccion=None
 ):
     """
     Registra un gasto en la base de datos.
@@ -94,9 +95,10 @@ def registrar_gasto(
                 categoria,
                 descripcion_gasto,
                 valor_final,
-                seccion
+                seccion,
+                subseccion
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 fecha,
@@ -107,6 +109,12 @@ def registrar_gasto(
                     seccion.strip()
                     if isinstance(seccion, str)
                     and seccion.strip()
+                    else None
+                ),
+                (
+                    subseccion.strip()
+                    if isinstance(subseccion, str)
+                    and subseccion.strip()
                     else None
                 )
             )
@@ -129,6 +137,12 @@ def registrar_gasto(
                 seccion.strip()
                 if isinstance(seccion, str)
                 and seccion.strip()
+                else None
+            ),
+            "subseccion": (
+                subseccion.strip()
+                if isinstance(subseccion, str)
+                and subseccion.strip()
                 else None
             )
         }
