@@ -191,6 +191,8 @@ class GastoEntrada(BaseModel):
     categoria: str = Field(min_length=1)
     descripcion: str = Field(min_length=1)
     valor: float = Field(gt=0)
+    seccion: str | None = None
+    subseccion: str | None = None
 
 
 class InventarioEntrada(BaseModel):
@@ -414,7 +416,9 @@ def registrar_gasto_api(
     resultado = registrar_gasto(
         categoria=gasto.categoria,
         descripcion_gasto=gasto.descripcion,
-        valor_final=gasto.valor
+        valor_final=gasto.valor,
+        seccion=gasto.seccion,
+        subseccion=gasto.subseccion,
     )
 
     return responder_resultado(
