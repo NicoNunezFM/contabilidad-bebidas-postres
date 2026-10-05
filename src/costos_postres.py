@@ -14,6 +14,7 @@ INSUMOS_BASE = [
     ("Chocolinas", "g"),
     ("Queso crema", "g"),
     ("Café con leche preparado", "ml"),
+    ("Café", "g"),
     ("Azúcar impalpable", "g"),
 ]
 
@@ -31,6 +32,8 @@ ALIASES_INSUMOS = {
     "chocolinas": "chocolinas",
     "queso": "queso crema",
     "queso crema": "queso crema",
+    "cafe": "cafe",
+    "cafe molido": "cafe",
     "cafe con leche": "cafe con leche preparado",
     "cafe con leche preparado": "cafe con leche preparado",
     "azucar impalpable": "azucar impalpable",
@@ -38,11 +41,15 @@ ALIASES_INSUMOS = {
 
 RECETAS_BASE = [
     {
-        "nombre": "Oreo - receta base",
+        "nombre": "Oreo - receta histórica",
         "producto": "Oreo",
         "version": 1,
         "rendimiento": 10,
         "costo_fijo_por_unidad": 500,
+        "activa": False,
+        "notas": (
+            "Versión anterior conservada para historial."
+        ),
         "insumos": [
             ("Galletitas Oreo", 700),
             ("Dulce de leche", 900),
@@ -51,16 +58,69 @@ RECETAS_BASE = [
         ],
     },
     {
-        "nombre": "Chocotorta - receta base",
+        "nombre": "Oreo - receta actual",
+        "producto": "Oreo",
+        "version": 2,
+        "rendimiento": 10,
+        "costo_fijo_por_unidad": 500,
+        "activa": True,
+        "notas": (
+            "Para 10 unidades: 700 g de Oreo en el armado "
+            "+ 100 g adicionales para decoración. "
+            "Por unidad: 70 g de Oreo base, 30 ml de leche, "
+            "90 g de dulce de leche y 60 ml de crema. "
+            "Los 100 g de decoración equivalen a unos 10 g extra "
+            "de Oreo por unidad. El azúcar impalpable se usa a ojo "
+            "y no se incluye todavía en el costo cuantificado."
+        ),
+        "insumos": [
+            ("Galletitas Oreo", 800),
+            ("Dulce de leche", 900),
+            ("Crema de leche", 600),
+            ("Leche", 300),
+        ],
+    },
+    {
+        "nombre": "Chocotorta - receta histórica",
         "producto": "Chocotorta",
         "version": 1,
         "rendimiento": 10,
         "costo_fijo_por_unidad": 500,
+        "activa": False,
+        "notas": (
+            "Versión anterior conservada para historial."
+        ),
         "insumos": [
             ("Chocolinas", 1100),
             ("Queso crema", 500),
             ("Dulce de leche", 500),
             ("Café con leche preparado", 1000),
+        ],
+    },
+    {
+        "nombre": "Chocotorta - receta actual",
+        "producto": "Chocotorta",
+        "version": 2,
+        "rendimiento": 10,
+        "costo_fijo_por_unidad": 500,
+        "activa": True,
+        "notas": (
+            "Para 10 unidades: 1100 g de Chocolinas, "
+            "1000 g de relleno de dulce de leche + queso crema "
+            "y 900 ml de café con leche preparado. "
+            "El relleno se mantiene 50/50: 500 g de dulce de leche "
+            "+ 500 g de queso crema. "
+            "Armado orientativo por unidad: 45 g Chocolinas + "
+            "45 ml café, 50 g relleno, otra capa igual, "
+            "y 20 g finales de Chocolinas. "
+            "Ingredientes usados a ojo no se incluyen en el costo "
+            "exacto hasta que se mida su consumo."
+        ),
+        "insumos": [
+            ("Chocolinas", 1100),
+            ("Queso crema", 500),
+            ("Dulce de leche", 500),
+            ("Café con leche preparado", 900),
         ],
     },
 ]
@@ -119,9 +179,10 @@ def inicializar_costos_postres():
                         version,
                         rendimiento,
                         costo_fijo_por_unidad,
-                        activa
+                        activa,
+                        notas
                     )
-                    VALUES (?, ?, ?, ?, ?, 1)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         receta["nombre"],
@@ -129,11 +190,34 @@ def inicializar_costos_postres():
                         receta["version"],
                         receta["rendimiento"],
                         receta["costo_fijo_por_unidad"],
+                        int(receta.get("activa", True)),
+                        receta.get("notas"),
                     )
                 )
                 id_receta = cursor.lastrowid
             else:
                 id_receta = fila[0]
+
+                cursor.execute(
+                    """
+                    UPDATE recetas
+                    SET
+                        nombre = ?,
+                        rendimiento = ?,
+                        costo_fijo_por_unidad = ?,
+                        activa = ?,
+                        notas = ?
+                    WHERE id_receta = ?
+                    """,
+                    (
+                        receta["nombre"],
+                        receta["rendimiento"],
+                        receta["costo_fijo_por_unidad"],
+                        int(receta.get("activa", True)),
+                        receta.get("notas"),
+                        id_receta,
+                    )
+                )
 
             for nombre_insumo, cantidad in receta["insumos"]:
                 cursor.execute(
@@ -148,12 +232,15 @@ def inicializar_costos_postres():
 
                 cursor.execute(
                     """
-                    INSERT OR IGNORE INTO receta_insumos (
+                    INSERT INTO receta_insumos (
                         id_receta,
                         id_insumo,
                         cantidad_base
                     )
                     VALUES (?, ?, ?)
+                    ON CONFLICT(id_receta, id_insumo)
+                    DO UPDATE SET
+                        cantidad_base = excluded.cantidad_base
                     """,
                     (
                         id_receta,
@@ -510,7 +597,8 @@ def obtener_receta(producto):
                 producto,
                 version,
                 rendimiento,
-                costo_fijo_por_unidad
+                costo_fijo_por_unidad,
+                notas
             FROM recetas
             WHERE activa = 1
             ORDER BY version DESC
@@ -558,6 +646,7 @@ def obtener_receta(producto):
                 "version": receta[3],
                 "rendimiento": float(receta[4]),
                 "costo_fijo_por_unidad": float(receta[5]),
+                "notas": receta[6],
                 "insumos": [
                     {
                         "id_insumo": fila[0],
