@@ -1105,3 +1105,165 @@ def test_api_venta_rapida_manaos_lima_asume_225l(
     assert datos["producto"] == "Manaos Lima 2.25l"
     assert datos["cantidad"] == 1
     assert datos["stock_restante"] == 4
+
+
+
+def test_api_manaos_cola_sin_tamano_asume_225l(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    productos = [
+        ("Manaos Cola 600ml", 1300, 5),
+        ("Manaos Cola 2.25l", 2000, 5),
+    ]
+
+    for nombre, precio, stock in productos:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Bebidas",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                stock,
+                precio,
+                1,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "1 manaos cola"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["producto"] == "Manaos Cola 2.25l"
+    assert datos["precio_unitario"] == 2000
+
+
+def test_api_manaos_pomelo_sin_tamano_asume_225l(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    productos = [
+        ("Manaos Pomelo 600ml", 1300, 5),
+        ("Manaos Pomelo 2.25l", 2000, 5),
+    ]
+
+    for nombre, precio, stock in productos:
+        conexion.execute(
+            """
+            INSERT INTO productos (
+                nombre,
+                categoria,
+                presentacion,
+                contenido,
+                unidad_medida,
+                unidades_por_pack,
+                stock,
+                precio_venta,
+                controla_stock
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nombre,
+                "Bebidas",
+                "Unidad",
+                1,
+                "unidad",
+                1,
+                stock,
+                precio,
+                1,
+            )
+        )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "1 manaos pomelo"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["producto"] == "Manaos Pomelo 2.25l"
+    assert datos["precio_unitario"] == 2000
+
+
+def test_api_manaos_chica_requiere_indicar_chica_o_600(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Manaos Cola 600ml",
+            "Bebidas",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            5,
+            1300,
+            1,
+        )
+    )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "1 manaos cola chica"}
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["producto"] == "Manaos Cola 600ml"
