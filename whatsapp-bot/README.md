@@ -151,3 +151,38 @@ Los backups se crean usando la API de backup de SQLite y se conservan los últim
 ## Comandos interrumpidos
 
 Si un mensaje queda marcado como `Procesando` durante más de cinco minutos por un cierre inesperado, Abadion no lo ejecuta nuevamente de forma automática. Lo marca como `Requiere_revision` para evitar duplicar ventas o movimientos.
+
+
+## Lenguaje real del grupo
+
+Abadion admite atajos frecuentes del grupo además de los comandos formales.
+
+Reglas actuales:
+
+- `hamburguesa simple` -> `Clasica simple`
+- `hamburguesa doble` -> `Clasica doble`
+- `napo` -> `Napo de pollo con fritas`
+- `postre` no se adivina: pregunta Oreo o Chocotorta
+- `mila` asume guarnición de fritas, pero si no se indica pollo/carne mantiene la ambigüedad
+- `manaos <sabor>` sin tamaño -> botella 2.25 l
+- `sanguche chico` -> chico de pollo con papas
+- `sanguche grande` -> grande de pollo con papas
+
+También reconoce precios abreviados como `1 de 6`, `5x8` o `5x8 y 2x7`. Un número menor a 100 en este formato se interpreta en miles. La venta solo se registra si el precio identifica un producto de forma unívoca; en caso contrario Abadion pide aclaración.
+
+### Contexto temporal
+
+Los encabezados `Gastos`, `Postres`, `Bebidas` y `Comida` activan un contexto por operador y grupo durante 15 minutos.
+
+Ejemplo:
+
+```text
+Gastos
+Verdulería 9000
+Carne 20000
+Total gastado 29000
+```
+
+Las dos líneas intermedias se registran como gastos. La línea de total se reconoce como comprobación y no se registra nuevamente.
+
+Los mensajes multilínea con el mismo formato también se procesan respetando el encabezado.
