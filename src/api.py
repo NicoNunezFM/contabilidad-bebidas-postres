@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from acciones import ejecutar_accion
 from ajustes_stock import registrar_inventario_fisico
+from backups import crear_backup_diario
 
 from caja import obtener_estado_caja
 
@@ -243,6 +244,23 @@ class AccionEntrada(BaseModel):
 @app.on_event("startup")
 def preparar_base_de_datos():
     inicializar_base_de_datos()
+
+    resultado_backup = crear_backup_diario()
+
+    if resultado_backup.get("ok"):
+        if resultado_backup.get("creado"):
+            print(
+                "Backup diario creado:",
+                resultado_backup["ruta"]
+            )
+    else:
+        print(
+            "ADVERTENCIA: no se pudo crear el backup diario:",
+            resultado_backup.get(
+                "mensaje",
+                resultado_backup.get("codigo")
+            )
+        )
 
 
 # ============================================================
