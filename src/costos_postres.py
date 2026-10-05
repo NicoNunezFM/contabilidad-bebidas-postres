@@ -756,6 +756,8 @@ def estimar_costo_receta(
                 else "COSTO_RECETA_PARCIAL"
             ),
             "producto": receta["producto"],
+            "version_receta": receta["version"],
+            "notas_receta": receta.get("notas"),
             "cantidad_objetivo": float(cantidad_objetivo),
             "rendimiento_base": receta["rendimiento"],
             "detalle": detalle,
