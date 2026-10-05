@@ -734,6 +734,64 @@ def crear_tablas_costos_postres():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS producciones_postres (
+            id_produccion INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha_hora TEXT NOT NULL,
+            id_producto INTEGER NOT NULL,
+            producto TEXT NOT NULL,
+            cantidad_producida INTEGER NOT NULL,
+            id_receta INTEGER NOT NULL,
+            version_receta INTEGER NOT NULL,
+            costo_insumos REAL NOT NULL,
+            costo_fijo REAL NOT NULL,
+            costo_total REAL NOT NULL,
+            costo_unitario REAL NOT NULL,
+            canal_origen TEXT,
+            usuario_origen TEXT,
+            grupo_origen TEXT,
+            id_mensaje_origen TEXT,
+            FOREIGN KEY (id_producto)
+                REFERENCES productos(id_producto),
+            FOREIGN KEY (id_receta)
+                REFERENCES recetas(id_receta)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_producciones_postres_fecha
+        ON producciones_postres (
+            fecha_hora,
+            id_produccion
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS produccion_postres_insumos (
+            id_produccion_insumo INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_produccion INTEGER NOT NULL,
+            id_insumo INTEGER NOT NULL,
+            insumo TEXT NOT NULL,
+            cantidad_base REAL NOT NULL,
+            unidad_base TEXT NOT NULL,
+            costo_unitario_base REAL NOT NULL,
+            costo_estimado REAL NOT NULL,
+            FOREIGN KEY (id_produccion)
+                REFERENCES producciones_postres(id_produccion),
+            FOREIGN KEY (id_insumo)
+                REFERENCES insumos(id_insumo)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_produccion_postres_insumos_produccion
+        ON produccion_postres_insumos (
+            id_produccion
+        )
+    """)
+
     conexion.commit()
     conexion.close()
 
