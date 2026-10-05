@@ -250,7 +250,8 @@ def crear_tabla_gastos():
         categoria TEXT NOT NULL,
         descripcion_gasto TEXT NOT NULL,
         valor_final REAL NOT NULL,
-        seccion TEXT
+        seccion TEXT,
+        subseccion TEXT
         )
     """)
 
@@ -410,6 +411,12 @@ def actualizar_tabla_gastos():
         cursor.execute("""
             ALTER TABLE gastos
             ADD COLUMN seccion TEXT
+        """)
+
+    if "subseccion" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE gastos
+            ADD COLUMN subseccion TEXT
         """)
 
     conexion.commit()
