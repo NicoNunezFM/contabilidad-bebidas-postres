@@ -47,6 +47,115 @@ def _normalizar_contexto(contexto):
     }
 
 
+def _normalizar_adicionales(adicionales):
+    if adicionales is None:
+        return {
+            "ok": True,
+            "adicionales": [],
+            "total": 0,
+        }
+
+    if not isinstance(adicionales, list):
+        return {
+            "ok": False,
+            "codigo": "DATOS_INVALIDOS",
+            "mensaje": "Los adicionales deben enviarse como una lista."
+        }
+
+    normalizados = []
+    total = 0
+
+    for adicional in adicionales:
+        if not isinstance(adicional, dict):
+            return {
+                "ok": False,
+                "codigo": "DATOS_INVALIDOS",
+                "mensaje": "Cada adicional debe ser un objeto."
+            }
+
+        descripcion = adicional.get("descripcion")
+        cantidad = adicional.get("cantidad", 1)
+        precio_total = adicional.get("precio_total")
+
+        if (
+            not isinstance(descripcion, str)
+            or not descripcion.strip()
+        ):
+            return {
+                "ok": False,
+                "codigo": "DATOS_INVALIDOS",
+                "mensaje": "El adicional debe tener una descripción."
+            }
+
+        if (
+            isinstance(cantidad, bool)
+            or not isinstance(cantidad, int)
+            or cantidad <= 0
+        ):
+            return {
+                "ok": False,
+                "codigo": "DATOS_INVALIDOS",
+                "mensaje": (
+                    "La cantidad del adicional debe ser "
+                    "un entero mayor que cero."
+                )
+            }
+
+        if (
+            isinstance(precio_total, bool)
+            or not isinstance(precio_total, (int, float))
+            or precio_total < 0
+        ):
+            return {
+                "ok": False,
+                "codigo": "DATOS_INVALIDOS",
+                "mensaje": (
+                    "El precio total del adicional debe ser "
+                    "un número mayor o igual a cero."
+                )
+            }
+
+        normalizado = {
+            "descripcion": descripcion.strip(),
+            "cantidad": cantidad,
+            "precio_total": float(precio_total),
+        }
+
+        normalizados.append(normalizado)
+        total += float(precio_total)
+
+    return {
+        "ok": True,
+        "adicionales": normalizados,
+        "total": total,
+    }
+
+
+def _insertar_adicionales(
+    cursor,
+    id_venta,
+    adicionales
+):
+    for adicional in adicionales:
+        cursor.execute(
+            """
+            INSERT INTO venta_adicionales (
+                id_venta,
+                descripcion,
+                cantidad,
+                precio_total
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                id_venta,
+                adicional["descripcion"],
+                adicional["cantidad"],
+                adicional["precio_total"],
+            )
+        )
+
+
 # ============================================================
 # REGISTRAR VENTA
 # ============================================================
@@ -56,7 +165,8 @@ def registrar_venta(
     cantidad,
     precio_unitario=None,
     fecha=None,
-    contexto=None
+    contexto=None,
+    adicionales=None
 ):
     """
     Registra una venta en la base de datos y descuenta el stock.
@@ -139,6 +249,18 @@ def registrar_venta(
             "mensaje": "El precio unitario debe ser mayor que cero."
         }
 
+    adicionales_resultado = _normalizar_adicionales(
+        adicionales
+    )
+
+    if not adicionales_resultado["ok"]:
+        return adicionales_resultado
+
+    adicionales_normalizados = (
+        adicionales_resultado["adicionales"]
+    )
+    total_adicionales = adicionales_resultado["total"]
+
     # Si no se recibe fecha, usar la fecha actual
     if fecha is None:
         fecha = datetime.now().strftime("%Y-%m-%d")
@@ -204,6 +326,12 @@ def registrar_venta(
         # Guardar ID de la nueva venta.
         id_venta = cursor.lastrowid
 
+        _insertar_adicionales(
+            cursor,
+            id_venta,
+            adicionales_normalizados,
+        )
+
         # Descontar stock solo en productos inventariables.
         if controla_stock:
             cursor.execute(
@@ -220,7 +348,8 @@ def registrar_venta(
 
         conexion.commit()
 
-        total = cantidad * precio_unitario
+        subtotal_producto = cantidad * precio_unitario
+        total = subtotal_producto + total_adicionales
 
         return {
             "ok": True,
@@ -232,6 +361,9 @@ def registrar_venta(
             "producto": producto[1],
             "cantidad": cantidad,
             "precio_unitario": precio_unitario,
+            "subtotal_producto": subtotal_producto,
+            "adicionales": adicionales_normalizados,
+            "total_adicionales": total_adicionales,
             "total": total,
             "fecha": fecha,
             "stock_restante": (
@@ -560,6 +692,17 @@ def registrar_venta_multiple(
         cantidad = item.get("cantidad")
         precio_informado = item.get("precio_unitario")
 
+        adicionales_resultado = _normalizar_adicionales(
+            item.get("adicionales")
+        )
+
+        if not adicionales_resultado["ok"]:
+            return adicionales_resultado
+
+        adicionales_item = (
+            adicionales_resultado["adicionales"]
+        )
+
         if isinstance(id_producto, bool) or not isinstance(id_producto, int):
             return {
                 "ok": False,
@@ -599,33 +742,42 @@ def registrar_venta_multiple(
                     "mensaje": "El precio unitario debe ser mayor que cero."
                 }
 
-        if id_producto not in agrupados:
-            agrupados[id_producto] = {
+        firma_adicionales = tuple(
+            (
+                adicional["descripcion"].lower(),
+                adicional["cantidad"],
+                adicional["precio_total"],
+            )
+            for adicional in adicionales_item
+        )
+
+        clave_agrupacion = (
+            id_producto,
+            precio_informado,
+            firma_adicionales,
+        )
+
+        if clave_agrupacion not in agrupados:
+            agrupados[clave_agrupacion] = {
+                "id_producto": id_producto,
                 "cantidad": cantidad,
                 "precio_unitario": precio_informado,
+                "adicionales": adicionales_item,
             }
 
         else:
-            precio_anterior = agrupados[id_producto]["precio_unitario"]
+            agrupado = agrupados[clave_agrupacion]
+            agrupado["cantidad"] += cantidad
 
-            if (
-                precio_anterior is not None
-                and precio_informado is not None
-                and precio_anterior != precio_informado
+            for indice, adicional in enumerate(
+                adicionales_item
             ):
-                return {
-                    "ok": False,
-                    "codigo": "DATOS_INVALIDOS",
-                    "mensaje": (
-                        "El mismo producto no puede tener dos precios "
-                        "diferentes dentro de la misma venta."
-                    )
-                }
-
-            agrupados[id_producto]["cantidad"] += cantidad
-
-            if precio_anterior is None and precio_informado is not None:
-                agrupados[id_producto]["precio_unitario"] = precio_informado
+                agrupado["adicionales"][indice]["cantidad"] += (
+                    adicional["cantidad"]
+                )
+                agrupado["adicionales"][indice]["precio_total"] += (
+                    adicional["precio_total"]
+                )
 
     conexion = obtener_conexion()
 
@@ -635,7 +787,8 @@ def registrar_venta_multiple(
 
         items_validados = []
 
-        for id_producto, item in agrupados.items():
+        for item in agrupados.values():
+            id_producto = item["id_producto"]
             cursor.execute(
                 """
                 SELECT
@@ -703,6 +856,14 @@ def registrar_venta_multiple(
                     "cantidad_solicitada": cantidad,
                 }
 
+            adicionales_resultado = _normalizar_adicionales(
+                item.get("adicionales")
+            )
+
+            if not adicionales_resultado["ok"]:
+                conexion.rollback()
+                return adicionales_resultado
+
             items_validados.append({
                 "id_producto": id_producto,
                 "producto": nombre,
@@ -710,6 +871,8 @@ def registrar_venta_multiple(
                 "precio_unitario": precio_unitario,
                 "stock_anterior": stock_actual,
                 "controla_stock": controla_stock,
+                "adicionales": adicionales_resultado["adicionales"],
+                "total_adicionales": adicionales_resultado["total"],
             })
 
         contexto_origen = _normalizar_contexto(contexto)
@@ -768,6 +931,12 @@ def registrar_venta_multiple(
 
             id_venta = cursor.lastrowid
 
+            _insertar_adicionales(
+                cursor,
+                id_venta,
+                item["adicionales"],
+            )
+
             if item["controla_stock"]:
                 cursor.execute(
                     """
@@ -789,9 +958,13 @@ def registrar_venta_multiple(
             else:
                 stock_restante = None
 
-            subtotal = (
+            subtotal_producto = (
                 item["cantidad"]
                 * item["precio_unitario"]
+            )
+            subtotal = (
+                subtotal_producto
+                + item["total_adicionales"]
             )
 
             total_operacion += subtotal
@@ -802,6 +975,9 @@ def registrar_venta_multiple(
                 "producto": item["producto"],
                 "cantidad": item["cantidad"],
                 "precio_unitario": item["precio_unitario"],
+                "subtotal_producto": subtotal_producto,
+                "adicionales": item["adicionales"],
+                "total_adicionales": item["total_adicionales"],
                 "subtotal": subtotal,
                 "controla_stock": item["controla_stock"],
                 "stock_restante": stock_restante,
