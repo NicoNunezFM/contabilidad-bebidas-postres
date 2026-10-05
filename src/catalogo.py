@@ -184,7 +184,7 @@ def sincronizar_catalogo():
                         "Unidad",
                         1,
                         "unidad",
-                        1,
+                        item.get("unidades_por_pack", 1),
                         0,
                         item["precio"],
                         int(item["controla_stock"]),
