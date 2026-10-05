@@ -243,7 +243,8 @@ function numeroAutorizado(numero) {
 
 async function enviarComandoApi(
   mensaje,
-  idMensaje
+  idMensaje,
+  contexto = {}
 ) {
   const controlador = new AbortController();
 
@@ -262,6 +263,12 @@ async function enviarComandoApi(
         mensaje,
         id_mensaje: idMensaje,
         canal: "whatsapp",
+        usuario_id:
+          contexto.usuario_id || null,
+        usuario_numero:
+          contexto.usuario_numero || null,
+        grupo_id:
+          contexto.grupo_id || null,
       }),
       signal: controlador.signal,
     });
@@ -667,7 +674,17 @@ async function procesarMensajeEntrante(message, origenEvento) {
     const { status, datos } =
       await enviarComandoApi(
         texto,
-        idMensaje
+        idMensaje,
+        {
+          usuario_id:
+            remitente.identificador || null,
+          usuario_numero:
+            remitente.numero || null,
+          grupo_id:
+            mensajeDeGrupo
+              ? message.from
+              : null,
+        }
       );
 
     const respuesta =
