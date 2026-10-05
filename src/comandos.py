@@ -1492,17 +1492,47 @@ def interpretar_gasto_natural(
     limpio = " ".join(limpio.split())
 
     seccion = None
+    subseccion = None
 
-    for prefijo, seccion_detectada in (
-        ("bebidas y postres ", "bebidas_postres"),
-        ("bebidas postres ", "bebidas_postres"),
-        ("postres ", "bebidas_postres"),
-        ("bebidas ", "bebidas_postres"),
-        ("comidas ", "comidas"),
-        ("comida ", "comidas"),
+    for (
+        prefijo,
+        seccion_detectada,
+        subseccion_detectada,
+    ) in (
+        (
+            "bebidas y postres ",
+            "bebidas_postres",
+            None,
+        ),
+        (
+            "bebidas postres ",
+            "bebidas_postres",
+            None,
+        ),
+        (
+            "postres ",
+            "bebidas_postres",
+            "postres",
+        ),
+        (
+            "bebidas ",
+            "bebidas_postres",
+            "bebidas",
+        ),
+        (
+            "comidas ",
+            "comidas",
+            "comidas",
+        ),
+        (
+            "comida ",
+            "comidas",
+            "comidas",
+        ),
     ):
         if limpio.startswith(prefijo):
             seccion = seccion_detectada
+            subseccion = subseccion_detectada
             limpio = limpio[len(prefijo):].strip()
             break
 
@@ -1561,6 +1591,7 @@ def interpretar_gasto_natural(
             "monto": monto,
             "categoria": "Otros",
             "seccion": seccion,
+            "subseccion": subseccion,
             "contexto": contexto or {},
         },
     })
