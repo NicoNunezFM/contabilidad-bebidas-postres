@@ -3,13 +3,13 @@ from database import obtener_conexion
 
 CATALOGO_PRECIOS = [
     # Bebidas
-    {"nombre": "Manaos Pomelo 600ml", "categoria": "Bebidas", "precio": 1300, "controla_stock": True},
-    {"nombre": "Manaos Cola 600ml", "categoria": "Bebidas", "precio": 1300, "controla_stock": True},
-    {"nombre": "Manaos Cola 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
-    {"nombre": "Manaos Naranja 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
-    {"nombre": "Manaos Manzana 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
-    {"nombre": "Manaos Pomelo 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
-    {"nombre": "Manaos Lima 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True},
+    {"nombre": "Manaos Pomelo 600ml", "categoria": "Bebidas", "precio": 1300, "controla_stock": True, "unidades_por_pack": 12},
+    {"nombre": "Manaos Cola 600ml", "categoria": "Bebidas", "precio": 1300, "controla_stock": True, "unidades_por_pack": 12},
+    {"nombre": "Manaos Cola 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True, "unidades_por_pack": 6},
+    {"nombre": "Manaos Naranja 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True, "unidades_por_pack": 6},
+    {"nombre": "Manaos Manzana 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True, "unidades_por_pack": 6},
+    {"nombre": "Manaos Pomelo 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True, "unidades_por_pack": 6},
+    {"nombre": "Manaos Lima 2.25l", "categoria": "Bebidas", "precio": 2000, "controla_stock": True, "unidades_por_pack": 6},
     {"nombre": "Pepsi lata", "categoria": "Bebidas", "precio": 1600, "controla_stock": True},
     {"nombre": "7up lata", "categoria": "Bebidas", "precio": 1600, "controla_stock": True},
 
@@ -56,8 +56,9 @@ def asegurar_productos_catalogo():
     """
     Crea únicamente los productos del catálogo que todavía no existen.
 
-    No modifica precios, stock, categoría ni control de stock de
-    productos ya existentes. Es seguro ejecutarlo en cada arranque.
+    No modifica precios ni stock de productos ya existentes.
+    Solo sincroniza unidades_por_pack cuando el catálogo define
+    explícitamente ese dato operativo. Es seguro ejecutarlo en cada arranque.
     """
 
     conexion = obtener_conexion()
@@ -76,7 +77,21 @@ def asegurar_productos_catalogo():
                 (item["nombre"],)
             )
 
-            if cursor.fetchone() is not None:
+            existente = cursor.fetchone()
+
+            if existente is not None:
+                if "unidades_por_pack" in item:
+                    cursor.execute(
+                        """
+                        UPDATE productos
+                        SET unidades_por_pack = ?
+                        WHERE id_producto = ?
+                        """,
+                        (
+                            item["unidades_por_pack"],
+                            existente[0],
+                        )
+                    )
                 continue
 
             cursor.execute(
@@ -100,7 +115,7 @@ def asegurar_productos_catalogo():
                     "Unidad",
                     1,
                     "unidad",
-                    1,
+                    item.get("unidades_por_pack", 1),
                     0,
                     item["precio"],
                     int(item["controla_stock"]),
