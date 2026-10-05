@@ -5,11 +5,59 @@ from database import obtener_conexion
 from productos import listar_productos, buscar_producto_por_id
 
 
+def _normalizar_contexto(contexto):
+    if not isinstance(contexto, dict):
+        contexto = {}
+
+    usuario_id = contexto.get("usuario_id")
+    usuario_numero = contexto.get("usuario_numero")
+
+    usuario_origen = (
+        str(usuario_id).strip()
+        if usuario_id
+        else (
+            str(usuario_numero).strip()
+            if usuario_numero
+            else None
+        )
+    )
+
+    return {
+        "canal": (
+            str(contexto.get("canal")).strip()
+            if contexto.get("canal")
+            else None
+        ),
+        "usuario_origen": usuario_origen,
+        "numero_origen": (
+            str(usuario_numero).strip()
+            if usuario_numero
+            else None
+        ),
+        "grupo_origen": (
+            str(contexto.get("grupo_id")).strip()
+            if contexto.get("grupo_id")
+            else None
+        ),
+        "id_mensaje": (
+            str(contexto.get("id_mensaje")).strip()
+            if contexto.get("id_mensaje")
+            else None
+        ),
+    }
+
+
 # ============================================================
 # REGISTRAR VENTA
 # ============================================================
 
-def registrar_venta(id_producto, cantidad, precio_unitario=None, fecha=None):
+def registrar_venta(
+    id_producto,
+    cantidad,
+    precio_unitario=None,
+    fecha=None,
+    contexto=None
+):
     """
     Registra una venta en la base de datos y descuenta el stock.
 
@@ -95,6 +143,9 @@ def registrar_venta(id_producto, cantidad, precio_unitario=None, fecha=None):
     if fecha is None:
         fecha = datetime.now().strftime("%Y-%m-%d")
 
+    contexto_origen = _normalizar_contexto(contexto)
+    fecha_hora = datetime.now().isoformat(timespec="seconds")
+
     conexion = obtener_conexion()
 
     try:
@@ -105,13 +156,25 @@ def registrar_venta(id_producto, cantidad, precio_unitario=None, fecha=None):
             """
             INSERT INTO ventas_operaciones (
                 fecha,
-                estado_pago
+                estado_pago,
+                fecha_hora,
+                canal_origen,
+                usuario_origen,
+                numero_origen,
+                grupo_origen,
+                id_mensaje_origen
             )
-            VALUES (?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 fecha,
-                "Cobrado"
+                "Cobrado",
+                fecha_hora,
+                contexto_origen["canal"],
+                contexto_origen["usuario_origen"],
+                contexto_origen["numero_origen"],
+                contexto_origen["grupo_origen"],
+                contexto_origen["id_mensaje"],
             )
         )
 
@@ -461,7 +524,11 @@ def listar_ventas():
 # REGISTRAR VENTA MÚLTIPLE / OPERACIÓN AGRUPADA
 # ============================================================
 
-def registrar_venta_multiple(items, fecha=None):
+def registrar_venta_multiple(
+    items,
+    fecha=None,
+    contexto=None
+):
     """
     Registra varios productos como una sola operación de venta.
 
@@ -645,17 +712,32 @@ def registrar_venta_multiple(items, fecha=None):
                 "controla_stock": controla_stock,
             })
 
+        contexto_origen = _normalizar_contexto(contexto)
+        fecha_hora = datetime.now().isoformat(timespec="seconds")
+
         cursor.execute(
             """
             INSERT INTO ventas_operaciones (
                 fecha,
-                estado_pago
+                estado_pago,
+                fecha_hora,
+                canal_origen,
+                usuario_origen,
+                numero_origen,
+                grupo_origen,
+                id_mensaje_origen
             )
-            VALUES (?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 fecha,
-                "Cobrado"
+                "Cobrado",
+                fecha_hora,
+                contexto_origen["canal"],
+                contexto_origen["usuario_origen"],
+                contexto_origen["numero_origen"],
+                contexto_origen["grupo_origen"],
+                contexto_origen["id_mensaje"],
             )
         )
 
@@ -796,7 +878,8 @@ def _asegurar_campos_operacion_venta(conexion):
 
 def anular_operacion_venta(
     id_operacion,
-    motivo
+    motivo,
+    contexto=None
 ):
     if isinstance(id_operacion, bool) or not isinstance(
         id_operacion,
@@ -907,6 +990,7 @@ def anular_operacion_venta(
 
         fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
         motivo_limpio = motivo.strip()
+        contexto_anulacion = _normalizar_contexto(contexto)
 
         items = []
         total_anulado = 0
@@ -967,12 +1051,16 @@ def anular_operacion_venta(
             SET
                 anulada = 1,
                 fecha_anulacion = ?,
-                motivo_anulacion = ?
+                motivo_anulacion = ?,
+                usuario_anulacion = ?,
+                id_mensaje_anulacion = ?
             WHERE id_operacion = ?
             """,
             (
                 fecha_anulacion,
                 motivo_limpio,
+                contexto_anulacion["usuario_origen"],
+                contexto_anulacion["id_mensaje"],
                 id_operacion,
             )
         )
@@ -1006,8 +1094,12 @@ def anular_operacion_venta(
 
 
 def anular_ultima_operacion_venta(
-    motivo="Corrección de última venta"
+    motivo="Corrección de última venta",
+    contexto=None
 ):
+    contexto_origen = _normalizar_contexto(contexto)
+    usuario_origen = contexto_origen["usuario_origen"]
+
     conexion = obtener_conexion()
 
     try:
@@ -1015,22 +1107,42 @@ def anular_ultima_operacion_venta(
 
         cursor = conexion.cursor()
 
-        cursor.execute(
-            """
-            SELECT id_operacion
-            FROM ventas_operaciones
-            WHERE anulada = 0
-              AND EXISTS (
-                  SELECT 1
-                  FROM ventas
-                  WHERE ventas.id_operacion =
-                        ventas_operaciones.id_operacion
-                    AND ventas.anulada = 0
-              )
-            ORDER BY id_operacion DESC
-            LIMIT 1
-            """
-        )
+        if usuario_origen:
+            cursor.execute(
+                """
+                SELECT id_operacion
+                FROM ventas_operaciones
+                WHERE anulada = 0
+                  AND usuario_origen = ?
+                  AND EXISTS (
+                      SELECT 1
+                      FROM ventas
+                      WHERE ventas.id_operacion =
+                            ventas_operaciones.id_operacion
+                        AND ventas.anulada = 0
+                  )
+                ORDER BY id_operacion DESC
+                LIMIT 1
+                """,
+                (usuario_origen,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT id_operacion
+                FROM ventas_operaciones
+                WHERE anulada = 0
+                  AND EXISTS (
+                      SELECT 1
+                      FROM ventas
+                      WHERE ventas.id_operacion =
+                            ventas_operaciones.id_operacion
+                        AND ventas.anulada = 0
+                  )
+                ORDER BY id_operacion DESC
+                LIMIT 1
+                """
+            )
 
         fila = cursor.fetchone()
 
@@ -1041,10 +1153,15 @@ def anular_ultima_operacion_venta(
         return {
             "ok": False,
             "codigo": "OPERACION_VENTA_NO_ENCONTRADA",
-            "mensaje": "No hay ventas activas para anular."
+            "mensaje": (
+                "No hay ventas activas tuyas para anular."
+                if usuario_origen
+                else "No hay ventas activas para anular."
+            )
         }
 
     return anular_operacion_venta(
         id_operacion=fila[0],
         motivo=motivo,
+        contexto=contexto,
     )
