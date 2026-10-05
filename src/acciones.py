@@ -23,17 +23,32 @@ from ventas import (
 
 
 ALIASES_PRODUCTOS = {
+    # Regla de bebidas:
+    # si una Manaos se menciona por sabor sin tamaño,
+    # se interpreta como botella grande de 2.25 l.
+    # La chica debe indicarse explícitamente como 600/chica.
+    "manaos cola": "manaos cola 2.25 l",
+    "manaos pomelo": "manaos pomelo 2.25 l",
+    "manaos naranja": "manaos naranja 2.25 l",
+    "manaos manzana": "manaos manzana 2.25 l",
+    "manaos lima": "manaos lima 2.25 l",
+    "manaos lima limon": "manaos lima 2.25 l",
+
     "manaos cola chica": "manaos cola 600 ml",
     "manaos pomelo chica": "manaos pomelo 600 ml",
+    "manaos cola 600": "manaos cola 600 ml",
+    "manaos pomelo 600": "manaos pomelo 600 ml",
+
     "manaos cola grande": "manaos cola 2.25 l",
     "manaos naranja grande": "manaos naranja 2.25 l",
     "manaos manzana grande": "manaos manzana 2.25 l",
     "manaos pomelo grande": "manaos pomelo 2.25 l",
-    "manaos lima": "manaos lima 2.25 l",
     "manaos lima grande": "manaos lima 2.25 l",
-    "manaos lima limon": "manaos lima 2.25 l",
     "manaos lima limon grande": "manaos lima 2.25 l",
+
+    # Pepsi y 7up actualmente solo se manejan en lata.
     "pepsi": "pepsi lata",
+    "7up": "7 up lata",
     "7 up": "7 up lata",
     "postre oreo": "oreo",
     "postre chocotorta": "chocotorta",
