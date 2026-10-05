@@ -992,7 +992,7 @@ def test_api_venta_rapida_sandwich_con_acento_y_cantidad(
     assert datos["total"] == 12000
 
 
-def test_api_venta_rapida_hamburguesa_simple_pide_especificar(
+def test_api_venta_rapida_hamburguesa_simple_asume_clasica(
     base_prueba
 ):
     from database import obtener_conexion
@@ -1045,14 +1045,15 @@ def test_api_venta_rapida_hamburguesa_simple_pide_especificar(
         }
     )
 
-    assert respuesta.status_code == 400
+    assert respuesta.status_code == 200
 
     datos = respuesta.json()
 
-    assert datos["ok"] is False
-    assert datos["codigo"] == "PRODUCTO_AMBIGUO"
-    assert "Pollo con papas simple" in datos["respuesta"]
-    assert "Clasica simple" in datos["respuesta"]
+    assert datos["ok"] is True
+    assert datos["codigo"] == "COMANDO_VENTA_REGISTRADA"
+    assert datos["producto"] == "Clasica simple"
+    assert datos["precio_unitario"] == 6500
+    assert datos["total"] == 6500
 
 
 def test_api_venta_rapida_manaos_lima_asume_225l(
