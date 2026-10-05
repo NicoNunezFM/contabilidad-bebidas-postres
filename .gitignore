@@ -12,3 +12,5 @@ whatsapp-bot/node_modules/
 whatsapp-bot/.env
 whatsapp-bot/.wwebjs_auth/
 whatsapp-bot/.wwebjs_cache/
+whatsapp-bot/.welcome_state.json
+whatsapp-bot/.welcome_state.json.tmp
