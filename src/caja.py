@@ -246,6 +246,26 @@ def _compras_por_categorias(
     return total or 0
 
 
+def _gastos_por_seccion(seccion):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute(
+        """
+        SELECT SUM(valor_final)
+        FROM gastos
+        WHERE anulado = 0
+          AND seccion = ?
+        """,
+        (seccion,)
+    )
+
+    total = cursor.fetchone()[0]
+    conexion.close()
+
+    return total or 0
+
+
 def recaudado_por_categoria(categoria):
     categoria_normalizada = str(
         categoria or ""
@@ -295,6 +315,9 @@ def obtener_caja_seccion(seccion):
         compras = _compras_por_categorias(
             categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
         )
+        gastos_seccion = _gastos_por_seccion(
+            "bebidas_postres"
+        )
 
         return {
             "seccion": "bebidas_postres",
@@ -303,7 +326,12 @@ def obtener_caja_seccion(seccion):
             "recaudado_bebidas": ventas_bebidas,
             "recaudado_postres": ventas_postres,
             "compras_directas": compras,
-            "saldo_operativo": ventas - compras,
+            "gastos_seccion": gastos_seccion,
+            "saldo_operativo": (
+                ventas
+                - compras
+                - gastos_seccion
+            ),
             "incluye_gastos_generales": False,
         }
 
@@ -319,6 +347,9 @@ def obtener_caja_seccion(seccion):
         compras = _compras_por_categorias(
             excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
         )
+        gastos_seccion = _gastos_por_seccion(
+            "comidas"
+        )
 
         return {
             "seccion": "comidas",
@@ -326,7 +357,12 @@ def obtener_caja_seccion(seccion):
             "ventas": ventas,
             "recaudado_comidas": ventas,
             "compras_directas": compras,
-            "saldo_operativo": ventas - compras,
+            "gastos_seccion": gastos_seccion,
+            "saldo_operativo": (
+                ventas
+                - compras
+                - gastos_seccion
+            ),
             "incluye_gastos_generales": False,
         }
 
