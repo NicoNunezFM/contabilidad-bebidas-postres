@@ -5,6 +5,9 @@ import sqlite3
 from database import obtener_conexion
 
 
+LIMITE_PROCESANDO_SEGUNDOS = 300
+
+
 def asegurar_tabla_mensajes_procesados():
     conexion = obtener_conexion()
 
@@ -15,6 +18,7 @@ def asegurar_tabla_mensajes_procesados():
             canal TEXT NOT NULL,
             id_externo TEXT NOT NULL,
             fecha_recepcion TEXT NOT NULL,
+            fecha_actualizacion TEXT,
             mensaje TEXT NOT NULL,
             estado TEXT NOT NULL DEFAULT 'Procesando',
             respuesta_json TEXT,
@@ -22,6 +26,19 @@ def asegurar_tabla_mensajes_procesados():
         )
         """
     )
+
+    cursor = conexion.cursor()
+    cursor.execute("PRAGMA table_info(mensajes_procesados)")
+    columnas = cursor.fetchall()
+    nombres = [columna[1] for columna in columnas]
+
+    if "fecha_actualizacion" not in nombres:
+        cursor.execute(
+            """
+            ALTER TABLE mensajes_procesados
+            ADD COLUMN fecha_actualizacion TEXT
+            """
+        )
 
     conexion.commit()
     conexion.close()
@@ -57,14 +74,16 @@ def iniciar_procesamiento(
                 canal,
                 id_externo,
                 fecha_recepcion,
+                fecha_actualizacion,
                 mensaje,
                 estado
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 canal.strip(),
                 id_externo.strip(),
+                datetime.now().isoformat(timespec="seconds"),
                 datetime.now().isoformat(timespec="seconds"),
                 str(mensaje or ""),
                 "Procesando",
@@ -86,7 +105,11 @@ def iniciar_procesamiento(
             """
             SELECT
                 estado,
-                respuesta_json
+                respuesta_json,
+                COALESCE(
+                    fecha_actualizacion,
+                    fecha_recepcion
+                )
             FROM mensajes_procesados
             WHERE canal = ?
               AND id_externo = ?
@@ -108,6 +131,7 @@ def iniciar_procesamiento(
 
         estado = fila[0]
         respuesta_json = fila[1]
+        fecha_estado = fila[2]
 
         if estado == "Completado" and respuesta_json:
             try:
@@ -127,12 +151,55 @@ def iniciar_procesamiento(
                 "resultado": resultado,
             }
 
+        if estado == "Procesando":
+            ahora = datetime.now()
+
+            try:
+                fecha_proceso = datetime.fromisoformat(
+                    fecha_estado
+                )
+                antiguedad = (
+                    ahora - fecha_proceso
+                ).total_seconds()
+            except (TypeError, ValueError):
+                antiguedad = (
+                    LIMITE_PROCESANDO_SEGUNDOS + 1
+                )
+
+            if antiguedad <= LIMITE_PROCESANDO_SEGUNDOS:
+                return {
+                    "ok": False,
+                    "codigo": "MENSAJE_EN_PROCESO",
+                    "mensaje": (
+                        "Este mensaje ya fue recibido y todavía "
+                        "está marcado como en proceso."
+                    )
+                }
+
+            cursor.execute(
+                """
+                UPDATE mensajes_procesados
+                SET
+                    estado = 'Requiere_revision',
+                    fecha_actualizacion = ?
+                WHERE canal = ?
+                  AND id_externo = ?
+                """,
+                (
+                    ahora.isoformat(timespec="seconds"),
+                    canal.strip(),
+                    id_externo.strip(),
+                )
+            )
+            conexion.commit()
+
         return {
             "ok": False,
-            "codigo": "MENSAJE_EN_PROCESO",
+            "codigo": "MENSAJE_REQUIERE_REVISION",
             "mensaje": (
-                "Este mensaje ya fue recibido y todavía "
-                "está marcado como en proceso."
+                "Este mensaje quedó interrumpido durante una "
+                "ejecución anterior. No se volverá a ejecutar "
+                "automáticamente para evitar duplicar movimientos."
             )
         }
 
@@ -164,7 +231,8 @@ def finalizar_procesamiento(
             UPDATE mensajes_procesados
             SET
                 estado = 'Completado',
-                respuesta_json = ?
+                respuesta_json = ?,
+                fecha_actualizacion = ?
             WHERE canal = ?
               AND id_externo = ?
             """,
@@ -173,6 +241,7 @@ def finalizar_procesamiento(
                     resultado,
                     ensure_ascii=False
                 ),
+                datetime.now().isoformat(timespec="seconds"),
                 canal.strip(),
                 id_externo.strip(),
             )
