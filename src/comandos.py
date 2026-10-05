@@ -1017,6 +1017,111 @@ def es_total_informativo(texto):
     )
 
 
+def interpretar_compra_pack(
+    texto,
+    contexto=None
+):
+    normalizado = normalizar_texto(texto)
+
+    coincidencia = re.match(
+        r"^compra\s+"
+        r"(\d+|un|una|uno|dos|tres|cuatro|cinco|seis)\s+"
+        r"packs?\s+(?:de\s+)?"
+        r"(.+?)\s+"
+        r"(por|total|a)\s+"
+        r"(\d[\d\.]*\s*(?:mil)?)"
+        r"(?:\s+(?:cada\s+pack|c/u|cada uno))?$",
+        normalizado
+    )
+
+    if not coincidencia:
+        # Caso útil para explicar el costo faltante.
+        sin_costo = re.match(
+            r"^compra\s+"
+            r"(\d+|un|una|uno|dos|tres|cuatro|cinco|seis)\s+"
+            r"packs?\s+(?:de\s+)?(.+)$",
+            normalizado
+        )
+
+        if sin_costo:
+            return {
+                "ok": False,
+                "codigo": "COSTO_COMPRA_REQUERIDO",
+                "respuesta": (
+                    "Indicá también cuánto costó la compra. "
+                    "Ejemplos: 'compra 2 packs manaos cola por 17000' "
+                    "o 'compra 2 packs manaos cola a 8500 cada pack'."
+                ),
+            }
+
+        return None
+
+    cantidad_texto = coincidencia.group(1)
+
+    if cantidad_texto.isdigit():
+        cantidad_packs = int(
+            cantidad_texto
+        )
+    else:
+        cantidad_packs = PALABRAS_CANTIDAD[
+            cantidad_texto
+        ]
+
+    producto = coincidencia.group(2).strip()
+    modalidad = coincidencia.group(3)
+    importe = normalizar_importe(
+        coincidencia.group(4)
+    )
+
+    if importe is None:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_COMPRA_PACK_INVALIDO",
+            "respuesta": "No pude interpretar el costo de la compra.",
+        }
+
+    datos_accion = {
+        "producto": producto,
+        "cantidad_packs": cantidad_packs,
+        "contexto": contexto or {},
+    }
+
+    if modalidad == "a":
+        datos_accion["precio_pack"] = importe
+    else:
+        datos_accion["costo_total"] = importe
+
+    resultado = ejecutar_accion({
+        "accion": "registrar_compra_pack",
+        "datos": datos_accion,
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_COMPRA_PACK_REGISTRADA",
+        "respuesta": "\n".join([
+            "*Compra registrada*",
+            (
+                f"{datos['cantidad_packs']} pack(s) x "
+                f"{datos['unidades_por_pack']} unidades"
+            ),
+            f"Producto: {datos['producto']}",
+            (
+                "Unidades agregadas al stock: "
+                f"{datos['cantidad_unidades']}"
+            ),
+            f"Total compra: {formatear_pesos(datos['total'])}",
+            f"Stock actual: {datos['stock_actual']}",
+        ]),
+    }
+
+
 def interpretar_gasto_natural(
     texto,
     contexto=None,
@@ -1301,6 +1406,8 @@ def interpretar_opcion_menu(
 def mensaje_ayuda():
     return "\n".join([
         "*Comandos disponibles*",
+        "- compra 2 packs manaos cola por 17000",
+        "- compra 1 pack manaos cola chica a 8500 cada pack",
         "- venta 2 manaos cola 600",
         "- venta big mac doble",
         "- venta 2 pepsi, 1 chocotorta y 2 big mac doble",
@@ -1385,6 +1492,15 @@ def procesar_comando(
                 "No lo registré como un movimiento adicional."
             ),
         }
+
+    if texto.startswith("compra "):
+        compra_pack = interpretar_compra_pack(
+            texto,
+            contexto=contexto,
+        )
+
+        if compra_pack is not None:
+            return compra_pack
 
     # Los gastos explícitos se detectan antes que las ventas rápidas.
     if (
