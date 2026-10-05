@@ -249,7 +249,8 @@ def crear_tabla_gastos():
         fecha TEXT NOT NULL,
         categoria TEXT NOT NULL,
         descripcion_gasto TEXT NOT NULL,
-        valor_final REAL NOT NULL
+        valor_final REAL NOT NULL,
+        seccion TEXT
         )
     """)
 
@@ -403,6 +404,12 @@ def actualizar_tabla_gastos():
         cursor.execute("""
             ALTER TABLE gastos
             ADD COLUMN motivo_anulacion TEXT
+        """)
+
+    if "seccion" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE gastos
+            ADD COLUMN seccion TEXT
         """)
 
     conexion.commit()
@@ -637,6 +644,79 @@ def crear_tabla_contextos_conversacion():
     conexion.close()
 
 
+def crear_tablas_costos_postres():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insumos (
+            id_insumo INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            unidad_base TEXT NOT NULL,
+            seccion TEXT NOT NULL DEFAULT 'bebidas_postres',
+            activo INTEGER NOT NULL DEFAULT 1
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS compras_insumos (
+            id_compra_insumo INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_insumo INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            cantidad_base REAL NOT NULL,
+            costo_total REAL NOT NULL,
+            comercio TEXT,
+            id_gasto INTEGER,
+            observaciones TEXT,
+            FOREIGN KEY (id_insumo)
+                REFERENCES insumos(id_insumo),
+            FOREIGN KEY (id_gasto)
+                REFERENCES gastos(id_gasto)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_compras_insumos_insumo_fecha
+        ON compras_insumos (
+            id_insumo,
+            fecha,
+            id_compra_insumo
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS recetas (
+            id_receta INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            producto TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            rendimiento REAL NOT NULL,
+            costo_fijo_por_unidad REAL NOT NULL DEFAULT 0,
+            activa INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(producto, version)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS receta_insumos (
+            id_receta_insumo INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_receta INTEGER NOT NULL,
+            id_insumo INTEGER NOT NULL,
+            cantidad_base REAL NOT NULL,
+            FOREIGN KEY (id_receta)
+                REFERENCES recetas(id_receta),
+            FOREIGN KEY (id_insumo)
+                REFERENCES insumos(id_insumo),
+            UNIQUE(id_receta, id_insumo)
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -646,6 +726,7 @@ def inicializar_base_de_datos():
     crear_tabla_ventas()
     crear_tabla_venta_adicionales()
     crear_tabla_gastos()
+    crear_tablas_costos_postres()
     crear_tabla_ajustes_stock()
     actualizar_tabla_ajustes_stock()
     actualizar_tabla_ventas()
