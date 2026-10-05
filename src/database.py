@@ -105,9 +105,17 @@ def crear_tabla_operaciones_venta():
             id_operacion INTEGER PRIMARY KEY AUTOINCREMENT,
             fecha TEXT NOT NULL,
             estado_pago TEXT NOT NULL DEFAULT 'Cobrado',
+            fecha_hora TEXT,
+            canal_origen TEXT,
+            usuario_origen TEXT,
+            numero_origen TEXT,
+            grupo_origen TEXT,
+            id_mensaje_origen TEXT,
             anulada INTEGER NOT NULL DEFAULT 0,
             fecha_anulacion TEXT,
-            motivo_anulacion TEXT
+            motivo_anulacion TEXT,
+            usuario_anulacion TEXT,
+            id_mensaje_anulacion TEXT
         )
     """)
 
@@ -148,6 +156,36 @@ def actualizar_tabla_operaciones_venta():
             ALTER TABLE ventas_operaciones
             ADD COLUMN motivo_anulacion TEXT
         """)
+
+    columnas_a_agregar = {
+        "fecha_hora": "TEXT",
+        "canal_origen": "TEXT",
+        "usuario_origen": "TEXT",
+        "numero_origen": "TEXT",
+        "grupo_origen": "TEXT",
+        "id_mensaje_origen": "TEXT",
+        "usuario_anulacion": "TEXT",
+        "id_mensaje_anulacion": "TEXT",
+    }
+
+    for nombre, tipo in columnas_a_agregar.items():
+        if nombre not in nombres_columnas:
+            cursor.execute(
+                f"""
+                ALTER TABLE ventas_operaciones
+                ADD COLUMN {nombre} {tipo}
+                """
+            )
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_ventas_operaciones_usuario_activa
+        ON ventas_operaciones (
+            usuario_origen,
+            anulada,
+            id_operacion
+        )
+    """)
 
     conexion.commit()
     conexion.close()
