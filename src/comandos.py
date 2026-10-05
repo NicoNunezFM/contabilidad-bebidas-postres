@@ -44,7 +44,7 @@ def error_comando(resultado):
             "No se pudo ejecutar la acción."
         )
 
-    return {
+    error = {
         "ok": False,
         "codigo": resultado.get(
             "codigo",
@@ -52,6 +52,18 @@ def error_comando(resultado):
         ),
         "respuesta": respuesta,
     }
+
+    # Conservar datos estructurados útiles para que la interfaz
+    # pueda explicar qué falta o qué opciones existen.
+    for campo in (
+        "candidatos",
+        "faltantes",
+        "costo_parcial_conocido",
+    ):
+        if campo in resultado:
+            error[campo] = resultado[campo]
+
+    return error
 
 
 def formatear_stock(productos):
