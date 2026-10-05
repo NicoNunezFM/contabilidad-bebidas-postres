@@ -186,3 +186,24 @@ Total gastado 29000
 Las dos líneas intermedias se registran como gastos. La línea de total se reconoce como comprobación y no se registra nuevamente.
 
 Los mensajes multilínea con el mismo formato también se procesan respetando el encabezado.
+
+
+## Compras por pack
+
+Las Manaos grandes de 2.25 l usan 6 unidades por pack.
+Las Manaos chicas de 600 ml usan 12 unidades por pack.
+
+Ejemplos:
+
+```text
+compra 2 packs manaos cola por 17000
+compra 1 pack manaos cola chica a 8500 cada pack
+```
+
+En el primer caso se agregan 12 botellas grandes al stock.
+En el segundo se agregan 12 botellas chicas.
+
+`por` indica el costo total de la compra.
+`a` indica el precio de cada pack.
+
+El costo es obligatorio para una compra, porque también debe quedar correctamente registrado en compras y caja. Si solo se quiere corregir el conteo físico, se usa `inventario <producto> <cantidad real>`.
