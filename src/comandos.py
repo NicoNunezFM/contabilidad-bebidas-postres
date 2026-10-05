@@ -1611,6 +1611,11 @@ def procesar_comando(
                 "perdida ",
                 "consumo ",
                 "inventario",
+                "caja ",
+                "recaudado ",
+                "ventas ",
+                "cuanto ",
+                "cuanta ",
             )
         )
     ):
