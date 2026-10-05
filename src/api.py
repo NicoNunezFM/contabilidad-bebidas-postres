@@ -10,6 +10,7 @@ from ajustes_stock import registrar_inventario_fisico
 from caja import obtener_estado_caja
 
 from comandos import procesar_comando
+from database import inicializar_base_de_datos
 
 from cierres import (
     registrar_cierre_semanal,
@@ -232,6 +233,15 @@ class ComandoEntrada(BaseModel):
 class AccionEntrada(BaseModel):
     accion: str = Field(min_length=1)
     datos: dict = Field(default_factory=dict)
+
+
+# ============================================================
+# INICIALIZACIÓN / MIGRACIONES
+# ============================================================
+
+@app.on_event("startup")
+def preparar_base_de_datos():
+    inicializar_base_de_datos()
 
 
 # ============================================================
