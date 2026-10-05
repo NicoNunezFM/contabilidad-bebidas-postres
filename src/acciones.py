@@ -35,6 +35,10 @@ ALIASES_PRODUCTOS = {
     "postre chocotorta": "chocotorta",
     "bigmac simple": "big mac simple",
     "bigmac doble": "big mac doble",
+    "sandwich": "sanguche",
+    "sándwich": "sanguche",
+    "sandwiches": "sanguche",
+    "sanguches": "sanguche",
 }
 
 
@@ -75,6 +79,161 @@ def formatear_pesos(valor):
     )
 
 
+def _categoria_coincide(producto, tipo):
+    categoria = normalizar_texto(
+        producto.get("categoria")
+    )
+
+    equivalencias = {
+        "sanguche": {"sanguches", "sanguche"},
+        "hamburguesa": {"hamburguesas", "hamburguesa"},
+        "bebida": {"bebidas", "bebida"},
+        "postre": {"postres", "postre"},
+    }
+
+    if tipo in equivalencias:
+        return categoria in equivalencias[tipo]
+
+    return False
+
+
+def _resolver_por_tipo_y_precio(consulta, productos):
+    coincidencia = re.match(
+        r"^(sanguche|sandwich|hamburguesa|bebida|postre)"
+        r"(?:\s+de)?\s+\$?(\d[\d\.]*)$",
+        consulta
+    )
+
+    if not coincidencia:
+        return None
+
+    tipo = coincidencia.group(1)
+
+    if tipo == "sandwich":
+        tipo = "sanguche"
+
+    precio_texto = coincidencia.group(2).replace(".", "")
+
+    try:
+        precio = float(precio_texto)
+    except ValueError:
+        return None
+
+    candidatos = [
+        producto
+        for producto in productos
+        if _categoria_coincide(producto, tipo)
+        and producto.get("precio_venta") is not None
+        and float(producto["precio_venta"]) == precio
+    ]
+
+    if len(candidatos) == 1:
+        return {
+            "ok": True,
+            "producto": candidatos[0],
+        }
+
+    if len(candidatos) > 1:
+        return {
+            "ok": False,
+            "codigo": "PRODUCTO_AMBIGUO",
+            "mensaje": (
+                "Hay más de un producto de ese tipo con ese precio."
+            ),
+            "candidatos": [
+                {
+                    "id_producto": producto["id_producto"],
+                    "nombre": producto["nombre"],
+                    "precio_venta": producto["precio_venta"],
+                }
+                for producto in candidatos
+            ],
+        }
+
+    return {
+        "ok": False,
+        "codigo": "PRODUCTO_NO_ENCONTRADO",
+        "mensaje": (
+            f"No encontré un {tipo} con precio "
+            f"{formatear_pesos(precio)}."
+        ),
+    }
+
+
+def _resolver_categoria_generica(consulta, productos):
+    tipos = {
+        "hamburguesa": "hamburguesa",
+        "hamburguesa simple": "hamburguesa",
+        "hamburguesa doble": "hamburguesa",
+        "sanguche": "sanguche",
+        "sandwich": "sanguche",
+        "postre": "postre",
+        "bebida": "bebida",
+    }
+
+    tipo = None
+    resto = consulta
+
+    for prefijo, tipo_equivalente in sorted(
+        tipos.items(),
+        key=lambda item: len(item[0]),
+        reverse=True
+    ):
+        if consulta == prefijo or consulta.startswith(prefijo + " "):
+            tipo = tipo_equivalente
+            resto = consulta[len(prefijo):].strip()
+
+            if "simple" in prefijo:
+                resto = "simple " + resto
+            elif "doble" in prefijo:
+                resto = "doble " + resto
+
+            break
+
+    if not tipo:
+        return None
+
+    candidatos = [
+        producto
+        for producto in productos
+        if _categoria_coincide(producto, tipo)
+    ]
+
+    if resto:
+        tokens = set(resto.split())
+        filtrados = []
+
+        for producto in candidatos:
+            nombre = normalizar_texto(producto["nombre"])
+            if tokens.issubset(set(nombre.split())):
+                filtrados.append(producto)
+
+        candidatos = filtrados
+
+    if len(candidatos) == 1:
+        return {
+            "ok": True,
+            "producto": candidatos[0],
+        }
+
+    if len(candidatos) > 1:
+        return {
+            "ok": False,
+            "codigo": "PRODUCTO_AMBIGUO",
+            "mensaje": "Necesito que especifiques cuál producto.",
+            "candidatos": [
+                {
+                    "id_producto": producto["id_producto"],
+                    "nombre": producto["nombre"],
+                    "precio_venta": producto["precio_venta"],
+                }
+                for producto in candidatos
+            ],
+        }
+
+    return None
+
+
 def resolver_producto(texto_producto):
     consulta = normalizar_texto(texto_producto)
 
@@ -88,6 +247,22 @@ def resolver_producto(texto_producto):
     consulta = ALIASES_PRODUCTOS.get(consulta, consulta)
 
     productos = obtener_productos()
+
+    por_tipo_y_precio = _resolver_por_tipo_y_precio(
+        consulta,
+        productos
+    )
+
+    if por_tipo_y_precio is not None:
+        return por_tipo_y_precio
+
+    por_categoria = _resolver_categoria_generica(
+        consulta,
+        productos
+    )
+
+    if por_categoria is not None:
+        return por_categoria
 
     normalizados = [
         (producto, normalizar_texto(producto["nombre"]))
