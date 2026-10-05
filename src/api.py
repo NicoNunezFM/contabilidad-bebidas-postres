@@ -8,7 +8,11 @@ from acciones import ejecutar_accion
 from ajustes_stock import registrar_inventario_fisico
 from backups import crear_backup_diario
 
-from caja import obtener_estado_caja
+from caja import (
+    obtener_estado_caja,
+    obtener_caja_seccion,
+    recaudado_por_categoria,
+)
 from catalogo import asegurar_productos_catalogo
 
 from comandos import procesar_comando
@@ -482,6 +486,49 @@ def reporte_mes_api():
 def consultar_caja_api():
 
     return obtener_estado_caja()
+
+
+@app.get("/caja/secciones/{seccion}")
+def consultar_caja_seccion_api(
+    seccion: str
+):
+    try:
+        return {
+            "ok": True,
+            "codigo": "CAJA_SECCION",
+            "datos": obtener_caja_seccion(
+                seccion
+            ),
+        }
+    except ValueError as error:
+        return responder_resultado({
+            "ok": False,
+            "codigo": "SECCION_CAJA_INVALIDA",
+            "mensaje": str(error),
+        })
+
+
+@app.get("/recaudado/{categoria}")
+def consultar_recaudado_categoria_api(
+    categoria: str
+):
+    try:
+        total = recaudado_por_categoria(
+            categoria
+        )
+    except ValueError as error:
+        return responder_resultado({
+            "ok": False,
+            "codigo": "CATEGORIA_RECAUDACION_INVALIDA",
+            "mensaje": str(error),
+        })
+
+    return {
+        "ok": True,
+        "codigo": "RECAUDADO_CATEGORIA",
+        "categoria": categoria,
+        "total": total,
+    }
 
 
 @app.post("/caja/aportes")
