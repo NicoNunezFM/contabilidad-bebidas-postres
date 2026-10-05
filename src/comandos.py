@@ -262,6 +262,154 @@ def interpretar_inventario(texto):
         "respuesta": respuesta,
     }
 
+def _extraer_adicional_reconocido(texto_producto):
+    """
+    Separa adicionales explícitos sin confundir guarniciones que
+    forman parte del producto base (por ejemplo, 'mila con pure').
+    """
+    coincidencia = re.match(
+        r"^(.+?)\s+con\s+(.+)$",
+        texto_producto
+    )
+
+    if not coincidencia:
+        return {
+            "producto": texto_producto,
+            "adicionales": [],
+        }
+
+    producto_base = coincidencia.group(1).strip()
+    detalle = coincidencia.group(2).strip()
+
+    detalle_normalizado = normalizar_texto(detalle)
+
+    palabras_adicional = (
+        "huevo",
+        "huevos",
+        "cheddar",
+        "doble porcion",
+        "extra de papa",
+        "extra papa",
+    )
+
+    if not any(
+        palabra in detalle_normalizado
+        for palabra in palabras_adicional
+    ):
+        return {
+            "producto": texto_producto,
+            "adicionales": [],
+        }
+
+    precio_total = None
+    detalle_sin_precio = detalle_normalizado
+
+    parentesis = re.search(
+        r"\((\d[\d\.]*)\)\s*$",
+        detalle
+    )
+
+    if parentesis:
+        precio_total = normalizar_importe(
+            parentesis.group(1)
+        )
+        detalle_sin_precio = normalizar_texto(
+            detalle[:parentesis.start()]
+        )
+
+    else:
+        precio_final = re.search(
+            r"\s+(\d[\d\.]*\s*(?:mil)?)\s*$",
+            detalle_normalizado
+        )
+
+        if precio_final:
+            bruto = precio_final.group(1).strip()
+            digitos = re.sub(
+                r"\D",
+                "",
+                bruto
+            )
+
+            if (
+                "mil" in bruto
+                or (
+                    digitos
+                    and int(digitos) >= 100
+                )
+            ):
+                precio_total = normalizar_importe(
+                    bruto
+                )
+                detalle_sin_precio = (
+                    detalle_normalizado[
+                        :precio_final.start()
+                    ].strip()
+                )
+
+    cantidad_adicional = 1
+    descripcion = detalle_sin_precio
+
+    cantidad_numero = re.match(
+        r"^(\d+)\s+(.+)$",
+        detalle_sin_precio
+    )
+
+    if cantidad_numero:
+        cantidad_adicional = int(
+            cantidad_numero.group(1)
+        )
+        descripcion = cantidad_numero.group(2)
+
+    else:
+        cantidades = {
+            "un": 1,
+            "una": 1,
+            "uno": 1,
+            "dos": 2,
+            "tres": 3,
+            "cuatro": 4,
+        }
+
+        partes = detalle_sin_precio.split()
+
+        if (
+            partes
+            and partes[0] in cantidades
+            and len(partes) > 1
+        ):
+            cantidad_adicional = cantidades[
+                partes[0]
+            ]
+            descripcion = " ".join(
+                partes[1:]
+            )
+
+    if descripcion in {"huevos", "huevo"}:
+        descripcion = "huevo"
+
+    if precio_total is None:
+        return {
+            "producto": producto_base,
+            "adicionales": [],
+            "error_adicional": {
+                "descripcion": descripcion,
+                "cantidad": cantidad_adicional,
+            },
+        }
+
+    return {
+        "producto": producto_base,
+        "adicionales": [
+            {
+                "descripcion": descripcion,
+                "cantidad": cantidad_adicional,
+                "precio_total": precio_total,
+            }
+        ],
+    }
+
+
 def interpretar_item_venta(texto_item):
     texto_item = texto_item.strip()
 
@@ -290,10 +438,26 @@ def interpretar_item_venta(texto_item):
             texto_producto = coincidencia_final.group(1).strip()
             cantidad = int(coincidencia_final.group(2))
 
-    return {
-        "producto": texto_producto,
+    adicional = _extraer_adicional_reconocido(
+        texto_producto
+    )
+
+    item = {
+        "producto": adicional["producto"],
         "cantidad": cantidad,
     }
+
+    if adicional.get("adicionales"):
+        item["adicionales"] = adicional[
+            "adicionales"
+        ]
+
+    if adicional.get("error_adicional"):
+        item["error_adicional"] = adicional[
+            "error_adicional"
+        ]
+
+    return item
 
 
 def interpretar_venta(
@@ -330,6 +494,32 @@ def interpretar_venta(
             "respuesta": "No se pudo interpretar la venta.",
         }
 
+    for item in items:
+        error_adicional = item.pop(
+            "error_adicional",
+            None
+        )
+
+        if error_adicional:
+            cantidad_extra = error_adicional[
+                "cantidad"
+            ]
+            descripcion_extra = error_adicional[
+                "descripcion"
+            ]
+
+            return {
+                "ok": False,
+                "codigo": "PRECIO_ADICIONAL_REQUERIDO",
+                "respuesta": (
+                    "Detecté el adicional "
+                    f"'{cantidad_extra} x {descripcion_extra}', "
+                    "pero necesito su precio. "
+                    "Podés escribirlo al final, por ejemplo: "
+                    "'1 sanguche grande con 2 huevos (1000)'."
+                ),
+            }
+
     if len(items) == 1:
         item = items[0]
 
@@ -356,6 +546,17 @@ def interpretar_venta(
             ),
             f"Total: {formatear_pesos(datos['total'])}",
         ]
+
+        for adicional in datos.get(
+            "adicionales",
+            []
+        ):
+            lineas.append(
+                "+ "
+                f"{adicional['cantidad']} x "
+                f"{adicional['descripcion']}: "
+                f"{formatear_pesos(adicional['precio_total'])}"
+            )
 
         if datos["controla_stock"]:
             lineas.append(
@@ -399,6 +600,17 @@ def interpretar_venta(
             )
 
         lineas.append(linea)
+
+        for adicional in item.get(
+            "adicionales",
+            []
+        ):
+            lineas.append(
+                "  + "
+                f"{adicional['cantidad']} x "
+                f"{adicional['descripcion']}: "
+                f"{formatear_pesos(adicional['precio_total'])}"
+            )
 
     lineas.append(
         f"*Total: {formatear_pesos(datos['total'])}*"
