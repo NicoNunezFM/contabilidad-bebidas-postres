@@ -7,7 +7,11 @@ from ajustes_stock import (
     registrar_inventario_fisico,
     registrar_merma,
 )
-from caja import obtener_estado_caja
+from caja import (
+    obtener_estado_caja,
+    obtener_caja_seccion,
+    recaudado_por_categoria,
+)
 from compras import registrar_compra
 from gastos import registrar_gasto
 from productos import obtener_productos
@@ -461,6 +465,55 @@ def accion_consultar_precios(datos):
         "codigo": "ACCION_PRECIOS",
         "datos": {
             "productos": productos,
+        },
+    }
+
+
+def accion_consultar_caja_seccion(datos):
+    seccion = normalizar_texto(
+        datos.get("seccion")
+    )
+
+    try:
+        estado = obtener_caja_seccion(
+            seccion
+        )
+    except ValueError as error:
+        return {
+            "ok": False,
+            "codigo": "SECCION_CAJA_INVALIDA",
+            "mensaje": str(error),
+        }
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_CAJA_SECCION",
+        "datos": estado,
+    }
+
+
+def accion_consultar_recaudado(datos):
+    categoria = normalizar_texto(
+        datos.get("categoria")
+    )
+
+    try:
+        total = recaudado_por_categoria(
+            categoria
+        )
+    except ValueError as error:
+        return {
+            "ok": False,
+            "codigo": "CATEGORIA_RECAUDACION_INVALIDA",
+            "mensaje": str(error),
+        }
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_RECAUDADO_CATEGORIA",
+        "datos": {
+            "categoria": categoria,
+            "total": total,
         },
     }
 
@@ -1156,6 +1209,12 @@ def ejecutar_accion(solicitud):
 
     if accion == "consultar caja":
         return accion_consultar_caja()
+
+    if accion == "consultar caja seccion":
+        return accion_consultar_caja_seccion(datos)
+
+    if accion == "consultar recaudado":
+        return accion_consultar_recaudado(datos)
 
     if accion == "consultar resumen":
         return accion_consultar_resumen(datos)
