@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const fs = require("fs");
+const path = require("path");
 const qrcode = require("qrcode-terminal");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 
@@ -20,6 +22,26 @@ const DEBUG_MESSAGES =
   String(process.env.DEBUG_MESSAGES || "true")
     .trim()
     .toLowerCase() === "true";
+
+const SEND_GROUP_WELCOME =
+  String(process.env.SEND_GROUP_WELCOME || "true")
+    .trim()
+    .toLowerCase() === "true";
+
+const WELCOME_STATE_PATH = path.join(
+  __dirname,
+  ".welcome_state.json"
+);
+
+const WELCOME_MESSAGE = [
+  "*Bienvenidos a Abadion.*",
+  "",
+  "Desde este grupo, Abadion va a centralizar la gestión de Lo de Clau: ventas, stock, caja, movimientos y consultas.",
+  "",
+  "Pueden interactuar directamente con el sistema escribiendo los comandos disponibles.",
+  "",
+  "Para empezar, escriban *menu*."
+].join("\n");
 
 function soloDigitos(valor) {
   return String(valor || "").replace(/\D/g, "");
@@ -275,6 +297,97 @@ function textoRespuestaApi(datos) {
   );
 }
 
+function cargarEstadoBienvenidas() {
+  try {
+    if (!fs.existsSync(WELCOME_STATE_PATH)) {
+      return {};
+    }
+
+    const contenido = fs.readFileSync(
+      WELCOME_STATE_PATH,
+      "utf8"
+    );
+
+    const estado = JSON.parse(contenido);
+
+    if (
+      estado &&
+      typeof estado === "object" &&
+      !Array.isArray(estado)
+    ) {
+      return estado;
+    }
+  } catch (error) {
+    console.warn(
+      "No se pudo leer el estado de bienvenidas:",
+      error?.message || error
+    );
+  }
+
+  return {};
+}
+
+const estadoBienvenidas =
+  cargarEstadoBienvenidas();
+
+function guardarEstadoBienvenidas() {
+  const temporal =
+    WELCOME_STATE_PATH + ".tmp";
+
+  fs.writeFileSync(
+    temporal,
+    JSON.stringify(
+      estadoBienvenidas,
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  fs.renameSync(
+    temporal,
+    WELCOME_STATE_PATH
+  );
+}
+
+async function enviarBienvenidaSiCorresponde(
+  idGrupo
+) {
+  if (
+    !SEND_GROUP_WELCOME ||
+    !ALLOW_GROUPS ||
+    !ALLOWED_GROUP_IDS.has(idGrupo)
+  ) {
+    return false;
+  }
+
+  if (
+    estadoBienvenidas[idGrupo]?.enviada
+  ) {
+    return false;
+  }
+
+  await client.sendMessage(
+    idGrupo,
+    WELCOME_MESSAGE
+  );
+
+  estadoBienvenidas[idGrupo] = {
+    enviada: true,
+    fecha: new Date().toISOString(),
+  };
+
+  guardarEstadoBienvenidas();
+
+  console.log(
+    "Bienvenida de Abadion enviada al grupo:",
+    idGrupo
+  );
+
+  return true;
+}
+
+
 const client = new Client({
   authStrategy: new LocalAuth({
     clientId: "lo-de-clau-bot",
@@ -305,7 +418,7 @@ client.on("auth_failure", (mensaje) => {
   );
 });
 
-client.on("ready", () => {
+client.on("ready", async () => {
   console.log("Bot de WhatsApp listo.");
 
   if (ALLOWED_NUMBERS.size === 0) {
@@ -343,6 +456,32 @@ client.on("ready", () => {
   console.log(
     `Diagnóstico de mensajes: ${DEBUG_MESSAGES ? "activado" : "desactivado"}`
   );
+
+  console.log(
+    `Bienvenida automática: ${SEND_GROUP_WELCOME ? "activada" : "desactivada"}`
+  );
+
+  if (
+    ALLOW_GROUPS &&
+    SEND_GROUP_WELCOME
+  ) {
+    for (
+      const idGrupo
+      of ALLOWED_GROUP_IDS
+    ) {
+      try {
+        await enviarBienvenidaSiCorresponde(
+          idGrupo
+        );
+      } catch (error) {
+        console.error(
+          "No se pudo enviar la bienvenida al grupo:",
+          idGrupo,
+          error?.message || error
+        );
+      }
+    }
+  }
 });
 
 async function procesarMensajeEntrante(message, origenEvento) {
@@ -393,6 +532,19 @@ async function procesarMensajeEntrante(message, origenEvento) {
         );
       }
       return;
+    }
+
+    if (esGrupo(message)) {
+      try {
+        await enviarBienvenidaSiCorresponde(
+          message.from
+        );
+      } catch (error) {
+        console.error(
+          "No se pudo enviar la bienvenida al recibir mensaje de grupo:",
+          error?.message || error
+        );
+      }
     }
 
     const remitente =
