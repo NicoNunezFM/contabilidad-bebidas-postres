@@ -422,18 +422,18 @@ def test_whatsapp_audita_operador_y_anula_solo_su_ultima_venta(
 
     assert fila_a == (
         "whatsapp",
-        "operador-a",
+        "numero-a",
         "numero-a",
         "grupo-prueba",
         "msg-a-venta",
         1,
-        "operador-a",
+        "numero-a",
         "msg-a-anula",
     )
 
     assert fila_b == (
         0,
-        "operador-b",
+        "numero-b",
     )
 
 
