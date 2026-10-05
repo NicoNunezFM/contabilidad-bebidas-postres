@@ -1714,3 +1714,229 @@ def test_api_venta_por_precio_unico_y_multiple_abreviado(
 
     assert datos["codigo"] == "COMANDO_VENTA_MULTIPLE_REGISTRADA"
     assert datos["total"] == 54000
+
+
+
+def test_api_venta_con_adicional_precio_explicito(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Grande de pollo + papas",
+            "Sanguches",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            0,
+            8000,
+            0,
+        )
+    )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                "1 sanguche grande "
+                "con 2 huevos (1000)"
+            )
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["producto"] == "Grande de pollo + papas"
+    assert datos["subtotal_producto"] == 8000
+    assert datos["total_adicionales"] == 1000
+    assert datos["total"] == 9000
+    assert datos["adicionales"] == [
+        {
+            "descripcion": "huevo",
+            "cantidad": 2,
+            "precio_total": 1000.0,
+        }
+    ]
+
+    conexion = obtener_conexion()
+
+    adicional = conexion.execute(
+        """
+        SELECT descripcion, cantidad, precio_total
+        FROM venta_adicionales
+        """
+    ).fetchone()
+
+    conexion.close()
+
+    assert adicional == (
+        "huevo",
+        2,
+        1000.0,
+    )
+
+    caja = client.get("/caja").json()
+
+    assert caja["ventas"] == 9000
+
+
+def test_api_adicional_sin_precio_pide_aclaracion(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Grande de pollo + papas",
+            "Sanguches",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            0,
+            8000,
+            0,
+        )
+    )
+
+    conexion.commit()
+    conexion.close()
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                "1 sanguche grande con cheddar"
+            )
+        }
+    )
+
+    assert respuesta.status_code == 400
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is False
+    assert datos["codigo"] == "PRECIO_ADICIONAL_REQUERIDO"
+    assert "cheddar" in datos["respuesta"].lower()
+
+    conexion = obtener_conexion()
+
+    ventas = conexion.execute(
+        "SELECT COUNT(*) FROM ventas"
+    ).fetchone()[0]
+
+    conexion.close()
+
+    assert ventas == 0
+
+
+def test_api_anulacion_operacion_incluye_adicionales(
+    base_prueba
+):
+    from database import obtener_conexion
+
+    conexion = obtener_conexion()
+
+    conexion.execute(
+        """
+        INSERT INTO productos (
+            nombre,
+            categoria,
+            presentacion,
+            contenido,
+            unidad_medida,
+            unidades_por_pack,
+            stock,
+            precio_venta,
+            controla_stock
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "Grande de pollo + papas",
+            "Sanguches",
+            "Unidad",
+            1,
+            "unidad",
+            1,
+            0,
+            8000,
+            0,
+        )
+    )
+
+    conexion.commit()
+    conexion.close()
+
+    venta = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                "1 sanguche grande "
+                "con 2 huevos (1000)"
+            )
+        }
+    )
+
+    assert venta.status_code == 200
+    id_operacion = venta.json()["id_operacion"]
+
+    anulacion = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                f"anular operacion {id_operacion}"
+            )
+        }
+    )
+
+    assert anulacion.status_code == 200
+
+    datos = anulacion.json()
+
+    assert datos["total_anulado"] == 9000
+    assert datos["items"][0]["total_adicionales"] == 1000
+
+    caja = client.get("/caja").json()
+
+    assert caja["ventas"] == 0
