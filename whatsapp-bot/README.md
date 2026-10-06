@@ -351,3 +351,33 @@ Stock Oreo: 4 -> 14
 ```
 
 En esta etapa se guarda el consumo teórico de materias primas, pero todavía no se descuenta un stock físico de insumos. Ese control se implementará sobre este mismo historial en la etapa de inventario de materias primas.
+
+
+### Galletitas compradas por paquete
+
+Las galletitas se compran por paquete, pero las recetas consumen gramos. Abadion convierte automáticamente la presentación comprada a gramos para el historial de costos.
+
+Presentaciones configuradas:
+
+- Oreo: 118 g, x4 de 258 g y tripack de 354 g.
+- Chocolinas: 170 g y 250 g.
+
+Ejemplos:
+
+```text
+insumo oreo 3 paquetes 118g 4288 Carrefour
+insumo oreo 1 pack x4 3406 Carrefour
+insumo chocolinas 4 paquetes 250g 12000 Carrefour
+insumo chocolinas 2 paquetes 170g 3000 Carrefour
+```
+
+Ejemplo de conversión:
+
+```text
+3 paquetes de Oreo de 118 g
+= 354 g ingresados al historial de insumos
+```
+
+El precio queda asociado al total comprado y Abadion calcula el costo por gramo para las recetas.
+
+Como hay más de una presentación de Oreo y Chocolinas, el tamaño debe indicarse en el mensaje. Abadion no supone un peso de paquete si puede haber más de una presentación.
