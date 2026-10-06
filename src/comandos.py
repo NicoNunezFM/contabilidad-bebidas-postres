@@ -1198,7 +1198,11 @@ def interpretar_compra_insumo_paquetes(
         r"(?:paquetes?|packs?)\s+"
         r"(?:de\s+)?"
         r"(?:(?:cada\s+uno\s+)?"
-        r"(118g|170g|250g|258g|354g|x3|x4|tripack))\s+"
+        r"(?:"
+        r"((?:118|170|250|258|354)\s*g)"
+        r"|"
+        r"(x\s*[34]|tripack)"
+        r"))\s+"
         r"(?:por\s+)?"
         r"(\d[\d\.]*\s*(?:mil)?)"
         r"(?:\s+(?:en\s+)?(.+))?$",
@@ -1212,13 +1216,16 @@ def interpretar_compra_insumo_paquetes(
     cantidad_paquetes = int(
         coincidencia.group(2)
     )
-    presentacion = coincidencia.group(3)
+    presentacion = (
+        coincidencia.group(3)
+        or coincidencia.group(4)
+    )
     costo = normalizar_importe(
-        coincidencia.group(4)
+        coincidencia.group(5)
     )
     comercio = (
-        coincidencia.group(5).strip()
-        if coincidencia.group(5)
+        coincidencia.group(6).strip()
+        if coincidencia.group(6)
         else None
     )
 
