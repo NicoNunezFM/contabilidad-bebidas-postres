@@ -350,7 +350,7 @@ Costo por unidad: $3.130
 Stock Oreo: 4 -> 14
 ```
 
-En esta etapa se guarda el consumo teórico de materias primas, pero todavía no se descuenta un stock físico de insumos. Ese control se implementará sobre este mismo historial en la etapa de inventario de materias primas.
+La producción valida el stock físico de materias primas antes de registrar la tanda. Si falta cualquier insumo inventariable, no descuenta nada y tampoco aumenta el stock del postre terminado. Si alcanza, descuenta los insumos y aumenta el stock del postre dentro de la misma transacción.
 
 
 ### Galletitas compradas por paquete
@@ -381,3 +381,39 @@ Ejemplo de conversión:
 El precio queda asociado al total comprado y Abadion calcula el costo por gramo para las recetas.
 
 Como hay más de una presentación de Oreo y Chocolinas, el tamaño debe indicarse en el mensaje. Abadion no supone un peso de paquete si puede haber más de una presentación.
+
+
+## Stock físico de insumos
+
+Las compras detalladas de materias primas ahora también alimentan el stock físico.
+
+Ejemplos:
+
+```text
+insumo oreo 3 paquetes 118g 4288 Carrefour
+insumo dulce de leche 2 kg 10000 Carrefour
+insumo pote 100 unidades 35000 Papelera
+```
+
+Las galletitas se compran por paquete, pero el stock se conserva en gramos para poder descontar exactamente lo que usa la receta.
+
+Consultas:
+
+```text
+stock insumos
+que necesito para hacer 20 oreos
+```
+
+Corrección por conteo físico:
+
+```text
+inventario insumo oreo 1350g
+inventario insumo dulce de leche 2.4kg
+inventario insumo pote 37 unidades
+```
+
+`inventario insumo` fija el stock a la cantidad real contada y guarda un ajuste auditado; no suma esa cantidad.
+
+Al registrar una producción, Abadion valida todos los insumos antes de modificar existencias. Si alguno no alcanza, la operación completa se rechaza.
+
+`Café con leche preparado` se considera una preparación interna y no controla stock físico. Continúa formando parte de la receta de Chocotorta para el cálculo de cantidad/costo, pero no se trata como una materia prima almacenada.
