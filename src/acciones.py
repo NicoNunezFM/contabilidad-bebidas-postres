@@ -17,9 +17,12 @@ from costos_postres import (
     estimar_costo_receta,
     historial_gastos_postres,
     historial_producciones_postres,
+    necesidades_produccion,
     obtener_receta,
+    obtener_stock_insumos,
     registrar_compra_insumo,
     registrar_compra_insumo_paquetes,
+    registrar_inventario_insumo,
     registrar_produccion_postre,
 )
 from gastos import registrar_gasto
@@ -755,6 +758,50 @@ def accion_registrar_compra_pack(datos):
     }
 
 
+def accion_consultar_stock_insumos():
+    return {
+        "ok": True,
+        "codigo": "ACCION_STOCK_INSUMOS",
+        "datos": {
+            "insumos": obtener_stock_insumos(),
+        },
+    }
+
+
+def accion_registrar_inventario_insumo(datos):
+    resultado = registrar_inventario_insumo(
+        nombre_insumo=datos.get("insumo"),
+        cantidad_real=datos.get("cantidad"),
+        unidad=datos.get("unidad"),
+        contexto=datos.get("contexto"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_INVENTARIO_INSUMO_REGISTRADO",
+        "datos": resultado,
+    }
+
+
+def accion_consultar_necesidades_produccion(datos):
+    resultado = necesidades_produccion(
+        producto=datos.get("producto"),
+        cantidad=datos.get("cantidad"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_NECESIDADES_PRODUCCION",
+        "datos": resultado,
+    }
+
+
 def accion_registrar_produccion_postre(datos):
     resultado = registrar_produccion_postre(
         producto=datos.get("producto"),
@@ -1368,6 +1415,15 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar produccion postre":
         return accion_registrar_produccion_postre(datos)
+
+    if accion == "consultar stock insumos":
+        return accion_consultar_stock_insumos()
+
+    if accion == "registrar inventario insumo":
+        return accion_registrar_inventario_insumo(datos)
+
+    if accion == "consultar necesidades produccion":
+        return accion_consultar_necesidades_produccion(datos)
 
     if accion == "historial producciones postres":
         return accion_historial_producciones_postres(datos)
