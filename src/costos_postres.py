@@ -192,6 +192,14 @@ def inicializar_costos_postres():
                 (nombre, unidad)
             )
 
+        cursor.execute(
+            """
+            UPDATE insumos
+            SET controla_stock = 0
+            WHERE nombre = 'Café con leche preparado'
+            """
+        )
+
         for presentacion in PRESENTACIONES_INSUMOS_BASE:
             cursor.execute(
                 """
@@ -349,7 +357,9 @@ def resolver_insumo(nombre):
                 id_insumo,
                 nombre,
                 unidad_base,
-                seccion
+                seccion,
+                stock_base,
+                controla_stock
             FROM insumos
             WHERE activo = 1
             ORDER BY nombre
@@ -372,6 +382,8 @@ def resolver_insumo(nombre):
                     "nombre": fila[1],
                     "unidad_base": fila[2],
                     "seccion": fila[3],
+                    "stock_base": float(fila[4] or 0),
+                    "controla_stock": bool(fila[5]),
                 },
             }
 
@@ -575,6 +587,34 @@ def registrar_compra_insumo(
         )
 
         id_compra_insumo = cursor.lastrowid
+
+        stock_anterior = float(
+            cursor.execute(
+                """
+                SELECT stock_base
+                FROM insumos
+                WHERE id_insumo = ?
+                """,
+                (insumo["id_insumo"],)
+            ).fetchone()[0] or 0
+        )
+
+        if insumo.get("controla_stock", True):
+            cursor.execute(
+                """
+                UPDATE insumos
+                SET stock_base = stock_base + ?
+                WHERE id_insumo = ?
+                """,
+                (
+                    cantidad_base,
+                    insumo["id_insumo"],
+                )
+            )
+            stock_nuevo = stock_anterior + cantidad_base
+        else:
+            stock_nuevo = stock_anterior
+
         conexion.commit()
 
     except Exception:
@@ -595,6 +635,9 @@ def registrar_compra_insumo(
         "costo_total": float(costo_total),
         "comercio": comercio,
         "fecha": fecha,
+        "controla_stock": insumo.get("controla_stock", True),
+        "stock_anterior": stock_anterior,
+        "stock_nuevo": stock_nuevo,
     }
 
 
@@ -1025,7 +1068,95 @@ def registrar_produccion_postre(
                 ),
             }
 
-        stock_anterior = int(producto_db[2] or 0)
+        insumos_produccion = []
+        faltantes_stock = []
+
+        for item in costo["detalle"]:
+            if (
+                item["costo_unitario_base"] is None
+                or item["costo_estimado"] is None
+            ):
+                conexion.rollback()
+                return {
+                    "ok": False,
+                    "codigo": "COSTO_PRODUCCION_INCOMPLETO",
+                    "mensaje": (
+                        "La producción tiene un insumo "
+                        "sin costo conocido."
+                    ),
+                }
+
+            insumo_db = cursor.execute(
+                """
+                SELECT
+                    id_insumo,
+                    stock_base,
+                    controla_stock
+                FROM insumos
+                WHERE nombre = ?
+                """,
+                (item["insumo"],)
+            ).fetchone()
+
+            if insumo_db is None:
+                conexion.rollback()
+                return {
+                    "ok": False,
+                    "codigo": "INSUMO_NO_ENCONTRADO",
+                    "mensaje": (
+                        f"No encontré el insumo "
+                        f"'{item['insumo']}'."
+                    ),
+                }
+
+            stock_disponible = float(
+                insumo_db[1] or 0
+            )
+            controla_stock = bool(
+                insumo_db[2]
+            )
+            cantidad_necesaria = float(
+                item["cantidad"]
+            )
+
+            if (
+                controla_stock
+                and stock_disponible + 1e-9
+                < cantidad_necesaria
+            ):
+                faltantes_stock.append({
+                    "insumo": item["insumo"],
+                    "necesario": cantidad_necesaria,
+                    "disponible": stock_disponible,
+                    "faltante": (
+                        cantidad_necesaria
+                        - stock_disponible
+                    ),
+                    "unidad": item["unidad"],
+                })
+
+            insumos_produccion.append({
+                **item,
+                "id_insumo": insumo_db[0],
+                "controla_stock": controla_stock,
+                "stock_anterior": stock_disponible,
+            })
+
+        if faltantes_stock:
+            conexion.rollback()
+            return {
+                "ok": False,
+                "codigo": "STOCK_INSUMOS_INSUFICIENTE",
+                "mensaje": (
+                    "No hay suficiente stock de insumos para "
+                    "registrar la producción."
+                ),
+                "faltantes_stock": faltantes_stock,
+            }
+
+        stock_anterior = int(
+            producto_db[2] or 0
+        )
         fecha_hora = datetime.now().isoformat(
             timespec="seconds"
         )
@@ -1076,41 +1207,30 @@ def registrar_produccion_postre(
         )
 
         id_produccion = cursor.lastrowid
+        detalle_consumo = []
 
-        for item in costo["detalle"]:
-            if (
-                item["costo_unitario_base"] is None
-                or item["costo_estimado"] is None
-            ):
-                conexion.rollback()
-                return {
-                    "ok": False,
-                    "codigo": "COSTO_PRODUCCION_INCOMPLETO",
-                    "mensaje": (
-                        "La producción tiene un insumo "
-                        "sin costo conocido."
-                    ),
-                }
+        for item in insumos_produccion:
+            if item["controla_stock"]:
+                stock_nuevo_insumo = (
+                    item["stock_anterior"]
+                    - float(item["cantidad"])
+                )
 
-            insumo_db = cursor.execute(
-                """
-                SELECT id_insumo
-                FROM insumos
-                WHERE nombre = ?
-                """,
-                (item["insumo"],)
-            ).fetchone()
-
-            if insumo_db is None:
-                conexion.rollback()
-                return {
-                    "ok": False,
-                    "codigo": "INSUMO_NO_ENCONTRADO",
-                    "mensaje": (
-                        f"No encontré el insumo "
-                        f"'{item['insumo']}'."
-                    ),
-                }
+                cursor.execute(
+                    """
+                    UPDATE insumos
+                    SET stock_base = ?
+                    WHERE id_insumo = ?
+                    """,
+                    (
+                        stock_nuevo_insumo,
+                        item["id_insumo"],
+                    )
+                )
+            else:
+                stock_nuevo_insumo = (
+                    item["stock_anterior"]
+                )
 
             cursor.execute(
                 """
@@ -1121,20 +1241,38 @@ def registrar_produccion_postre(
                     cantidad_base,
                     unidad_base,
                     costo_unitario_base,
-                    costo_estimado
+                    costo_estimado,
+                    controla_stock,
+                    stock_anterior,
+                    stock_nuevo
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     id_produccion,
-                    insumo_db[0],
+                    item["id_insumo"],
                     item["insumo"],
                     float(item["cantidad"]),
                     item["unidad"],
                     float(item["costo_unitario_base"]),
                     float(item["costo_estimado"]),
+                    int(item["controla_stock"]),
+                    item["stock_anterior"],
+                    stock_nuevo_insumo,
                 )
             )
+
+            detalle_consumo.append({
+                "insumo": item["insumo"],
+                "cantidad": float(item["cantidad"]),
+                "unidad": item["unidad"],
+                "controla_stock": item["controla_stock"],
+                "stock_anterior": item["stock_anterior"],
+                "stock_nuevo": stock_nuevo_insumo,
+                "costo_estimado": float(
+                    item["costo_estimado"]
+                ),
+            })
 
         cursor.execute(
             """
@@ -1148,7 +1286,10 @@ def registrar_produccion_postre(
             )
         )
 
-        stock_nuevo = stock_anterior + cantidad
+        stock_nuevo = (
+            stock_anterior
+            + cantidad
+        )
 
         conexion.commit()
 
@@ -1170,7 +1311,7 @@ def registrar_produccion_postre(
             "costo_unitario": costo_unitario,
             "stock_anterior": stock_anterior,
             "stock_nuevo": stock_nuevo,
-            "detalle_insumos": costo["detalle"],
+            "detalle_insumos": detalle_consumo,
         }
 
     except Exception as error:
@@ -1464,3 +1605,279 @@ def registrar_compra_insumo_paquetes(
     })
 
     return resultado
+
+
+
+def obtener_stock_insumos():
+    conexion = obtener_conexion()
+
+    try:
+        filas = conexion.execute(
+            """
+            SELECT
+                id_insumo,
+                nombre,
+                unidad_base,
+                stock_base,
+                controla_stock
+            FROM insumos
+            WHERE activo = 1
+            ORDER BY nombre
+            """
+        ).fetchall()
+
+        return [
+            {
+                "id_insumo": fila[0],
+                "nombre": fila[1],
+                "unidad_base": fila[2],
+                "stock_base": float(fila[3] or 0),
+                "controla_stock": bool(fila[4]),
+            }
+            for fila in filas
+        ]
+
+    finally:
+        conexion.close()
+
+
+def registrar_inventario_insumo(
+    nombre_insumo,
+    cantidad_real,
+    unidad,
+    contexto=None,
+):
+    resolucion = resolver_insumo(
+        nombre_insumo
+    )
+
+    if not resolucion["ok"]:
+        return resolucion
+
+    insumo = resolucion["insumo"]
+
+    if not insumo.get("controla_stock", True):
+        return {
+            "ok": False,
+            "codigo": "INSUMO_NO_INVENTARIABLE",
+            "mensaje": (
+                f"{insumo['nombre']} es una preparación "
+                "y no controla stock físico."
+            ),
+        }
+
+    try:
+        cantidad_base = convertir_a_base(
+            cantidad_real,
+            unidad,
+            insumo["unidad_base"],
+        )
+    except ValueError as error:
+        return {
+            "ok": False,
+            "codigo": "UNIDAD_INSUMO_INVALIDA",
+            "mensaje": str(error),
+        }
+
+    contexto_normalizado = _normalizar_contexto_produccion(
+        contexto
+    )
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("BEGIN IMMEDIATE")
+        cursor = conexion.cursor()
+
+        fila = cursor.execute(
+            """
+            SELECT stock_base
+            FROM insumos
+            WHERE id_insumo = ?
+            """,
+            (insumo["id_insumo"],)
+        ).fetchone()
+
+        stock_anterior = float(
+            fila[0] or 0
+        )
+        diferencia = (
+            cantidad_base
+            - stock_anterior
+        )
+        fecha_hora = datetime.now().isoformat(
+            timespec="seconds"
+        )
+
+        cursor.execute(
+            """
+            UPDATE insumos
+            SET stock_base = ?
+            WHERE id_insumo = ?
+            """,
+            (
+                cantidad_base,
+                insumo["id_insumo"],
+            )
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO ajustes_stock_insumos (
+                id_insumo,
+                fecha_hora,
+                tipo,
+                cantidad_anterior,
+                cantidad_nueva,
+                diferencia,
+                canal_origen,
+                usuario_origen,
+                grupo_origen,
+                id_mensaje_origen
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                insumo["id_insumo"],
+                fecha_hora,
+                "Inventario físico",
+                stock_anterior,
+                cantidad_base,
+                diferencia,
+                contexto_normalizado["canal"],
+                contexto_normalizado["usuario_origen"],
+                contexto_normalizado["grupo_origen"],
+                contexto_normalizado["id_mensaje"],
+            )
+        )
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "codigo": "INVENTARIO_INSUMO_REGISTRADO",
+            "insumo": insumo["nombre"],
+            "unidad_base": insumo["unidad_base"],
+            "stock_anterior": stock_anterior,
+            "stock_nuevo": cantidad_base,
+            "diferencia": diferencia,
+            "fecha_hora": fecha_hora,
+        }
+
+    except Exception as error:
+        conexion.rollback()
+        return {
+            "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": (
+                "Error al registrar inventario de insumo: "
+                f"{error}"
+            ),
+        }
+
+    finally:
+        conexion.close()
+
+
+def necesidades_produccion(
+    producto,
+    cantidad,
+):
+    if (
+        isinstance(cantidad, bool)
+        or not isinstance(cantidad, int)
+        or cantidad <= 0
+    ):
+        return {
+            "ok": False,
+            "codigo": "CANTIDAD_PRODUCCION_INVALIDA",
+            "mensaje": (
+                "La cantidad debe ser un entero mayor que cero."
+            ),
+        }
+
+    receta_resultado = obtener_receta(
+        producto
+    )
+
+    if not receta_resultado["ok"]:
+        return receta_resultado
+
+    receta = receta_resultado["receta"]
+    factor = (
+        cantidad
+        / receta["rendimiento"]
+    )
+    conexion = obtener_conexion()
+
+    try:
+        detalle = []
+        faltantes = []
+
+        for item in receta["insumos"]:
+            fila = conexion.execute(
+                """
+                SELECT
+                    stock_base,
+                    controla_stock
+                FROM insumos
+                WHERE id_insumo = ?
+                """,
+                (item["id_insumo"],)
+            ).fetchone()
+
+            stock = float(
+                fila[0] or 0
+            )
+            controla_stock = bool(
+                fila[1]
+            )
+            necesario = (
+                float(item["cantidad_base"])
+                * factor
+            )
+
+            if controla_stock:
+                faltante = max(
+                    0.0,
+                    necesario - stock,
+                )
+                suficiente = (
+                    faltante <= 1e-9
+                )
+            else:
+                faltante = 0.0
+                suficiente = True
+
+            registro = {
+                "insumo": item["nombre"],
+                "necesario": necesario,
+                "unidad": item["unidad_base"],
+                "controla_stock": controla_stock,
+                "disponible": (
+                    stock
+                    if controla_stock
+                    else None
+                ),
+                "faltante": faltante,
+                "suficiente": suficiente,
+            }
+            detalle.append(registro)
+
+            if controla_stock and not suficiente:
+                faltantes.append(registro)
+
+        return {
+            "ok": True,
+            "codigo": "NECESIDADES_PRODUCCION",
+            "producto": receta["producto"],
+            "cantidad": cantidad,
+            "version_receta": receta["version"],
+            "detalle": detalle,
+            "faltantes": faltantes,
+            "puede_producir": (
+                len(faltantes) == 0
+            ),
+        }
+
+    finally:
+        conexion.close()
