@@ -662,9 +662,30 @@ def crear_tablas_costos_postres():
             nombre TEXT NOT NULL UNIQUE,
             unidad_base TEXT NOT NULL,
             seccion TEXT NOT NULL DEFAULT 'bebidas_postres',
+            stock_base REAL NOT NULL DEFAULT 0,
+            controla_stock INTEGER NOT NULL DEFAULT 1,
             activo INTEGER NOT NULL DEFAULT 1
         )
     """)
+
+    cursor.execute("PRAGMA table_info(insumos)")
+    columnas_insumos = cursor.fetchall()
+    nombres_columnas_insumos = [
+        columna[1]
+        for columna in columnas_insumos
+    ]
+
+    if "stock_base" not in nombres_columnas_insumos:
+        cursor.execute("""
+            ALTER TABLE insumos
+            ADD COLUMN stock_base REAL NOT NULL DEFAULT 0
+        """)
+
+    if "controla_stock" not in nombres_columnas_insumos:
+        cursor.execute("""
+            ALTER TABLE insumos
+            ADD COLUMN controla_stock INTEGER NOT NULL DEFAULT 1
+        """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS compras_insumos (
@@ -694,6 +715,34 @@ def crear_tablas_costos_postres():
             FOREIGN KEY (id_insumo)
                 REFERENCES insumos(id_insumo),
             UNIQUE(id_insumo, nombre)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ajustes_stock_insumos (
+            id_ajuste_insumo INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_insumo INTEGER NOT NULL,
+            fecha_hora TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            cantidad_anterior REAL NOT NULL,
+            cantidad_nueva REAL NOT NULL,
+            diferencia REAL NOT NULL,
+            canal_origen TEXT,
+            usuario_origen TEXT,
+            grupo_origen TEXT,
+            id_mensaje_origen TEXT,
+            FOREIGN KEY (id_insumo)
+                REFERENCES insumos(id_insumo)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_ajustes_stock_insumos_insumo_fecha
+        ON ajustes_stock_insumos (
+            id_insumo,
+            fecha_hora,
+            id_ajuste_insumo
         )
     """)
 
@@ -791,6 +840,9 @@ def crear_tablas_costos_postres():
             unidad_base TEXT NOT NULL,
             costo_unitario_base REAL NOT NULL,
             costo_estimado REAL NOT NULL,
+            controla_stock INTEGER NOT NULL DEFAULT 1,
+            stock_anterior REAL,
+            stock_nuevo REAL,
             FOREIGN KEY (id_produccion)
                 REFERENCES producciones_postres(id_produccion),
             FOREIGN KEY (id_insumo)
@@ -805,6 +857,31 @@ def crear_tablas_costos_postres():
             id_produccion
         )
     """)
+
+    cursor.execute("PRAGMA table_info(produccion_postres_insumos)")
+    columnas_produccion_insumos = cursor.fetchall()
+    nombres_columnas_produccion_insumos = [
+        columna[1]
+        for columna in columnas_produccion_insumos
+    ]
+
+    if "controla_stock" not in nombres_columnas_produccion_insumos:
+        cursor.execute("""
+            ALTER TABLE produccion_postres_insumos
+            ADD COLUMN controla_stock INTEGER NOT NULL DEFAULT 1
+        """)
+
+    if "stock_anterior" not in nombres_columnas_produccion_insumos:
+        cursor.execute("""
+            ALTER TABLE produccion_postres_insumos
+            ADD COLUMN stock_anterior REAL
+        """)
+
+    if "stock_nuevo" not in nombres_columnas_produccion_insumos:
+        cursor.execute("""
+            ALTER TABLE produccion_postres_insumos
+            ADD COLUMN stock_nuevo REAL
+        """)
 
     conexion.commit()
     conexion.close()
