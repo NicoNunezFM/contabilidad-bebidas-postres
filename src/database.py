@@ -683,6 +683,20 @@ def crear_tablas_costos_postres():
         )
     """)
 
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS presentaciones_insumos (
+            id_presentacion INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_insumo INTEGER NOT NULL,
+            nombre TEXT NOT NULL,
+            contenido_base REAL NOT NULL,
+            activa INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (id_insumo)
+                REFERENCES insumos(id_insumo),
+            UNIQUE(id_insumo, nombre)
+        )
+    """)
+
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS
         idx_compras_insumos_insumo_fecha
