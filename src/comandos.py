@@ -59,6 +59,7 @@ def error_comando(resultado):
         "candidatos",
         "faltantes",
         "costo_parcial_conocido",
+        "presentaciones",
     ):
         if campo in resultado:
             error[campo] = resultado[campo]
@@ -1184,6 +1185,102 @@ def interpretar_compra_pack(
     }
 
 
+def interpretar_compra_insumo_paquetes(
+    texto,
+    contexto=None
+):
+    normalizado = normalizar_texto(texto)
+
+    coincidencia = re.match(
+        r"^(?:(?:compra|gasto)\s+(?:postres\s+)?(?:insumo\s+)?|insumo\s+)"
+        r"(.+?)\s+"
+        r"(\d+)\s+"
+        r"(?:paquetes?|packs?)\s+"
+        r"(?:de\s+)?"
+        r"(?:(?:cada\s+uno\s+)?"
+        r"(118g|170g|250g|258g|354g|x3|x4|tripack))\s+"
+        r"(?:por\s+)?"
+        r"(\d[\d\.]*\s*(?:mil)?)"
+        r"(?:\s+(?:en\s+)?(.+))?$",
+        normalizado
+    )
+
+    if not coincidencia:
+        return None
+
+    insumo = coincidencia.group(1).strip()
+    cantidad_paquetes = int(
+        coincidencia.group(2)
+    )
+    presentacion = coincidencia.group(3)
+    costo = normalizar_importe(
+        coincidencia.group(4)
+    )
+    comercio = (
+        coincidencia.group(5).strip()
+        if coincidencia.group(5)
+        else None
+    )
+
+    if costo is None:
+        return {
+            "ok": False,
+            "codigo": "COSTO_INSUMO_INVALIDO",
+            "respuesta": "No pude interpretar el costo de los paquetes.",
+        }
+
+    resultado = ejecutar_accion({
+        "accion": "registrar compra insumo paquetes",
+        "datos": {
+            "insumo": insumo,
+            "cantidad_paquetes": cantidad_paquetes,
+            "presentacion": presentacion,
+            "costo_total": costo,
+            "comercio": comercio,
+            "contexto": contexto or {},
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    lineas = [
+        "*Compra de insumo registrada*",
+        (
+            f"{datos['cantidad_paquetes']} paquete(s) de "
+            f"{datos['insumo']} "
+            f"({datos['presentacion']})"
+        ),
+        (
+            "Cantidad total para receta: "
+            f"{datos['cantidad_base_total']:g} "
+            f"{datos['unidad_base']}"
+        ),
+        (
+            "Costo total: "
+            f"{formatear_pesos(datos['costo_total'])}"
+        ),
+        (
+            "Costo por paquete: "
+            f"{formatear_pesos(datos['costo_por_paquete'])}"
+        ),
+    ]
+
+    if datos.get("comercio"):
+        lineas.append(
+            f"Comercio: {datos['comercio']}"
+        )
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_COMPRA_INSUMO_PAQUETES_REGISTRADA",
+        "respuesta": "\n".join(lineas),
+    }
+
+
 def interpretar_compra_insumo(
     texto,
     contexto=None
@@ -1979,6 +2076,8 @@ def mensaje_ayuda():
         "- merma 2 pepsi",
         "- consumo 1 oreo",
         "- inventario pepsi 8",
+        "- insumo oreo 3 paquetes 118g 4288 Carrefour",
+        "- insumo chocolinas 4 paquetes 250g 12000 Carrefour",
         "- produccion 10 oreo",
         "- produccion 10 chocotorta",
         "- historial produccion",
@@ -2065,6 +2164,14 @@ def procesar_comando(
                 "No lo registré como un movimiento adicional."
             ),
         }
+
+    compra_insumo_paquetes = interpretar_compra_insumo_paquetes(
+        texto,
+        contexto=contexto,
+    )
+
+    if compra_insumo_paquetes is not None:
+        return compra_insumo_paquetes
 
     compra_insumo = interpretar_compra_insumo(
         texto,
