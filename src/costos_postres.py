@@ -1319,6 +1319,28 @@ def resolver_presentacion_insumo(
             },
         }
 
+    if contenido_buscado is not None or consulta:
+        return {
+            "ok": False,
+            "codigo": "PRESENTACION_INSUMO_NO_ENCONTRADA",
+            "mensaje": (
+                f"Esa presentación no está configurada para "
+                f"{insumo['nombre']}. Opciones: "
+                + ", ".join(
+                    fila[1]
+                    for fila in filas
+                )
+                + "."
+            ),
+            "presentaciones": [
+                {
+                    "nombre": fila[1],
+                    "contenido_base": float(fila[2]),
+                }
+                for fila in filas
+            ],
+        }
+
     if len(filas) > 1:
         return {
             "ok": False,
