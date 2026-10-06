@@ -399,6 +399,8 @@ def resolver_insumo(nombre):
                 "nombre": fila[1],
                 "unidad_base": fila[2],
                 "seccion": fila[3],
+                "stock_base": float(fila[4] or 0),
+                "controla_stock": bool(fila[5]),
             },
         }
 
