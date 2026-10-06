@@ -44,6 +44,35 @@ ALIASES_INSUMOS = {
     "envases": "pote",
 }
 
+PRESENTACIONES_INSUMOS_BASE = [
+    {
+        "insumo": "Galletitas Oreo",
+        "nombre": "118g",
+        "contenido_base": 118,
+    },
+    {
+        "insumo": "Galletitas Oreo",
+        "nombre": "258g x4",
+        "contenido_base": 258,
+    },
+    {
+        "insumo": "Galletitas Oreo",
+        "nombre": "354g tripack",
+        "contenido_base": 354,
+    },
+    {
+        "insumo": "Chocolinas",
+        "nombre": "170g",
+        "contenido_base": 170,
+    },
+    {
+        "insumo": "Chocolinas",
+        "nombre": "250g",
+        "contenido_base": 250,
+    },
+]
+
+
 RECETAS_BASE = [
     {
         "nombre": "Oreo - receta histórica",
@@ -161,6 +190,42 @@ def inicializar_costos_postres():
                 VALUES (?, ?, 'bebidas_postres', 1)
                 """,
                 (nombre, unidad)
+            )
+
+        for presentacion in PRESENTACIONES_INSUMOS_BASE:
+            cursor.execute(
+                """
+                SELECT id_insumo
+                FROM insumos
+                WHERE nombre = ?
+                """,
+                (presentacion["insumo"],)
+            )
+
+            fila_insumo = cursor.fetchone()
+
+            if fila_insumo is None:
+                continue
+
+            cursor.execute(
+                """
+                INSERT INTO presentaciones_insumos (
+                    id_insumo,
+                    nombre,
+                    contenido_base,
+                    activa
+                )
+                VALUES (?, ?, ?, 1)
+                ON CONFLICT(id_insumo, nombre)
+                DO UPDATE SET
+                    contenido_base = excluded.contenido_base,
+                    activa = 1
+                """,
+                (
+                    fila_insumo[0],
+                    presentacion["nombre"],
+                    presentacion["contenido_base"],
+                )
             )
 
         for receta in RECETAS_BASE:
@@ -461,6 +526,9 @@ def registrar_compra_insumo(
 
     if comercio:
         descripcion += f" - {comercio}"
+
+    if observaciones:
+        descripcion += f" ({observaciones})"
 
     gasto = registrar_gasto(
         categoria="Materia prima",
@@ -1165,3 +1233,203 @@ def historial_producciones_postres(
 
     finally:
         conexion.close()
+
+
+
+def resolver_presentacion_insumo(
+    nombre_insumo,
+    presentacion
+):
+    resolucion = resolver_insumo(
+        nombre_insumo
+    )
+
+    if not resolucion["ok"]:
+        return resolucion
+
+    insumo = resolucion["insumo"]
+    consulta = _normalizar(
+        presentacion
+    )
+
+    aliases = {
+        "118": 118,
+        "118g": 118,
+        "258": 258,
+        "258g": 258,
+        "x4": 258,
+        "258g x4": 258,
+        "354": 354,
+        "354g": 354,
+        "x3": 354,
+        "tripack": 354,
+        "354g tripack": 354,
+        "170": 170,
+        "170g": 170,
+        "250": 250,
+        "250g": 250,
+    }
+
+    contenido_buscado = aliases.get(
+        consulta
+    )
+
+    conexion = obtener_conexion()
+
+    try:
+        filas = conexion.execute(
+            """
+            SELECT
+                id_presentacion,
+                nombre,
+                contenido_base
+            FROM presentaciones_insumos
+            WHERE id_insumo = ?
+              AND activa = 1
+            ORDER BY contenido_base
+            """,
+            (insumo["id_insumo"],)
+        ).fetchall()
+
+    finally:
+        conexion.close()
+
+    if contenido_buscado is not None:
+        candidatos = [
+            fila
+            for fila in filas
+            if float(fila[2]) == float(contenido_buscado)
+        ]
+    else:
+        candidatos = [
+            fila
+            for fila in filas
+            if _normalizar(fila[1]) == consulta
+        ]
+
+    if len(candidatos) == 1:
+        fila = candidatos[0]
+        return {
+            "ok": True,
+            "insumo": insumo,
+            "presentacion": {
+                "id_presentacion": fila[0],
+                "nombre": fila[1],
+                "contenido_base": float(fila[2]),
+            },
+        }
+
+    if len(filas) > 1:
+        return {
+            "ok": False,
+            "codigo": "PRESENTACION_INSUMO_AMBIGUA",
+            "mensaje": (
+                f"Indicá la presentación de {insumo['nombre']}. "
+                "Opciones: "
+                + ", ".join(
+                    fila[1]
+                    for fila in filas
+                )
+                + "."
+            ),
+            "presentaciones": [
+                {
+                    "nombre": fila[1],
+                    "contenido_base": float(fila[2]),
+                }
+                for fila in filas
+            ],
+        }
+
+    if len(filas) == 1:
+        fila = filas[0]
+        return {
+            "ok": True,
+            "insumo": insumo,
+            "presentacion": {
+                "id_presentacion": fila[0],
+                "nombre": fila[1],
+                "contenido_base": float(fila[2]),
+            },
+        }
+
+    return {
+        "ok": False,
+        "codigo": "PRESENTACION_INSUMO_NO_CONFIGURADA",
+        "mensaje": (
+            f"No hay presentaciones por paquete configuradas "
+            f"para {insumo['nombre']}."
+        ),
+    }
+
+
+def registrar_compra_insumo_paquetes(
+    nombre_insumo,
+    cantidad_paquetes,
+    presentacion,
+    costo_total,
+    comercio=None,
+    fecha=None,
+):
+    if (
+        isinstance(cantidad_paquetes, bool)
+        or not isinstance(cantidad_paquetes, int)
+        or cantidad_paquetes <= 0
+    ):
+        return {
+            "ok": False,
+            "codigo": "CANTIDAD_PAQUETES_INVALIDA",
+            "mensaje": (
+                "La cantidad de paquetes debe ser un entero "
+                "mayor que cero."
+            ),
+        }
+
+    resolucion = resolver_presentacion_insumo(
+        nombre_insumo,
+        presentacion,
+    )
+
+    if not resolucion["ok"]:
+        return resolucion
+
+    insumo = resolucion["insumo"]
+    presentacion_resuelta = resolucion["presentacion"]
+
+    cantidad_base_total = (
+        cantidad_paquetes
+        * presentacion_resuelta["contenido_base"]
+    )
+
+    observaciones = (
+        f"{cantidad_paquetes} paquete(s) x "
+        f"{presentacion_resuelta['nombre']}"
+    )
+
+    resultado = registrar_compra_insumo(
+        nombre_insumo=insumo["nombre"],
+        cantidad=cantidad_base_total,
+        unidad=insumo["unidad_base"],
+        costo_total=costo_total,
+        comercio=comercio,
+        fecha=fecha,
+        observaciones=observaciones,
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    resultado.update({
+        "cantidad_paquetes": cantidad_paquetes,
+        "presentacion": presentacion_resuelta["nombre"],
+        "contenido_por_paquete": (
+            presentacion_resuelta["contenido_base"]
+        ),
+        "cantidad_base_total": cantidad_base_total,
+        "costo_por_paquete": (
+            float(costo_total)
+            / cantidad_paquetes
+        ),
+    })
+
+    return resultado
