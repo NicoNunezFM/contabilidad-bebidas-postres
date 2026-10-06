@@ -60,6 +60,7 @@ def error_comando(resultado):
         "faltantes",
         "costo_parcial_conocido",
         "presentaciones",
+        "faltantes_stock",
     ):
         if campo in resultado:
             error[campo] = resultado[campo]
@@ -1280,6 +1281,14 @@ def interpretar_compra_insumo_paquetes(
             f"Comercio: {datos['comercio']}"
         )
 
+    if datos.get("controla_stock"):
+        lineas.append(
+            "Stock: "
+            f"{datos['stock_anterior']:g} -> "
+            f"{datos['stock_nuevo']:g} "
+            f"{datos['unidad_base']}"
+        )
+
     return {
         **datos,
         "ok": True,
@@ -1357,6 +1366,14 @@ def interpretar_compra_insumo(
             f"Comercio: {datos['comercio']}"
         )
 
+    if datos.get("controla_stock"):
+        respuesta.append(
+            "Stock: "
+            f"{datos['stock_anterior']:g} -> "
+            f"{datos['stock_nuevo']:g} "
+            f"{datos['unidad_base']}"
+        )
+
     respuesta.append(
         "Se agregó al historial de costos de postres."
     )
@@ -1366,6 +1383,174 @@ def interpretar_compra_insumo(
         "ok": True,
         "codigo": "COMANDO_COMPRA_INSUMO_REGISTRADA",
         "respuesta": "\n".join(respuesta),
+    }
+
+
+def formatear_stock_insumos(insumos):
+    lineas = [
+        "*Stock de insumos*",
+    ]
+
+    for insumo in insumos:
+        if not insumo["controla_stock"]:
+            continue
+
+        lineas.append(
+            f"- {insumo['nombre']}: "
+            f"{insumo['stock_base']:g} "
+            f"{insumo['unidad_base']}"
+        )
+
+    return "\n".join(lineas)
+
+
+def interpretar_inventario_insumo(
+    texto,
+    contexto=None
+):
+    coincidencia = re.match(
+        r"^inventario\s+insumo\s+(.+?)\s+"
+        r"(\d+(?:[\.,]\d+)?)\s*"
+        r"(kg|kilos?|g|gr|gramos?|l|lt|litros?|ml|mililitros?|un|u|unidad|unidades)$",
+        texto
+    )
+
+    if not coincidencia:
+        return None
+
+    insumo = coincidencia.group(1).strip()
+    cantidad = float(
+        coincidencia.group(2).replace(",", ".")
+    )
+    unidad = coincidencia.group(3)
+
+    resultado = ejecutar_accion({
+        "accion": "registrar inventario insumo",
+        "datos": {
+            "insumo": insumo,
+            "cantidad": cantidad,
+            "unidad": unidad,
+            "contexto": contexto or {},
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_INVENTARIO_INSUMO_REGISTRADO",
+        "respuesta": "\n".join([
+            "*Inventario de insumo actualizado*",
+            f"Insumo: {datos['insumo']}",
+            (
+                "Stock anterior: "
+                f"{datos['stock_anterior']:g} "
+                f"{datos['unidad_base']}"
+            ),
+            (
+                "Stock actual: "
+                f"{datos['stock_nuevo']:g} "
+                f"{datos['unidad_base']}"
+            ),
+            (
+                "Diferencia: "
+                f"{datos['diferencia']:+g} "
+                f"{datos['unidad_base']}"
+            ),
+        ]),
+    }
+
+
+def interpretar_necesidades_produccion(texto):
+    patrones = [
+        r"^que\s+necesito\s+para\s+hacer\s+(\d+)\s+(.+)$",
+        r"^que\s+me\s+falta\s+para\s+hacer\s+(\d+)\s+(.+)$",
+        r"^faltantes\s+(\d+)\s+(.+)$",
+    ]
+
+    coincidencia = None
+
+    for patron in patrones:
+        coincidencia = re.match(
+            patron,
+            texto
+        )
+
+        if coincidencia:
+            break
+
+    if not coincidencia:
+        return None
+
+    cantidad = int(
+        coincidencia.group(1)
+    )
+    producto = coincidencia.group(2).strip()
+
+    resultado = ejecutar_accion({
+        "accion": "consultar necesidades produccion",
+        "datos": {
+            "producto": producto,
+            "cantidad": cantidad,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    lineas = [
+        (
+            f"*Necesario para {cantidad} "
+            f"{datos['producto']}*"
+        ),
+        f"Receta: v{datos['version_receta']}",
+    ]
+
+    for item in datos["detalle"]:
+        if not item["controla_stock"]:
+            lineas.append(
+                f"- {item['insumo']}: "
+                f"{item['necesario']:g} {item['unidad']} "
+                "(preparación, sin stock físico)"
+            )
+            continue
+
+        if item["suficiente"]:
+            lineas.append(
+                f"- {item['insumo']}: "
+                f"{item['necesario']:g} {item['unidad']} "
+                f"| tenés {item['disponible']:g} "
+                f"{item['unidad']} ✓"
+            )
+        else:
+            lineas.append(
+                f"- {item['insumo']}: "
+                f"{item['necesario']:g} {item['unidad']} "
+                f"| tenés {item['disponible']:g} "
+                f"| faltan {item['faltante']:g} "
+                f"{item['unidad']}"
+            )
+
+    if datos["puede_producir"]:
+        lineas.append(
+            "*Stock suficiente para producir.*"
+        )
+    else:
+        lineas.append(
+            "*Faltan insumos antes de producir.*"
+        )
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_NECESIDADES_PRODUCCION",
+        "respuesta": "\n".join(lineas),
     }
 
 
@@ -1429,12 +1614,24 @@ def interpretar_produccion_postre(
             f"{datos['stock_anterior']} -> {datos['stock_nuevo']}"
         ),
         "",
-        (
-            "_Se guardó el consumo teórico de insumos de esta tanda. "
-            "El descuento de stock de materias primas se habilitará "
-            "cuando activemos inventario de insumos._"
-        ),
+        "*Insumos consumidos*",
     ]
+
+    for item in datos["detalle_insumos"]:
+        if item["controla_stock"]:
+            lineas.append(
+                f"- {item['insumo']}: "
+                f"{item['stock_anterior']:g} -> "
+                f"{item['stock_nuevo']:g} "
+                f"{item['unidad']} "
+                f"(-{item['cantidad']:g})"
+            )
+        else:
+            lineas.append(
+                f"- {item['insumo']}: "
+                f"{item['cantidad']:g} {item['unidad']} "
+                "(preparación, sin stock físico)"
+            )
 
     return {
         **datos,
@@ -2088,6 +2285,9 @@ def mensaje_ayuda():
         "- produccion 10 oreo",
         "- produccion 10 chocotorta",
         "- historial produccion",
+        "- stock insumos",
+        "- inventario insumo oreo 1350g",
+        "- que necesito para hacer 20 oreos",
         "- anular ultima venta",
         "- anular operacion 14",
         "- stock",
@@ -2188,6 +2388,45 @@ def procesar_comando(
     if compra_insumo is not None:
         return compra_insumo
 
+    inventario_insumo = interpretar_inventario_insumo(
+        texto,
+        contexto=contexto,
+    )
+
+    if inventario_insumo is not None:
+        return inventario_insumo
+
+    necesidades = interpretar_necesidades_produccion(
+        texto
+    )
+
+    if necesidades is not None:
+        return necesidades
+
+    if texto in {
+        "stock insumos",
+        "ver stock insumos",
+        "stock de insumos",
+    }:
+        resultado = ejecutar_accion({
+            "accion": "consultar stock insumos",
+            "datos": {},
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        insumos = resultado["datos"]["insumos"]
+
+        return {
+            "ok": True,
+            "codigo": "COMANDO_STOCK_INSUMOS",
+            "insumos": insumos,
+            "respuesta": formatear_stock_insumos(
+                insumos
+            ),
+        }
+
     produccion_postre = interpretar_produccion_postre(
         texto,
         contexto=contexto,
@@ -2257,6 +2496,9 @@ def procesar_comando(
         "comandos",
         "stock",
         "ver stock",
+        "stock insumos",
+        "ver stock insumos",
+        "stock de insumos",
         "precios",
         "ver precios",
         "caja",
