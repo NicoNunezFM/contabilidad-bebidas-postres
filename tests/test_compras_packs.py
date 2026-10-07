@@ -195,3 +195,65 @@ def test_compra_pack_sin_costo_no_modifica_stock(
 
     assert stock == 4
     assert compras == 0
+
+
+
+def test_compra_pack_financiada_aumenta_deuda_y_no_sale_de_caja(
+    base_prueba
+):
+    _crear_bebida(
+        "Manaos Cola 2.25l",
+        2000,
+        6,
+        stock=0,
+    )
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                "compra 2 packs manaos cola "
+                "por 17000 con naranja"
+            )
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["medio_pago"] == "Deuda"
+    assert datos["cuenta_deuda"].lower() == "naranja"
+    assert datos["saldo_deuda"] == pytest.approx(17000)
+    assert datos["stock_actual"] == 12
+    assert "Salida inmediata de caja: $0" in datos["respuesta"]
+
+    conexion = obtener_conexion()
+
+    compra = conexion.execute(
+        """
+        SELECT
+            medio_pago,
+            id_cuenta_deuda,
+            id_movimiento_deuda
+        FROM compras
+        """
+    ).fetchone()
+
+    conexion.close()
+
+    assert compra[0] == "Deuda"
+    assert compra[1] is not None
+    assert compra[2] is not None
+
+    caja = client.get("/caja").json()
+
+    assert caja["compras"] == pytest.approx(0)
+
+    deuda = client.post(
+        "/comandos",
+        json={"mensaje": "deuda naranja"}
+    )
+
+    assert deuda.status_code == 200
+    assert deuda.json()["saldo"] == pytest.approx(17000)
