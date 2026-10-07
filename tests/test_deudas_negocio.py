@@ -230,3 +230,173 @@ def test_saldo_inicial_no_se_duplica(
         repetido.json()["codigo"]
         == "SALDO_INICIAL_YA_REGISTRADO"
     )
+
+
+
+def test_reserva_deuda_no_baja_deuda_y_reduce_disponible(
+    base_prueba
+):
+    from movimientos_caja import registrar_aporte
+    from caja import obtener_estado_caja
+
+    assert registrar_aporte(
+        descripcion="Fondos disponibles",
+        monto=100000,
+    )["ok"] is True
+
+    assert client.post(
+        "/comandos",
+        json={
+            "mensaje": "saldo inicial deuda naranja 200000"
+        }
+    ).status_code == 200
+
+    reserva = client.post(
+        "/comandos",
+        json={
+            "mensaje": "reservar deuda naranja 60000"
+        }
+    )
+
+    assert reserva.status_code == 200
+
+    datos = reserva.json()
+
+    assert datos["saldo"] == 200000
+    assert datos["reservado"] == 60000
+    assert datos["por_cubrir"] == 140000
+
+    detalle = client.post(
+        "/comandos",
+        json={"mensaje": "deuda naranja"}
+    ).json()
+
+    assert detalle["saldo"] == 200000
+    assert detalle["reservado"] == 60000
+    assert detalle["por_cubrir"] == 140000
+
+    caja = obtener_estado_caja()
+
+    assert caja["saldo_fisico"] == 100000
+    assert caja["deuda_reservada"] == 60000
+    assert caja["saldo_disponible"] == 40000
+
+
+def test_pago_aplica_reserva_sin_descontar_dos_veces_disponible(
+    base_prueba
+):
+    from movimientos_caja import registrar_aporte
+    from caja import obtener_estado_caja
+
+    assert registrar_aporte(
+        descripcion="Fondos disponibles",
+        monto=100000,
+    )["ok"] is True
+
+    assert client.post(
+        "/comandos",
+        json={
+            "mensaje": "saldo inicial deuda naranja 200000"
+        }
+    ).status_code == 200
+
+    assert client.post(
+        "/comandos",
+        json={
+            "mensaje": "reservar deuda naranja 60000"
+        }
+    ).status_code == 200
+
+    caja_antes = obtener_estado_caja()
+
+    assert caja_antes["saldo_disponible"] == 40000
+
+    pago = client.post(
+        "/comandos",
+        json={
+            "mensaje": "pago deuda naranja 30000"
+        }
+    )
+
+    assert pago.status_code == 200
+
+    datos = pago.json()
+
+    assert datos["saldo"] == 170000
+    assert datos["reserva_aplicada"] == 30000
+    assert datos["reservado"] == 30000
+    assert datos["por_cubrir"] == 140000
+
+    caja_despues = obtener_estado_caja()
+
+    assert caja_despues["saldo_fisico"] == 70000
+    assert caja_despues["deuda_reservada"] == 30000
+    assert caja_despues["saldo_disponible"] == 40000
+
+
+def test_liberar_reserva_vuelve_a_disponible(
+    base_prueba
+):
+    from movimientos_caja import registrar_aporte
+    from caja import obtener_estado_caja
+
+    assert registrar_aporte(
+        descripcion="Fondos disponibles",
+        monto=100000,
+    )["ok"] is True
+
+    assert client.post(
+        "/comandos",
+        json={
+            "mensaje": "saldo inicial deuda naranja 100000"
+        }
+    ).status_code == 200
+
+    assert client.post(
+        "/comandos",
+        json={
+            "mensaje": "reservar deuda naranja 80000"
+        }
+    ).status_code == 200
+
+    liberar = client.post(
+        "/comandos",
+        json={
+            "mensaje": "liberar reserva deuda naranja 30000"
+        }
+    )
+
+    assert liberar.status_code == 200
+    assert liberar.json()["reservado"] == 50000
+
+    caja = obtener_estado_caja()
+
+    assert caja["saldo_fisico"] == 100000
+    assert caja["saldo_disponible"] == 50000
+
+
+def test_deuda_acepta_importe_con_centavos_formato_argentino(
+    base_prueba
+):
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                "saldo inicial deuda naranja 389.547,18"
+            )
+        }
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["saldo"] == 389547.18
+
+    reserva = client.post(
+        "/comandos",
+        json={
+            "mensaje": "reservar deuda naranja 100.000"
+        }
+    )
+
+    assert reserva.status_code == 200
+    assert reserva.json()["reservado"] == 100000
+    assert reserva.json()["por_cubrir"] == 289547.18
