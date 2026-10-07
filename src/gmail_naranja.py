@@ -1,3 +1,4 @@
+import argparse
 import base64
 import html
 import os
@@ -320,6 +321,54 @@ def buscar_ids_compras_naranja(
     ]
 
 
+def buscar_ids_compras_naranja_historicas(
+    servicio,
+    fecha_desde,
+    fecha_corte,
+    max_results=100,
+):
+    desde = datetime.fromisoformat(
+        str(fecha_desde).replace(
+            "Z",
+            "+00:00",
+        )
+    ).date()
+    corte = datetime.fromisoformat(
+        str(fecha_corte).replace(
+            "Z",
+            "+00:00",
+        )
+    ).date()
+
+    query = (
+        'from:naranjax@novedades.naranjax.com '
+        'subject:"Ingresó una compra en tu tarjeta crédito" '
+        '-in:spam -in:trash '
+        f"after:{desde.isoformat().replace('-', '/')} "
+        f"before:{corte.isoformat().replace('-', '/')}"
+    )
+
+    respuesta = (
+        servicio
+        .users()
+        .messages()
+        .list(
+            userId="me",
+            q=query,
+            maxResults=max_results,
+        )
+        .execute()
+    )
+
+    return [
+        item["id"]
+        for item in respuesta.get(
+            "messages",
+            []
+        )
+    ]
+
+
 def procesar_mensaje_naranja(
     *,
     gmail_message_id,
@@ -421,8 +470,100 @@ def sincronizar_compras_naranja(
     }
 
 
+def sincronizar_historico_naranja(
+    servicio=None,
+    fecha_desde=None,
+    fecha_corte=None,
+    max_results=100,
+):
+    fecha_corte = (
+        fecha_corte
+        or os.getenv(
+            "NARANJA_IMPORTAR_DESDE"
+        )
+    )
+    fecha_desde = (
+        fecha_desde
+        or os.getenv(
+            "NARANJA_HISTORICO_DESDE",
+            "2026-08-01",
+        )
+    )
+
+    if not fecha_corte:
+        return {
+            "ok": False,
+            "codigo": "FECHA_CORTE_NARANJA_REQUERIDA",
+            "mensaje": (
+                "Definí NARANJA_IMPORTAR_DESDE antes de "
+                "importar el historial."
+            ),
+        }
+
+    if servicio is None:
+        servicio = crear_servicio_gmail()
+
+    ids = buscar_ids_compras_naranja_historicas(
+        servicio,
+        fecha_desde=fecha_desde,
+        fecha_corte=fecha_corte,
+        max_results=max_results,
+    )
+
+    resultados = []
+
+    for message_id in ids:
+        correo = leer_mensaje_gmail(
+            servicio,
+            message_id,
+        )
+
+        resultados.append(
+            procesar_mensaje_naranja(
+                gmail_message_id=correo["id"],
+                asunto=correo["asunto"],
+                cuerpo=correo["cuerpo"],
+                fecha_email=correo["fecha_email"],
+                fecha_corte=fecha_corte,
+                remitente=correo["remitente"],
+            )
+        )
+
+    return {
+        "ok": True,
+        "codigo": "SINCRONIZACION_HISTORICA_NARANJA_COMPLETA",
+        "desde": str(fecha_desde),
+        "hasta": str(fecha_corte),
+        "encontrados": len(ids),
+        "resultados": resultados,
+    }
+
+
 if __name__ == "__main__":
-    resultado = sincronizar_compras_naranja()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--historico",
+        action="store_true",
+        help=(
+            "Importa avisos anteriores al corte sin "
+            "volver a aumentar la deuda."
+        ),
+    )
+    parser.add_argument(
+        "--desde",
+        default=None,
+        help=(
+            "Fecha inicial del historial en formato AAAA-MM-DD."
+        ),
+    )
+    argumentos = parser.parse_args()
+
+    if argumentos.historico:
+        resultado = sincronizar_historico_naranja(
+            fecha_desde=argumentos.desde,
+        )
+    else:
+        resultado = sincronizar_compras_naranja()
 
     print(
         resultado
