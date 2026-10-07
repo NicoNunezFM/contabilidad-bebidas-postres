@@ -1791,7 +1791,7 @@ def interpretar_deudas_negocio(texto):
 
     coincidencia = re.match(
         r"^(?:saldo inicial deuda|deuda inicial)\s+"
-        r"(.+?)\s+(\d[\d\.]*\s*(?:mil)?)$",
+        r"(.+?)\s+(\d[\d\.,]*\s*(?:mil)?)$",
         texto
     )
 
