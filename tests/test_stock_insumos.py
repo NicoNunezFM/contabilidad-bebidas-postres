@@ -156,6 +156,51 @@ def test_stock_insumos_muestra_existencias(
     assert dulce["stock_base"] == 1500
     assert dulce["unidad_base"] == "g"
     assert dulce["controla_stock"] is True
+    assert dulce["equivalencias_paquetes"] == []
+
+
+def test_stock_oreo_muestra_equivalencias_de_paquetes(
+    base_prueba
+):
+    inicializar_costos_postres()
+
+    compra = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                "insumo oreo 3 paquetes 118g "
+                "4288 Carrefour"
+            )
+        }
+    )
+
+    assert compra.status_code == 200
+
+    respuesta = client.post(
+        "/comandos",
+        json={"mensaje": "stock insumos"}
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    oreo = next(
+        item
+        for item in datos["insumos"]
+        if item["nombre"] == "Galletitas Oreo"
+    )
+
+    equivalencias = {
+        item["presentacion"]:
+            item["paquetes_equivalentes"]
+        for item in oreo["equivalencias_paquetes"]
+    }
+
+    assert equivalencias["118g"] == 3
+    assert equivalencias["354g tripack"] == 1
+    assert "3.00 x 118g" in datos["respuesta"]
+    assert "1.00 x 354g tripack" in datos["respuesta"]
 
 
 def test_inventario_insumo_corrige_stock_y_audita(
