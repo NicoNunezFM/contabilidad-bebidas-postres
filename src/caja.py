@@ -1,4 +1,5 @@
 from database import obtener_conexion
+from deudas_negocio import total_reservado_deudas
 from movimientos_caja import total_aportes, total_retiros
 from diezmo import estado_general_diezmo
 
@@ -425,9 +426,12 @@ def obtener_estado_caja():
 
     # El diezmo reservado sigue físicamente en caja,
     # pero no debería considerarse disponible.
+    deuda_reservada = total_reservado_deudas()
+
     saldo_disponible = (
         saldo_fisico
         - diezmo_reservado
+        - deuda_reservada
     )
 
     return {
@@ -440,6 +444,7 @@ def obtener_estado_caja():
         "saldo_caja": saldo_caja,
         "diezmo_entregado": diezmo_entregado,
         "diezmo_reservado": diezmo_reservado,
+        "deuda_reservada": deuda_reservada,
         "saldo_fisico": saldo_fisico,
         "saldo_disponible": saldo_disponible
     }
