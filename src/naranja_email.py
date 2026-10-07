@@ -4,6 +4,7 @@ from datetime import datetime
 
 
 ADICIONAL_NEGOCIO = "Claudia Elizabet Rotondo"
+REMITENTE_NARANJA = "naranjax@novedades.naranjax.com"
 
 MESES_NARANJA = {
     "ENE": 1,
@@ -117,10 +118,25 @@ def parsear_correo_compra_naranja(
     asunto,
     cuerpo,
     fecha_email=None,
+    remitente=None,
 ):
     asunto_normalizado = _normalizar(
         asunto
     )
+
+    if remitente:
+        remitente_normalizado = _normalizar(
+            remitente
+        )
+
+        if (
+            REMITENTE_NARANJA
+            not in remitente_normalizado
+        ):
+            return {
+                "ok": False,
+                "codigo": "REMITENTE_NARANJA_NO_CONFIABLE",
+            }
 
     if (
         "ingreso una compra"
