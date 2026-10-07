@@ -635,3 +635,23 @@ python src/gmail_naranja.py
 La primera autorización abre el flujo OAuth de Google. El scope utilizado es exclusivamente `gmail.readonly`.
 
 Los correos anteriores al corte pueden guardarse como históricos sin aumentar la deuda. Compras en otra moneda quedan en revisión y tampoco modifican automáticamente el saldo.
+
+
+### Consultar compras Naranja pendientes
+
+Los avisos de la tarjeta adicional que ya aumentaron la deuda, pero todavía no fueron clasificados, pueden consultarse desde WhatsApp:
+
+```text
+compras naranja pendientes
+pendientes naranja
+```
+
+La respuesta muestra el ID de importación, importe, comercio, fecha y el movimiento de deuda asociado.
+
+Para ver una importación puntual:
+
+```text
+importacion 7
+```
+
+Esta consulta es solo informativa. Todavía no modifica stock, gastos ni compras. La clasificación posterior reutilizará el movimiento de deuda existente para no aumentar Naranja por segunda vez.
