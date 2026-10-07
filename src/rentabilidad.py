@@ -133,6 +133,71 @@ def _costo_unitario_postre(
     }
 
 
+def costo_unitario_para_venta(
+    id_producto,
+):
+    conexion = obtener_conexion()
+
+    try:
+        producto = conexion.execute(
+            """
+            SELECT
+                nombre,
+                categoria
+            FROM productos
+            WHERE id_producto = ?
+            """,
+            (id_producto,)
+        ).fetchone()
+
+    finally:
+        conexion.close()
+
+    if producto is None:
+        return {
+            "costo_unitario": None,
+            "fuente": None,
+        }
+
+    categoria = str(
+        producto[1] or ""
+    ).strip().lower()
+
+    if categoria == "bebidas":
+        costo = _costo_unitario_bebida(
+            id_producto
+        )
+    elif categoria == "postres":
+        costo = _costo_unitario_postre(
+            producto[0]
+        )
+    else:
+        costo = None
+
+    if not costo:
+        return {
+            "costo_unitario": None,
+            "fuente": None,
+        }
+
+    return {
+        "costo_unitario": costo.get(
+            "costo_unitario"
+        ),
+        "fuente": costo.get("fuente"),
+        "metadata": {
+            clave: costo[clave]
+            for clave in (
+                "id_produccion",
+                "version_receta",
+                "fecha_costo",
+                "compras_consideradas",
+            )
+            if clave in costo
+        },
+    }
+
+
 def _ventas_producto(
     id_producto,
 ):
@@ -164,6 +229,30 @@ def _ventas_producto(
                         )
                     ),
                     0
+                ),
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN ventas.costo_unitario_snapshot
+                                IS NOT NULL
+                            THEN
+                                ventas.cantidad
+                                * ventas.costo_unitario_snapshot
+                            ELSE 0
+                        END
+                    ),
+                    0
+                ),
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN ventas.costo_unitario_snapshot
+                                IS NULL
+                            THEN ventas.cantidad
+                            ELSE 0
+                        END
+                    ),
+                    0
                 )
             FROM ventas
             WHERE id_producto = ?
@@ -181,6 +270,12 @@ def _ventas_producto(
         ),
         "ingresos": float(
             fila[1] or 0
+        ),
+        "costo_ventas_historico_conocido": float(
+            fila[2] or 0
+        ),
+        "unidades_sin_snapshot": int(
+            fila[3] or 0
         ),
     }
 
@@ -277,6 +372,24 @@ def rentabilidad_producto(
                 if costo
                 else []
             ),
+            "rentabilidad_historica_exacta": (
+                ventas["unidades_sin_snapshot"] == 0
+            ),
+            "costo_ventas_historico": (
+                ventas[
+                    "costo_ventas_historico_conocido"
+                ]
+                if ventas["unidades_sin_snapshot"] == 0
+                else None
+            ),
+            "ganancia_bruta_historica": (
+                ventas["ingresos"]
+                - ventas[
+                    "costo_ventas_historico_conocido"
+                ]
+                if ventas["unidades_sin_snapshot"] == 0
+                else None
+            ),
             **ventas,
         }
 
@@ -311,6 +424,25 @@ def rentabilidad_producto(
         - costo_ventas_estimado
     )
 
+    rentabilidad_historica_exacta = (
+        ventas["unidades_sin_snapshot"]
+        == 0
+    )
+
+    if rentabilidad_historica_exacta:
+        costo_ventas_historico = (
+            ventas[
+                "costo_ventas_historico_conocido"
+            ]
+        )
+        ganancia_bruta_historica = (
+            ventas["ingresos"]
+            - costo_ventas_historico
+        )
+    else:
+        costo_ventas_historico = None
+        ganancia_bruta_historica = None
+
     resultado = {
         "ok": True,
         "codigo": "RENTABILIDAD_PRODUCTO",
@@ -340,6 +472,23 @@ def rentabilidad_producto(
         ),
         "ganancia_bruta_estimada": (
             ganancia_bruta_estimada
+        ),
+        "rentabilidad_historica_exacta": (
+            rentabilidad_historica_exacta
+        ),
+        "costo_ventas_historico": (
+            costo_ventas_historico
+        ),
+        "ganancia_bruta_historica": (
+            ganancia_bruta_historica
+        ),
+        "costo_ventas_historico_conocido": (
+            ventas[
+                "costo_ventas_historico_conocido"
+            ]
+        ),
+        "unidades_sin_snapshot": (
+            ventas["unidades_sin_snapshot"]
         ),
     }
 
@@ -470,6 +619,41 @@ def rentabilidad_categoria(
         ganancia = None
         margen = None
 
+    historico_exacto = all(
+        item.get(
+            "rentabilidad_historica_exacta",
+            True,
+        )
+        for item in con_ventas
+    )
+
+    costo_historico_conocido = sum(
+        item.get(
+            "costo_ventas_historico_conocido",
+            0,
+        )
+        for item in con_ventas
+    )
+
+    if historico_exacto:
+        costo_historico = (
+            costo_historico_conocido
+        )
+        ganancia_historica = (
+            ingresos - costo_historico
+        )
+        margen_historico = (
+            (
+                ganancia_historica / ingresos
+            ) * 100
+            if ingresos > 0
+            else None
+        )
+    else:
+        costo_historico = None
+        ganancia_historica = None
+        margen_historico = None
+
     return {
         "ok": True,
         "codigo": "RENTABILIDAD_CATEGORIA",
@@ -491,4 +675,19 @@ def rentabilidad_categoria(
         ),
         "margen_bruto_pct": margen,
         "faltantes_costo": faltantes_costo,
+        "rentabilidad_historica_exacta": (
+            historico_exacto
+        ),
+        "costo_ventas_historico": (
+            costo_historico
+        ),
+        "costo_ventas_historico_conocido": (
+            costo_historico_conocido
+        ),
+        "ganancia_bruta_historica": (
+            ganancia_historica
+        ),
+        "margen_bruto_historico_pct": (
+            margen_historico
+        ),
     }
