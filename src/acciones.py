@@ -36,7 +36,9 @@ from deudas_negocio import (
     deuda_vence_primero,
     historial_deuda,
     registrar_compra_deuda,
+    liberar_reserva_deuda,
     registrar_pago_deuda,
+    registrar_reserva_deuda,
     registrar_saldo_inicial,
     resumen_deudas,
 )
@@ -852,6 +854,40 @@ def accion_registrar_compra_deuda(datos):
     return {
         "ok": True,
         "codigo": "ACCION_COMPRA_DEUDA_REGISTRADA",
+        "datos": resultado,
+    }
+
+
+def accion_registrar_reserva_deuda(datos):
+    resultado = registrar_reserva_deuda(
+        nombre=datos.get("cuenta"),
+        monto=datos.get("monto"),
+        descripcion=datos.get("descripcion"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_RESERVA_DEUDA_REGISTRADA",
+        "datos": resultado,
+    }
+
+
+def accion_liberar_reserva_deuda(datos):
+    resultado = liberar_reserva_deuda(
+        nombre=datos.get("cuenta"),
+        monto=datos.get("monto"),
+        descripcion=datos.get("descripcion"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_RESERVA_DEUDA_LIBERADA",
         "datos": resultado,
     }
 
@@ -1672,6 +1708,12 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar pago deuda":
         return accion_registrar_pago_deuda(datos)
+
+    if accion == "registrar reserva deuda":
+        return accion_registrar_reserva_deuda(datos)
+
+    if accion == "liberar reserva deuda":
+        return accion_liberar_reserva_deuda(datos)
 
     if accion == "ajustar deuda negocio":
         return accion_ajustar_deuda(datos)
