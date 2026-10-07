@@ -88,6 +88,9 @@ def crear_tabla_compras():
         fecha TEXT NOT NULL,
         cantidad INTEGER NOT NULL,
         precio_unitario REAL NOT NULL,
+        medio_pago TEXT NOT NULL DEFAULT 'Caja',
+        id_cuenta_deuda INTEGER,
+        id_movimiento_deuda INTEGER,
         FOREIGN KEY (id_producto)
             REFERENCES productos(id_producto)
         )
@@ -450,6 +453,25 @@ def actualizar_tabla_compras():
         cursor.execute("""
             ALTER TABLE compras
             ADD COLUMN motivo_anulacion TEXT
+        """)
+
+
+    if "medio_pago" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE compras
+            ADD COLUMN medio_pago TEXT NOT NULL DEFAULT 'Caja'
+        """)
+
+    if "id_cuenta_deuda" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE compras
+            ADD COLUMN id_cuenta_deuda INTEGER
+        """)
+
+    if "id_movimiento_deuda" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE compras
+            ADD COLUMN id_movimiento_deuda INTEGER
         """)
 
     conexion.commit()
