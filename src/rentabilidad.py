@@ -253,6 +253,22 @@ def _ventas_producto(
                         END
                     ),
                     0
+                ),
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN EXISTS (
+                                SELECT 1
+                                FROM venta_adicionales
+                                WHERE
+                                    venta_adicionales.id_venta
+                                    = ventas.id_venta
+                            )
+                            THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
                 )
             FROM ventas
             WHERE id_producto = ?
@@ -276,6 +292,9 @@ def _ventas_producto(
         ),
         "unidades_sin_snapshot": int(
             fila[3] or 0
+        ),
+        "ventas_con_adicionales": int(
+            fila[4] or 0
         ),
     }
 
@@ -373,13 +392,19 @@ def rentabilidad_producto(
                 else []
             ),
             "rentabilidad_historica_exacta": (
+                (
                 ventas["unidades_sin_snapshot"] == 0
+                and ventas["ventas_con_adicionales"] == 0
+            )
             ),
             "costo_ventas_historico": (
                 ventas[
                     "costo_ventas_historico_conocido"
                 ]
-                if ventas["unidades_sin_snapshot"] == 0
+                if (
+                ventas["unidades_sin_snapshot"] == 0
+                and ventas["ventas_con_adicionales"] == 0
+            )
                 else None
             ),
             "ganancia_bruta_historica": (
@@ -387,7 +412,10 @@ def rentabilidad_producto(
                 - ventas[
                     "costo_ventas_historico_conocido"
                 ]
-                if ventas["unidades_sin_snapshot"] == 0
+                if (
+                ventas["unidades_sin_snapshot"] == 0
+                and ventas["ventas_con_adicionales"] == 0
+            )
                 else None
             ),
             **ventas,
