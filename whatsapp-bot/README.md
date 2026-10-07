@@ -529,3 +529,37 @@ compra 1 pack manaos cola chica a 8500 cada pack con tarjeta bbva
 ```
 
 En una compra financiada, el stock aumenta y la deuda aumenta, pero la compra no se descuenta de caja en ese momento. La salida de caja ocurre cuando se registra el pago de la deuda.
+
+
+### Dinero reservado para deudas
+
+Una reserva representa dinero que ya está apartado para pagar una deuda, pero que todavía no fue enviado a la tarjeta o acreedor.
+
+Ejemplos:
+
+```text
+reservar deuda naranja 100000
+liberar reserva deuda naranja 20000
+deuda naranja
+deudas negocio
+```
+
+La reserva no reduce el saldo de la deuda y no genera una salida física de caja. Sí reduce el saldo disponible, porque ese dinero deja de estar libre para otros usos.
+
+Cuando se registra el pago:
+
+```text
+pago deuda naranja 30000
+```
+
+Abadion aplica automáticamente hasta $30.000 de la reserva existente. La deuda baja, la caja física baja y la reserva baja por el mismo importe. De esta forma el saldo disponible no se descuenta dos veces.
+
+Ejemplo de estado:
+
+```text
+Deuda pendiente: $389.547,18
+Reservado: $100.000,00
+Todavía por cubrir: $289.547,18
+```
+
+Los importes de deuda aceptan centavos con formato argentino, por ejemplo `389.547,18`.
