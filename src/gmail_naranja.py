@@ -4,6 +4,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 
 from importaciones_deuda import registrar_importacion_deuda
 from naranja_email import parsear_correo_compra_naranja
@@ -14,6 +15,7 @@ SCOPES = [
 ]
 
 FUENTE_IMPORTACION = "gmail_naranja"
+load_dotenv()
 
 
 def _ruta_env(
