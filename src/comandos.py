@@ -1743,6 +1743,149 @@ def interpretar_movimiento_caja(texto):
     }
 
 
+def interpretar_importaciones_deuda(texto):
+    if texto in {
+        "compras naranja pendientes",
+        "pendientes naranja",
+        "importaciones naranja pendientes",
+        "compras tarjeta pendientes",
+    }:
+        resultado = ejecutar_accion({
+            "accion": "consultar importaciones deuda",
+            "datos": {
+                "estado": "pendiente_clasificacion",
+                "limite": 50,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        importaciones = resultado["datos"][
+            "importaciones"
+        ]
+
+        if not importaciones:
+            return {
+                "ok": True,
+                "codigo": "COMANDO_IMPORTACIONES_DEUDA_PENDIENTES",
+                "importaciones": [],
+                "respuesta": (
+                    "No hay compras Naranja pendientes "
+                    "de clasificación."
+                ),
+            }
+
+        lineas = [
+            "*Compras Naranja pendientes*",
+        ]
+
+        for item in importaciones:
+            comercio = (
+                item.get("comercio")
+                or "Comercio no informado"
+            )
+            fecha = (
+                item.get("fecha_operacion")
+                or "Fecha no informada"
+            )
+
+            lineas.extend([
+                "",
+                (
+                    f"#{item['id_importacion']} | "
+                    f"{formatear_pesos(item['importe'])}"
+                ),
+                f"{comercio}",
+                f"Fecha: {fecha}",
+                (
+                    "Movimiento deuda: #"
+                    f"{item['id_movimiento_deuda']}"
+                ),
+            ])
+
+        lineas.extend([
+            "",
+            (
+                "Usá 'importacion <número>' "
+                "para ver el detalle."
+            ),
+        ])
+
+        return {
+            "ok": True,
+            "codigo": "COMANDO_IMPORTACIONES_DEUDA_PENDIENTES",
+            "importaciones": importaciones,
+            "respuesta": "\n".join(lineas),
+        }
+
+    coincidencia = re.match(
+        r"^(?:detalle\s+)?importacion\s+(\d+)$",
+        texto
+    )
+
+    if coincidencia:
+        id_importacion = int(
+            coincidencia.group(1)
+        )
+
+        resultado = ejecutar_accion({
+            "accion": "consultar importacion deuda",
+            "datos": {
+                "id_importacion": id_importacion,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        item = resultado["datos"]
+        lineas = [
+            f"*Importación #{item['id_importacion']}*",
+            (
+                "Importe: "
+                f"{formatear_pesos(item['importe'])}"
+            ),
+            (
+                "Comercio: "
+                f"{item.get('comercio') or 'No informado'}"
+            ),
+            (
+                "Fecha: "
+                f"{item.get('fecha_operacion') or 'No informada'}"
+            ),
+            (
+                "Estado: "
+                f"{item['estado']}"
+            ),
+            (
+                "Titular: "
+                f"{item.get('titular') or 'No informado'}"
+            ),
+            (
+                "Plan: "
+                f"{item.get('plan') or 'No informado'}"
+            ),
+        ]
+
+        if item.get(
+            "id_movimiento_deuda"
+        ) is not None:
+            lineas.append(
+                "Movimiento deuda: #"
+                f"{item['id_movimiento_deuda']}"
+            )
+
+        return {
+            **item,
+            "ok": True,
+            "codigo": "COMANDO_DETALLE_IMPORTACION_DEUDA",
+            "respuesta": "\n".join(lineas),
+        }
+
+    return None
+
+
 def interpretar_deudas_negocio(texto):
     if texto in {
         "deudas",
@@ -3465,6 +3608,8 @@ def mensaje_ayuda():
         "- adicionales",
         "- adicional huevo precio 1000 costo 300",
         "- deudas negocio",
+        "- compras naranja pendientes",
+        "- importacion 1",
         "- saldo inicial deuda naranja 100000",
         "- deuda naranja",
         "- historial deuda naranja",
@@ -3620,6 +3765,13 @@ def procesar_comando(
     if movimiento_caja is not None:
         return movimiento_caja
 
+    importaciones_deuda = interpretar_importaciones_deuda(
+        texto
+    )
+
+    if importaciones_deuda is not None:
+        return importaciones_deuda
+
     deudas = interpretar_deudas_negocio(
         texto
     )
@@ -3719,6 +3871,10 @@ def procesar_comando(
         "deudas",
         "deudas negocio",
         "deudas del negocio",
+        "compras naranja pendientes",
+        "pendientes naranja",
+        "importaciones naranja pendientes",
+        "compras tarjeta pendientes",
         "precios",
         "ver precios",
         "caja",
