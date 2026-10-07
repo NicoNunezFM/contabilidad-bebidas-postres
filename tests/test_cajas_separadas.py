@@ -90,3 +90,43 @@ def test_movimiento_seccion_afecta_solo_su_caja(
 
     assert caja_rotiseria["saldo_actual"] == 60000
     assert caja_bebidas["saldo_actual"] == 46120
+
+
+
+def test_gasto_general_va_a_rotiseria_por_defecto(
+    base_prueba
+):
+    client.post(
+        "/comandos",
+        json={
+            "mensaje": "inicio caja rotiseria 56000"
+        },
+    )
+    client.post(
+        "/comandos",
+        json={
+            "mensaje": "inicio caja bebidas postres 46120"
+        },
+    )
+
+    gasto = client.post(
+        "/comandos",
+        json={
+            "mensaje": "gasto verduleria 6000"
+        },
+    )
+
+    assert gasto.status_code == 200
+    assert gasto.json()["seccion"] == "rotiseria"
+
+    caja_rotiseria = client.post(
+        "/comandos",
+        json={"mensaje": "caja rotiseria"},
+    ).json()
+    caja_bebidas = client.post(
+        "/comandos",
+        json={"mensaje": "caja bebidas postres"},
+    ).json()
+
+    assert caja_rotiseria["saldo_actual"] == 50000
+    assert caja_bebidas["saldo_actual"] == 46120
