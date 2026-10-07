@@ -3947,6 +3947,7 @@ def procesar_comando(
             return error_comando(resultado)
 
         return {
+            **resultado["datos"],
             "ok": True,
             "codigo": "COMANDO_CAJA",
             "respuesta": formatear_caja(
