@@ -463,3 +463,69 @@ Esto permite que una compra o producción posterior cambie el costo actual sin m
 Las ventas registradas antes de esta funcionalidad quedan sin snapshot y se informan como historial incompleto. No se reconstruye su costo automáticamente porque hacerlo con precios actuales produciría una falsa precisión.
 
 Los adicionales vendidos junto con un producto todavía no tienen costo propio modelado. Si una venta incluye adicionales, su rentabilidad histórica se marca como no exacta hasta que exista un catálogo de costos para esos adicionales.
+
+
+## Adicionales configurables
+
+Los adicionales pueden tener precio de venta y costo unitario configurados.
+
+Ejemplos:
+
+```text
+adicionales
+adicional huevo precio 1000 costo 300
+adicional cheddar precio 1200 costo 450
+```
+
+Si el precio está configurado, una venta puede escribirse sin repetirlo:
+
+```text
+venta 1 sanguche grande con 2 huevos
+```
+
+Abadion calcula el precio total del adicional y guarda también su costo unitario como snapshot histórico. Si se informa un precio explícito en la venta, ese precio pisa el precio configurado, pero el costo sigue tomándose del catálogo.
+
+Los adicionales conocidos se crean inicialmente sin inventar precios ni costos: huevo, cheddar, doble porción y extra papa. Hasta que se configuren, Abadion sigue pidiendo el precio explícito.
+
+
+## Deudas del negocio
+
+El módulo de deudas registra saldos de tarjetas o cuentas utilizadas para financiar reposición del negocio.
+
+Carga inicial:
+
+```text
+saldo inicial deuda naranja 100000
+saldo inicial deuda bbva 50000
+```
+
+Consultas:
+
+```text
+deudas negocio
+deuda naranja
+cuanto falta pagar de naranja
+historial deuda naranja
+que deuda vence primero
+```
+
+Movimientos:
+
+```text
+compra deuda naranja 25000 reposicion bebidas
+pago deuda naranja 30000
+pagamos 30000 de naranja
+ajustar deuda naranja 85000
+vencimiento deuda naranja 2026-10-20
+```
+
+Un pago de deuda se registra también como retiro de caja del negocio. El saldo inicial no afecta caja porque representa deuda existente antes de comenzar el seguimiento.
+
+Las compras de packs pueden financiarse directamente:
+
+```text
+compra 2 packs manaos cola por 17000 con naranja
+compra 1 pack manaos cola chica a 8500 cada pack con tarjeta bbva
+```
+
+En una compra financiada, el stock aumenta y la deuda aumenta, pero la compra no se descuenta de caja en ese momento. La salida de caja ocurre cuando se registra el pago de la deuda.
