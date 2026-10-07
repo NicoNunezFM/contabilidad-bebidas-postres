@@ -376,3 +376,69 @@ def listar_importaciones_deuda(
 
     finally:
         conexion.close()
+
+
+
+def obtener_importacion_deuda(
+    id_importacion,
+):
+    if (
+        isinstance(id_importacion, bool)
+        or not isinstance(id_importacion, int)
+        or id_importacion <= 0
+    ):
+        return {
+            "ok": False,
+            "codigo": "ID_IMPORTACION_INVALIDO",
+            "mensaje": (
+                "El ID de importación debe ser "
+                "un entero mayor que cero."
+            ),
+        }
+
+    conexion = obtener_conexion()
+
+    try:
+        fila = conexion.execute(
+            """
+            SELECT
+                id_importacion,
+                fuente,
+                id_externo,
+                id_cuenta_deuda,
+                fecha_operacion,
+                fecha_importacion,
+                importe,
+                moneda,
+                comercio,
+                titular,
+                tipo_tarjeta,
+                plan,
+                estado,
+                id_movimiento_deuda,
+                asunto
+            FROM importaciones_deuda
+            WHERE id_importacion = ?
+            """,
+            (id_importacion,)
+        ).fetchone()
+
+        if fila is None:
+            return {
+                "ok": False,
+                "codigo": "IMPORTACION_DEUDA_NO_ENCONTRADA",
+                "mensaje": (
+                    "No existe esa importación de deuda."
+                ),
+            }
+
+        return {
+            "ok": True,
+            "codigo": "IMPORTACION_DEUDA_ENCONTRADA",
+            "importacion": _fila_a_dict(
+                fila
+            ),
+        }
+
+    finally:
+        conexion.close()
