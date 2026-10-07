@@ -655,3 +655,16 @@ importacion 7
 ```
 
 Esta consulta es solo informativa. Todavía no modifica stock, gastos ni compras. La clasificación posterior reutilizará el movimiento de deuda existente para no aumentar Naranja por segunda vez.
+
+
+### Conversaciones normales dentro del grupo
+
+Por defecto, Abadion no responde en grupos cuando la API devuelve `COMANDO_NO_RECONOCIDO`. Esto permite conversar normalmente en el grupo sin que el bot responda a frases como `hoy`, `sí`, preguntas entre personas u otros mensajes que no sean comandos.
+
+La opción se controla con:
+
+```env
+SILENT_UNKNOWN_GROUP_MESSAGES=true
+```
+
+Los comandos válidos y los errores de comandos reconocidos siguen respondiéndose normalmente. En chats privados autorizados, el comportamiento de ayuda para comandos no reconocidos se mantiene.
