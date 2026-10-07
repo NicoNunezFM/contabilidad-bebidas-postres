@@ -1,6 +1,14 @@
 from database import obtener_conexion
 from deudas_negocio import total_reservado_deudas
-from movimientos_caja import total_aportes, total_retiros
+from movimientos_caja import (
+    total_aportes,
+    total_movimientos_seccion,
+    total_retiros,
+)
+from saldos_caja import (
+    normalizar_seccion_caja,
+    obtener_saldo_inicial_caja,
+)
 from diezmo import estado_general_diezmo
 
 
@@ -126,7 +134,8 @@ CATEGORIAS_CAJA_BEBIDAS_POSTRES = {
 
 def _ventas_por_categorias(
     categorias=None,
-    excluir_categorias=None
+    excluir_categorias=None,
+    id_venta_corte=0,
 ):
     categorias = categorias or set()
     excluir_categorias = excluir_categorias or set()
@@ -138,6 +147,14 @@ def _ventas_por_categorias(
         "ventas.anulada = 0",
     ]
     parametros = []
+
+    if id_venta_corte:
+        condiciones.append(
+            "ventas.id_venta > ?"
+        )
+        parametros.append(
+            int(id_venta_corte)
+        )
 
     if categorias:
         placeholders = ",".join(
@@ -192,7 +209,8 @@ def _ventas_por_categorias(
 
 def _compras_por_categorias(
     categorias=None,
-    excluir_categorias=None
+    excluir_categorias=None,
+    id_compra_corte=0,
 ):
     categorias = categorias or set()
     excluir_categorias = excluir_categorias or set()
@@ -205,6 +223,14 @@ def _compras_por_categorias(
         "COALESCE(compras.medio_pago, 'Caja') = 'Caja'",
     ]
     parametros = []
+
+    if id_compra_corte:
+        condiciones.append(
+            "compras.id_compra > ?"
+        )
+        parametros.append(
+            int(id_compra_corte)
+        )
 
     if categorias:
         placeholders = ",".join(
@@ -249,18 +275,51 @@ def _compras_por_categorias(
     return total or 0
 
 
-def _gastos_por_seccion(seccion):
+def _gastos_por_seccion(
+    secciones,
+    id_gasto_corte=0,
+):
+    if isinstance(secciones, str):
+        secciones = {secciones}
+
+    secciones = set(
+        secciones or set()
+    )
+
+    if not secciones:
+        return 0
+
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
+    placeholders = ",".join(
+        "?"
+        for _ in secciones
+    )
+
+    condiciones = [
+        "anulado = 0",
+        f"seccion IN ({placeholders})",
+    ]
+    parametros = sorted(
+        secciones
+    )
+
+    if id_gasto_corte:
+        condiciones.append(
+            "id_gasto > ?"
+        )
+        parametros.append(
+            int(id_gasto_corte)
+        )
+
     cursor.execute(
-        """
+        f"""
         SELECT SUM(valor_final)
         FROM gastos
-        WHERE anulado = 0
-          AND seccion = ?
+        WHERE {" AND ".join(condiciones)}
         """,
-        (seccion,)
+        parametros
     )
 
     total = cursor.fetchone()[0]
@@ -295,20 +354,48 @@ def recaudado_por_categoria(categoria):
 
 
 def obtener_caja_seccion(seccion):
-    seccion_normalizada = str(
-        seccion or ""
-    ).strip().lower()
+    seccion_normalizada = normalizar_seccion_caja(
+        seccion
+    )
 
-    if seccion_normalizada in {
-        "bebidas_postres",
-        "bebidas y postres",
-        "bebidas postres",
-    }:
-        ventas_bebidas = recaudado_por_categoria(
-            "bebidas"
+    if seccion_normalizada is None:
+        raise ValueError(
+            "La sección debe ser bebidas_postres o rotiseria."
         )
-        ventas_postres = recaudado_por_categoria(
-            "postres"
+
+    apertura = obtener_saldo_inicial_caja(
+        seccion_normalizada
+    )
+
+    id_venta_corte = (
+        apertura["id_venta_corte"]
+        if apertura
+        else 0
+    )
+    id_compra_corte = (
+        apertura["id_compra_corte"]
+        if apertura
+        else 0
+    )
+    id_gasto_corte = (
+        apertura["id_gasto_corte"]
+        if apertura
+        else 0
+    )
+    id_movimiento_corte = (
+        apertura["id_movimiento_caja_corte"]
+        if apertura
+        else 0
+    )
+
+    if seccion_normalizada == "bebidas_postres":
+        ventas_bebidas = _ventas_por_categorias(
+            categorias={"bebidas"},
+            id_venta_corte=id_venta_corte,
+        )
+        ventas_postres = _ventas_por_categorias(
+            categorias={"postres"},
+            id_venta_corte=id_venta_corte,
         )
         ventas = (
             ventas_bebidas
@@ -316,62 +403,91 @@ def obtener_caja_seccion(seccion):
         )
 
         compras = _compras_por_categorias(
-            categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
+            categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES,
+            id_compra_corte=id_compra_corte,
         )
         gastos_seccion = _gastos_por_seccion(
-            "bebidas_postres"
+            {"bebidas_postres"},
+            id_gasto_corte=id_gasto_corte,
         )
-
-        return {
-            "seccion": "bebidas_postres",
-            "nombre": "Bebidas + Postres",
-            "ventas": ventas,
+        nombre = "Bebidas + Postres"
+        detalle_recaudado = {
             "recaudado_bebidas": ventas_bebidas,
             "recaudado_postres": ventas_postres,
-            "compras_directas": compras,
-            "gastos_seccion": gastos_seccion,
-            "saldo_operativo": (
-                ventas
-                - compras
-                - gastos_seccion
-            ),
-            "incluye_gastos_generales": False,
         }
 
-    if seccion_normalizada in {
-        "comidas",
-        "general_comidas",
-        "general comidas",
-    }:
-        ventas = recaudado_por_categoria(
-            "comidas"
+    else:
+        ventas = _ventas_por_categorias(
+            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES,
+            id_venta_corte=id_venta_corte,
         )
-
         compras = _compras_por_categorias(
-            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
+            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES,
+            id_compra_corte=id_compra_corte,
         )
         gastos_seccion = _gastos_por_seccion(
-            "comidas"
+            {"rotiseria", "comidas"},
+            id_gasto_corte=id_gasto_corte,
         )
-
-        return {
-            "seccion": "comidas",
-            "nombre": "Comidas",
-            "ventas": ventas,
+        nombre = "Rotisería"
+        detalle_recaudado = {
             "recaudado_comidas": ventas,
-            "compras_directas": compras,
-            "gastos_seccion": gastos_seccion,
-            "saldo_operativo": (
-                ventas
-                - compras
-                - gastos_seccion
-            ),
-            "incluye_gastos_generales": False,
         }
 
-    raise ValueError(
-        "La sección debe ser bebidas_postres o comidas."
+    aportes = total_movimientos_seccion(
+        seccion_normalizada,
+        "Aporte",
+        id_movimiento_corte,
     )
+    retiros = total_movimientos_seccion(
+        seccion_normalizada,
+        "Retiro",
+        id_movimiento_corte,
+    )
+
+    saldo_operativo = (
+        ventas
+        - compras
+        - gastos_seccion
+        + aportes
+        - retiros
+    )
+
+    saldo_inicial = (
+        apertura["monto"]
+        if apertura
+        else 0
+    )
+
+    saldo_actual = (
+        saldo_inicial
+        + saldo_operativo
+        if apertura
+        else saldo_operativo
+    )
+
+    return {
+        "seccion": seccion_normalizada,
+        "nombre": nombre,
+        "saldo_inicial_configurado": bool(
+            apertura
+        ),
+        "saldo_inicial": saldo_inicial,
+        "fecha_inicio": (
+            apertura["fecha_hora"]
+            if apertura
+            else None
+        ),
+        "ventas": ventas,
+        **detalle_recaudado,
+        "compras_directas": compras,
+        "gastos_seccion": gastos_seccion,
+        "aportes": aportes,
+        "retiros": retiros,
+        "saldo_operativo": saldo_operativo,
+        "saldo_actual": saldo_actual,
+        "incluye_gastos_generales": False,
+    }
 
 
 # ============================================================
@@ -434,6 +550,23 @@ def obtener_estado_caja():
         - deuda_reservada
     )
 
+    caja_bebidas_postres = obtener_caja_seccion(
+        "bebidas_postres"
+    )
+    caja_rotiseria = obtener_caja_seccion(
+        "rotiseria"
+    )
+
+    cajas_iniciadas = (
+        caja_bebidas_postres["saldo_inicial_configurado"]
+        and caja_rotiseria["saldo_inicial_configurado"]
+    )
+
+    total_cajas_actuales = (
+        caja_bebidas_postres["saldo_actual"]
+        + caja_rotiseria["saldo_actual"]
+    )
+
     return {
         "ventas": ventas,
         "compras": compras,
@@ -446,7 +579,11 @@ def obtener_estado_caja():
         "diezmo_reservado": diezmo_reservado,
         "deuda_reservada": deuda_reservada,
         "saldo_fisico": saldo_fisico,
-        "saldo_disponible": saldo_disponible
+        "saldo_disponible": saldo_disponible,
+        "cajas_separadas_activas": cajas_iniciadas,
+        "caja_bebidas_postres": caja_bebidas_postres,
+        "caja_rotiseria": caja_rotiseria,
+        "total_cajas_actuales": total_cajas_actuales,
     }
 
 
