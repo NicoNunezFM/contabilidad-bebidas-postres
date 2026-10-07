@@ -1674,6 +1674,74 @@ def interpretar_necesidades_produccion(texto):
     }
 
 
+def interpretar_movimiento_caja(texto):
+    coincidencia = re.match(
+        r"^(aporte|retiro)(?:\s+caja)?\s+"
+        r"(\d[\d\.,]*\s*(?:mil)?)"
+        r"(?:\s+(.+))?$",
+        texto
+    )
+
+    if not coincidencia:
+        return None
+
+    tipo = coincidencia.group(1)
+    monto = normalizar_importe(
+        coincidencia.group(2)
+    )
+    descripcion = (
+        coincidencia.group(3).strip()
+        if coincidencia.group(3)
+        else (
+            "Aporte a caja"
+            if tipo == "aporte"
+            else "Retiro de caja"
+        )
+    )
+
+    if monto is None:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_MOVIMIENTO_CAJA_INVALIDO",
+            "respuesta": "No pude interpretar el monto.",
+        }
+
+    resultado = ejecutar_accion({
+        "accion": "registrar movimiento caja",
+        "datos": {
+            "tipo": tipo,
+            "monto": monto,
+            "descripcion": descripcion,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_MOVIMIENTO_CAJA_REGISTRADO",
+        "respuesta": "\n".join([
+            (
+                "*Aporte registrado*"
+                if tipo == "aporte"
+                else "*Retiro registrado*"
+            ),
+            (
+                "Monto: "
+                f"{formatear_pesos(datos['monto'])}"
+            ),
+            (
+                "Descripción: "
+                f"{datos['descripcion']}"
+            ),
+        ]),
+    }
+
+
 def interpretar_deudas_negocio(texto):
     if texto in {
         "deudas",
@@ -3541,6 +3609,13 @@ def procesar_comando(
                 insumos
             ),
         }
+
+    movimiento_caja = interpretar_movimiento_caja(
+        texto
+    )
+
+    if movimiento_caja is not None:
+        return movimiento_caja
 
     deudas = interpretar_deudas_negocio(
         texto
