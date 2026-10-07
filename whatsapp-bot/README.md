@@ -450,3 +450,16 @@ La respuesta por producto incluye:
 La ganancia histórica todavía es una estimación: las ventas actuales no guardan un snapshot del costo al momento exacto de la venta. Por eso se utiliza el mejor costo actual disponible. Una etapa posterior puede congelar el costo por venta para obtener rentabilidad histórica contable más precisa.
 
 El comando `stock insumos` también muestra equivalencias aproximadas en paquetes cuando el insumo tiene presentaciones configuradas. Por ejemplo, 354 g de Oreo equivalen a 3 paquetes de 118 g o 1 tripack de 354 g.
+
+
+### Costo congelado por venta
+
+Cada venta nueva de Bebidas y Postres guarda el costo unitario disponible en ese momento.
+
+Para bebidas, el snapshot usa el promedio ponderado de las últimas compras vigentes del producto. Para postres, usa el costo de la última producción registrada o, si todavía no hubo producción, la mejor estimación disponible de la receta actual.
+
+Esto permite que una compra o producción posterior cambie el costo actual sin modificar la rentabilidad histórica de ventas anteriores.
+
+Las ventas registradas antes de esta funcionalidad quedan sin snapshot y se informan como historial incompleto. No se reconstruye su costo automáticamente porque hacerlo con precios actuales produciría una falsa precisión.
+
+Los adicionales vendidos junto con un producto todavía no tienen costo propio modelado. Si una venta incluye adicionales, su rentabilidad histórica se marca como no exacta hasta que exista un catálogo de costos para esos adicionales.
