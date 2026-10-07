@@ -27,6 +27,10 @@ from costos_postres import (
 )
 from gastos import registrar_gasto
 from productos import obtener_productos
+from rentabilidad import (
+    rentabilidad_categoria,
+    rentabilidad_producto,
+)
 from reportes import (
     resumen_mes_actual,
     resumen_por_periodo,
@@ -758,6 +762,43 @@ def accion_registrar_compra_pack(datos):
     }
 
 
+def accion_consultar_rentabilidad_producto(datos):
+    resolucion = resolver_producto(
+        datos.get("producto")
+    )
+
+    if not resolucion["ok"]:
+        return resolucion
+
+    resultado = rentabilidad_producto(
+        resolucion["producto"]["id_producto"]
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_RENTABILIDAD_PRODUCTO",
+        "datos": resultado,
+    }
+
+
+def accion_consultar_rentabilidad_categoria(datos):
+    resultado = rentabilidad_categoria(
+        datos.get("categoria")
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_RENTABILIDAD_CATEGORIA",
+        "datos": resultado,
+    }
+
+
 def accion_consultar_stock_insumos():
     return {
         "ok": True,
@@ -1418,6 +1459,12 @@ def ejecutar_accion(solicitud):
 
     if accion == "consultar stock insumos":
         return accion_consultar_stock_insumos()
+
+    if accion == "consultar rentabilidad producto":
+        return accion_consultar_rentabilidad_producto(datos)
+
+    if accion == "consultar rentabilidad categoria":
+        return accion_consultar_rentabilidad_categoria(datos)
 
     if accion == "registrar inventario insumo":
         return accion_registrar_inventario_insumo(datos)
