@@ -1988,7 +1988,7 @@ def interpretar_deudas_negocio(texto):
         }
 
     coincidencia = re.match(
-        r"^pago deuda\s+(.+?)\s+"
+        r"^(?:pago|pagar) deuda\s+(.+?)\s+"
         r"(\d[\d\.,]*\s*(?:mil)?)$",
         texto
     )
