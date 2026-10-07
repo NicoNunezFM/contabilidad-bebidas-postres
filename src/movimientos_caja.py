@@ -18,7 +18,8 @@ def registrar_movimiento_caja(
     tipo,
     descripcion,
     monto,
-    fecha=None
+    fecha=None,
+    seccion=None,
 ):
     """
     Registra un aporte o retiro de caja.
@@ -83,15 +84,17 @@ def registrar_movimiento_caja(
                 fecha,
                 tipo,
                 descripcion,
-                monto
+                monto,
+                seccion
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
                 fecha,
                 tipo,
                 descripcion.strip(),
-                monto
+                monto,
+                seccion,
             )
         )
 
@@ -107,7 +110,8 @@ def registrar_movimiento_caja(
             "fecha": fecha,
             "tipo": tipo,
             "descripcion": descripcion.strip(),
-            "monto": monto
+            "monto": monto,
+            "seccion": seccion,
         }
 
     except sqlite3.Error as error:
@@ -132,7 +136,8 @@ def registrar_movimiento_caja(
 def registrar_retiro(
     descripcion,
     monto,
-    fecha=None
+    fecha=None,
+    seccion=None,
 ):
     """
     Registra un retiro de dinero de la caja.
@@ -142,7 +147,8 @@ def registrar_retiro(
         tipo="Retiro",
         descripcion=descripcion,
         monto=monto,
-        fecha=fecha
+        fecha=fecha,
+        seccion=seccion,
     )
 
 
@@ -153,7 +159,8 @@ def registrar_retiro(
 def registrar_aporte(
     descripcion,
     monto,
-    fecha=None
+    fecha=None,
+    seccion=None,
 ):
     """
     Registra un aporte de dinero a la caja.
@@ -163,7 +170,8 @@ def registrar_aporte(
         tipo="Aporte",
         descripcion=descripcion,
         monto=monto,
-        fecha=fecha
+        fecha=fecha,
+        seccion=seccion,
     )
 
 
@@ -484,6 +492,39 @@ def anular_movimiento_caja(
                 f"Error al anular movimiento de caja: {error}"
             )
         }
+
+    finally:
+        conexion.close()
+
+
+def total_movimientos_seccion(
+    seccion,
+    tipo,
+    id_movimiento_corte=0,
+):
+    if tipo not in TIPOS_MOVIMIENTO:
+        return 0
+
+    conexion = obtener_conexion()
+
+    try:
+        total = conexion.execute(
+            """
+            SELECT COALESCE(SUM(monto), 0)
+            FROM movimientos_caja
+            WHERE tipo = ?
+              AND anulado = 0
+              AND seccion = ?
+              AND id_movimiento > ?
+            """,
+            (
+                tipo,
+                seccion,
+                int(id_movimiento_corte or 0),
+            )
+        ).fetchone()[0]
+
+        return total or 0
 
     finally:
         conexion.close()
