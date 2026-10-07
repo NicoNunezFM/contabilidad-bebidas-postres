@@ -43,6 +43,10 @@ from deudas_negocio import (
     resumen_deudas,
 )
 from gastos import registrar_gasto
+from movimientos_caja import (
+    registrar_aporte,
+    registrar_retiro,
+)
 from productos import obtener_productos
 from rentabilidad import (
     rentabilidad_categoria,
@@ -1186,6 +1190,54 @@ def accion_historial_gastos_postres(datos):
     }
 
 
+def accion_registrar_movimiento_caja(datos):
+    tipo = normalizar_texto(
+        datos.get("tipo")
+    )
+    descripcion = datos.get(
+        "descripcion"
+    ) or (
+        "Aporte a caja"
+        if tipo == "aporte"
+        else "Retiro de caja"
+    )
+    monto = datos.get("monto")
+
+    if tipo == "aporte":
+        resultado = registrar_aporte(
+            descripcion=descripcion,
+            monto=monto,
+        )
+    elif tipo == "retiro":
+        resultado = registrar_retiro(
+            descripcion=descripcion,
+            monto=monto,
+        )
+    else:
+        return {
+            "ok": False,
+            "codigo": "TIPO_MOVIMIENTO_CAJA_INVALIDO",
+            "mensaje": (
+                "El movimiento debe ser aporte o retiro."
+            ),
+        }
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_MOVIMIENTO_CAJA_REGISTRADO",
+        "datos": {
+            "id_movimiento": resultado["id_movimiento"],
+            "fecha": resultado["fecha"],
+            "tipo": resultado["tipo"],
+            "descripcion": resultado["descripcion"],
+            "monto": resultado["monto"],
+        },
+    }
+
+
 def accion_registrar_gasto(datos):
     descripcion = datos.get("descripcion")
     monto = datos.get("monto")
@@ -1672,6 +1724,9 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar gasto":
         return accion_registrar_gasto(datos)
+
+    if accion == "registrar movimiento caja":
+        return accion_registrar_movimiento_caja(datos)
 
     if accion == "registrar compra insumo":
         return accion_registrar_compra_insumo(datos)
