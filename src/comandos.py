@@ -1395,11 +1395,40 @@ def formatear_stock_insumos(insumos):
         if not insumo["controla_stock"]:
             continue
 
-        lineas.append(
+        linea = (
             f"- {insumo['nombre']}: "
             f"{insumo['stock_base']:g} "
             f"{insumo['unidad_base']}"
         )
+
+        equivalencias = insumo.get(
+            "equivalencias_paquetes",
+            []
+        )
+
+        if equivalencias:
+            partes = []
+
+            for equivalencia in equivalencias:
+                cantidad = equivalencia.get(
+                    "paquetes_equivalentes"
+                )
+
+                if cantidad is None:
+                    continue
+
+                partes.append(
+                    f"{cantidad:.2f} x "
+                    f"{equivalencia['presentacion']}"
+                )
+
+            if partes:
+                linea += (
+                    "\n  ≈ "
+                    + " / ".join(partes)
+                )
+
+        lineas.append(linea)
 
     return "\n".join(lineas)
 
