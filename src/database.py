@@ -966,6 +966,53 @@ def crear_tablas_costos_postres():
     conexion.close()
 
 
+
+def crear_tablas_deudas_negocio():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cuentas_deuda_negocio (
+            id_cuenta INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            tipo TEXT NOT NULL DEFAULT 'Tarjeta',
+            moneda TEXT NOT NULL DEFAULT 'ARS',
+            proximo_vencimiento TEXT,
+            activa INTEGER NOT NULL DEFAULT 1,
+            fecha_creacion TEXT NOT NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS movimientos_deuda_negocio (
+            id_movimiento_deuda INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_cuenta INTEGER NOT NULL,
+            fecha_hora TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            importe REAL NOT NULL,
+            descripcion TEXT,
+            id_movimiento_caja INTEGER,
+            FOREIGN KEY (id_cuenta)
+                REFERENCES cuentas_deuda_negocio(id_cuenta),
+            FOREIGN KEY (id_movimiento_caja)
+                REFERENCES movimientos_caja(id_movimiento)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_movimientos_deuda_cuenta_fecha
+        ON movimientos_deuda_negocio (
+            id_cuenta,
+            fecha_hora,
+            id_movimiento_deuda
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -990,6 +1037,7 @@ def inicializar_base_de_datos():
     crear_tabla_mensajes_procesados()
     actualizar_tabla_mensajes_procesados()
     crear_tabla_contextos_conversacion()
+    crear_tablas_deudas_negocio()
 
 
 
