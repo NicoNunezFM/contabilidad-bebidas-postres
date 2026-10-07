@@ -1628,16 +1628,52 @@ def obtener_stock_insumos():
             """
         ).fetchall()
 
-        return [
-            {
+        resultado = []
+
+        for fila in filas:
+            stock_base = float(
+                fila[3] or 0
+            )
+
+            presentaciones = conexion.execute(
+                """
+                SELECT
+                    nombre,
+                    contenido_base
+                FROM presentaciones_insumos
+                WHERE id_insumo = ?
+                  AND activa = 1
+                ORDER BY contenido_base
+                """,
+                (fila[0],)
+            ).fetchall()
+
+            equivalencias = [
+                {
+                    "presentacion": presentacion[0],
+                    "contenido_base": float(
+                        presentacion[1]
+                    ),
+                    "paquetes_equivalentes": (
+                        stock_base
+                        / float(presentacion[1])
+                        if float(presentacion[1]) > 0
+                        else None
+                    ),
+                }
+                for presentacion in presentaciones
+            ]
+
+            resultado.append({
                 "id_insumo": fila[0],
                 "nombre": fila[1],
                 "unidad_base": fila[2],
-                "stock_base": float(fila[3] or 0),
+                "stock_base": stock_base,
                 "controla_stock": bool(fila[4]),
-            }
-            for fila in filas
-        ]
+                "equivalencias_paquetes": equivalencias,
+            })
+
+        return resultado
 
     finally:
         conexion.close()
