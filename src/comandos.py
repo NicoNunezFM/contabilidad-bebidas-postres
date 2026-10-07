@@ -1583,6 +1583,229 @@ def interpretar_necesidades_produccion(texto):
     }
 
 
+def formatear_rentabilidad_producto(datos):
+    lineas = [
+        f"*Rentabilidad - {datos['producto']}*",
+    ]
+
+    if datos.get("precio_venta") is not None:
+        lineas.append(
+            "Precio de venta: "
+            f"{formatear_pesos(datos['precio_venta'])}"
+        )
+    else:
+        lineas.append(
+            "Precio de venta: sin configurar"
+        )
+
+    if not datos.get("completo"):
+        lineas.append(
+            "Costo unitario: sin datos suficientes"
+        )
+
+        fuente = datos.get(
+            "fuente_costo"
+        )
+
+        if fuente:
+            lineas.append(
+                f"Fuente intentada: {fuente}"
+            )
+
+        faltantes = datos.get(
+            "faltantes_costo",
+            []
+        )
+
+        if faltantes:
+            lineas.append(
+                "Faltan costos de: "
+                + ", ".join(faltantes)
+            )
+
+        return "\n".join(lineas)
+
+    lineas.extend([
+        (
+            "Costo unitario estimado: "
+            f"{formatear_pesos(datos['costo_unitario'])}"
+        ),
+        (
+            "Ganancia bruta por unidad: "
+            f"{formatear_pesos(datos['ganancia_unitaria'])}"
+        ),
+        (
+            "Margen sobre venta: "
+            f"{datos['margen_sobre_venta_pct']:.1f}%"
+        ),
+        (
+            "Markup sobre costo: "
+            f"{datos['markup_sobre_costo_pct']:.1f}%"
+        ),
+        (
+            f"Fuente del costo: {datos['fuente_costo']}"
+        ),
+    ])
+
+    if datos.get(
+        "unidades_vendidas",
+        0
+    ) > 0:
+        lineas.extend([
+            "",
+            "*Ventas registradas*",
+            (
+                "Unidades vendidas: "
+                f"{datos['unidades_vendidas']}"
+            ),
+            (
+                "Ingresos: "
+                f"{formatear_pesos(datos['ingresos'])}"
+            ),
+            (
+                "Costo de ventas estimado: "
+                f"{formatear_pesos(datos['costo_ventas_estimado'])}"
+            ),
+            (
+                "Ganancia bruta estimada: "
+                f"{formatear_pesos(datos['ganancia_bruta_estimada'])}"
+            ),
+            (
+                "_La ganancia histórica es estimada con el costo "
+                "actual disponible; todavía no existe costo "
+                "congelado por cada venta._"
+            ),
+        ])
+
+    return "\n".join(lineas)
+
+
+def formatear_rentabilidad_categoria(datos):
+    lineas = [
+        f"*Rentabilidad - {datos['nombre']}*",
+    ]
+
+    for producto in datos["productos"]:
+        if producto.get("completo"):
+            lineas.append(
+                f"- {producto['producto']}: "
+                f"{formatear_pesos(producto['costo_unitario'])} costo | "
+                f"{formatear_pesos(producto['precio_venta'])} venta | "
+                f"{producto['margen_sobre_venta_pct']:.1f}% margen"
+            )
+        else:
+            lineas.append(
+                f"- {producto['producto']}: "
+                "costo incompleto"
+            )
+
+    lineas.extend([
+        "",
+        (
+            "Ingresos registrados: "
+            f"{formatear_pesos(datos['ingresos'])}"
+        ),
+    ])
+
+    if datos["completo"]:
+        lineas.extend([
+            (
+                "Costo de ventas estimado: "
+                f"{formatear_pesos(datos['costo_ventas_estimado'])}"
+            ),
+            (
+                "Ganancia bruta estimada: "
+                f"{formatear_pesos(datos['ganancia_bruta_estimada'])}"
+            ),
+        ])
+
+        if datos.get("margen_bruto_pct") is not None:
+            lineas.append(
+                "Margen bruto estimado: "
+                f"{datos['margen_bruto_pct']:.1f}%"
+            )
+    else:
+        lineas.append(
+            "No calculé la ganancia total porque faltan "
+            "costos de productos vendidos: "
+            + ", ".join(
+                datos["faltantes_costo"]
+            )
+            + "."
+        )
+
+    lineas.append(
+        "_La ganancia histórica es estimada con los costos "
+        "actuales disponibles; el siguiente nivel será congelar "
+        "el costo al momento de cada venta._"
+    )
+
+    return "\n".join(lineas)
+
+
+def interpretar_rentabilidad(texto):
+    categorias = {
+        "bebidas": "bebidas",
+        "postres": "postres",
+        "bebidas postres": "bebidas_postres",
+        "bebidas y postres": "bebidas_postres",
+        "postres y bebidas": "bebidas_postres",
+    }
+
+    coincidencia = re.match(
+        r"^(?:rentabilidad|ganancia|margen)\s+(.+)$",
+        texto
+    )
+
+    if not coincidencia:
+        return None
+
+    objetivo = coincidencia.group(1).strip()
+
+    if objetivo in categorias:
+        resultado = ejecutar_accion({
+            "accion": "consultar rentabilidad categoria",
+            "datos": {
+                "categoria": categorias[objetivo],
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_RENTABILIDAD_CATEGORIA",
+            "respuesta": formatear_rentabilidad_categoria(
+                datos
+            ),
+        }
+
+    resultado = ejecutar_accion({
+        "accion": "consultar rentabilidad producto",
+        "datos": {
+            "producto": objetivo,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_RENTABILIDAD_PRODUCTO",
+        "respuesta": formatear_rentabilidad_producto(
+            datos
+        ),
+    }
+
+
 def interpretar_produccion_postre(
     texto,
     contexto=None
@@ -2317,6 +2540,11 @@ def mensaje_ayuda():
         "- stock insumos",
         "- inventario insumo oreo 1350g",
         "- que necesito para hacer 20 oreos",
+        "- rentabilidad oreo",
+        "- rentabilidad chocotorta",
+        "- rentabilidad bebidas",
+        "- rentabilidad postres",
+        "- rentabilidad bebidas postres",
         "- anular ultima venta",
         "- anular operacion 14",
         "- stock",
@@ -2455,6 +2683,13 @@ def procesar_comando(
                 insumos
             ),
         }
+
+    rentabilidad = interpretar_rentabilidad(
+        texto
+    )
+
+    if rentabilidad is not None:
+        return rentabilidad
 
     produccion_postre = interpretar_produccion_postre(
         texto,
