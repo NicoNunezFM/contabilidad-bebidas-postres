@@ -220,21 +220,85 @@ def crear_tabla_venta_adicionales():
     cursor = conexion.cursor()
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS adicionales_catalogo (
+            id_adicional_catalogo INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            precio_venta REAL,
+            costo_unitario REAL,
+            activo INTEGER NOT NULL DEFAULT 1,
+            fecha_actualizacion TEXT
+        )
+    """)
+
+    for nombre in (
+        "huevo",
+        "cheddar",
+        "doble porcion",
+        "extra papa",
+    ):
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO adicionales_catalogo (
+                nombre,
+                activo
+            )
+            VALUES (?, 1)
+            """,
+            (nombre,)
+        )
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS venta_adicionales (
             id_adicional INTEGER PRIMARY KEY AUTOINCREMENT,
             id_venta INTEGER NOT NULL,
+            id_adicional_catalogo INTEGER,
             descripcion TEXT NOT NULL,
             cantidad INTEGER NOT NULL DEFAULT 1,
             precio_total REAL NOT NULL DEFAULT 0,
+            costo_unitario_snapshot REAL,
+            fuente_costo_snapshot TEXT,
             FOREIGN KEY (id_venta)
-                REFERENCES ventas(id_venta)
+                REFERENCES ventas(id_venta),
+            FOREIGN KEY (id_adicional_catalogo)
+                REFERENCES adicionales_catalogo(id_adicional_catalogo)
         )
     """)
+
+    cursor.execute("PRAGMA table_info(venta_adicionales)")
+    columnas = cursor.fetchall()
+    nombres_columnas = [
+        columna[1]
+        for columna in columnas
+    ]
+
+    if "id_adicional_catalogo" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE venta_adicionales
+            ADD COLUMN id_adicional_catalogo INTEGER
+        """)
+
+    if "costo_unitario_snapshot" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE venta_adicionales
+            ADD COLUMN costo_unitario_snapshot REAL
+        """)
+
+    if "fuente_costo_snapshot" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE venta_adicionales
+            ADD COLUMN fuente_costo_snapshot TEXT
+        """)
 
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS
         idx_venta_adicionales_id_venta
         ON venta_adicionales (id_venta)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_venta_adicionales_catalogo
+        ON venta_adicionales (id_adicional_catalogo)
     """)
 
     conexion.commit()
