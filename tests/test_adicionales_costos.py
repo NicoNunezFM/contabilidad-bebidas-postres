@@ -232,7 +232,7 @@ def test_rentabilidad_historica_incluye_costo_del_adicional(
     base_prueba
 ):
     producto = _crear_producto(
-        "Bebida con extra",
+        "Bebida extra test",
         "Bebidas",
         2000,
         stock=0,
@@ -263,7 +263,7 @@ def test_rentabilidad_historica_incluye_costo_del_adicional(
         "/comandos",
         json={
             "mensaje": (
-                "venta 1 bebida con extra con huevo"
+                "venta 1 bebida extra test con huevo"
             )
         }
     )
@@ -273,7 +273,7 @@ def test_rentabilidad_historica_incluye_costo_del_adicional(
     rentabilidad = client.post(
         "/comandos",
         json={
-            "mensaje": "rentabilidad bebida con extra"
+            "mensaje": "rentabilidad bebida extra test"
         }
     )
 
