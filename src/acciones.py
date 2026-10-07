@@ -2,6 +2,10 @@ from datetime import datetime
 import re
 import unicodedata
 
+from adicionales import (
+    configurar_adicional,
+    listar_adicionales,
+)
 from ajustes_stock import (
     registrar_consumo_interno,
     registrar_inventario_fisico,
@@ -762,6 +766,33 @@ def accion_registrar_compra_pack(datos):
     }
 
 
+def accion_configurar_adicional(datos):
+    resultado = configurar_adicional(
+        nombre=datos.get("nombre"),
+        precio_venta=datos.get("precio_venta"),
+        costo_unitario=datos.get("costo_unitario"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_ADICIONAL_CONFIGURADO",
+        "datos": resultado,
+    }
+
+
+def accion_consultar_adicionales():
+    return {
+        "ok": True,
+        "codigo": "ACCION_ADICIONALES",
+        "datos": {
+            "adicionales": listar_adicionales(),
+        },
+    }
+
+
 def accion_consultar_rentabilidad_producto(datos):
     resolucion = resolver_producto(
         datos.get("producto")
@@ -1462,6 +1493,12 @@ def ejecutar_accion(solicitud):
 
     if accion == "consultar rentabilidad producto":
         return accion_consultar_rentabilidad_producto(datos)
+
+    if accion == "configurar adicional":
+        return accion_configurar_adicional(datos)
+
+    if accion == "consultar adicionales":
+        return accion_consultar_adicionales()
 
     if accion == "consultar rentabilidad categoria":
         return accion_consultar_rentabilidad_categoria(datos)
