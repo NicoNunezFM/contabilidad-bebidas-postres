@@ -1786,21 +1786,23 @@ def interpretar_importaciones_deuda(texto):
             total += float(
                 item["importe"]
             )
+            comercio = (
+                item.get("comercio")
+                or "Comercio no informado"
+            )
+            fecha = (
+                item.get("fecha_operacion")
+                or "No informada"
+            )
+
             lineas.extend([
                 "",
                 (
                     f"#{item['id_importacion']} | "
                     f"{formatear_pesos(item['importe'])}"
                 ),
-                (
-                    f"{item.get('comercio') "
-                    "or 'Comercio no informado'}"
-                ),
-                (
-                    "Fecha: "
-                    f"{item.get('fecha_operacion') "
-                    "or 'No informada'}"
-                ),
+                comercio,
+                f"Fecha: {fecha}",
             ])
 
         lineas.extend([
