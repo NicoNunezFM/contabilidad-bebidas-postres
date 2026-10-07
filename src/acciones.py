@@ -52,6 +52,10 @@ from movimientos_caja import (
     registrar_retiro,
 )
 from productos import obtener_productos
+from saldos_caja import (
+    normalizar_seccion_caja,
+    registrar_saldo_inicial_caja,
+)
 from rentabilidad import (
     rentabilidad_categoria,
     rentabilidad_producto,
@@ -507,6 +511,22 @@ def accion_consultar_precios(datos):
         "datos": {
             "productos": productos,
         },
+    }
+
+
+def accion_registrar_saldo_inicial_caja(datos):
+    resultado = registrar_saldo_inicial_caja(
+        seccion=datos.get("seccion"),
+        monto=datos.get("monto"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_SALDO_INICIAL_CAJA_REGISTRADO",
+        "datos": resultado,
     }
 
 
@@ -1226,6 +1246,9 @@ def accion_registrar_movimiento_caja(datos):
     tipo = normalizar_texto(
         datos.get("tipo")
     )
+    seccion = normalizar_seccion_caja(
+        datos.get("seccion")
+    )
     descripcion = datos.get(
         "descripcion"
     ) or (
@@ -1239,11 +1262,13 @@ def accion_registrar_movimiento_caja(datos):
         resultado = registrar_aporte(
             descripcion=descripcion,
             monto=monto,
+            seccion=seccion,
         )
     elif tipo == "retiro":
         resultado = registrar_retiro(
             descripcion=descripcion,
             monto=monto,
+            seccion=seccion,
         )
     else:
         return {
@@ -1266,6 +1291,7 @@ def accion_registrar_movimiento_caja(datos):
             "tipo": resultado["tipo"],
             "descripcion": resultado["descripcion"],
             "monto": resultado["monto"],
+            "seccion": resultado.get("seccion"),
         },
     }
 
@@ -1756,6 +1782,9 @@ def ejecutar_accion(solicitud):
 
     if accion == "registrar gasto":
         return accion_registrar_gasto(datos)
+
+    if accion == "registrar saldo inicial caja":
+        return accion_registrar_saldo_inicial_caja(datos)
 
     if accion == "registrar movimiento caja":
         return accion_registrar_movimiento_caja(datos)
