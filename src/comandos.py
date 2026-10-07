@@ -1598,19 +1598,33 @@ def formatear_rentabilidad_producto(datos):
             "Precio de venta: sin configurar"
         )
 
-    if not datos.get("completo"):
+    if datos.get("completo"):
+        lineas.extend([
+            (
+                "Costo unitario actual: "
+                f"{formatear_pesos(datos['costo_unitario'])}"
+            ),
+            (
+                "Ganancia bruta por unidad: "
+                f"{formatear_pesos(datos['ganancia_unitaria'])}"
+            ),
+            (
+                "Margen sobre venta: "
+                f"{datos['margen_sobre_venta_pct']:.1f}%"
+            ),
+            (
+                "Markup sobre costo: "
+                f"{datos['markup_sobre_costo_pct']:.1f}%"
+            ),
+            (
+                f"Fuente del costo actual: "
+                f"{datos['fuente_costo']}"
+            ),
+        ])
+    else:
         lineas.append(
-            "Costo unitario: sin datos suficientes"
+            "Costo unitario actual: sin datos suficientes"
         )
-
-        fuente = datos.get(
-            "fuente_costo"
-        )
-
-        if fuente:
-            lineas.append(
-                f"Fuente intentada: {fuente}"
-            )
 
         faltantes = datos.get(
             "faltantes_costo",
@@ -1623,37 +1637,10 @@ def formatear_rentabilidad_producto(datos):
                 + ", ".join(faltantes)
             )
 
-        return "\n".join(lineas)
-
-    lineas.extend([
-        (
-            "Costo unitario estimado: "
-            f"{formatear_pesos(datos['costo_unitario'])}"
-        ),
-        (
-            "Ganancia bruta por unidad: "
-            f"{formatear_pesos(datos['ganancia_unitaria'])}"
-        ),
-        (
-            "Margen sobre venta: "
-            f"{datos['margen_sobre_venta_pct']:.1f}%"
-        ),
-        (
-            "Markup sobre costo: "
-            f"{datos['markup_sobre_costo_pct']:.1f}%"
-        ),
-        (
-            f"Fuente del costo: {datos['fuente_costo']}"
-        ),
-    ])
-
-    if datos.get(
-        "unidades_vendidas",
-        0
-    ) > 0:
+    if datos.get("unidades_vendidas", 0) > 0:
         lineas.extend([
             "",
-            "*Ventas registradas*",
+            "*Histórico de ventas*",
             (
                 "Unidades vendidas: "
                 f"{datos['unidades_vendidas']}"
@@ -1662,20 +1649,71 @@ def formatear_rentabilidad_producto(datos):
                 "Ingresos: "
                 f"{formatear_pesos(datos['ingresos'])}"
             ),
-            (
-                "Costo de ventas estimado: "
-                f"{formatear_pesos(datos['costo_ventas_estimado'])}"
-            ),
-            (
-                "Ganancia bruta estimada: "
-                f"{formatear_pesos(datos['ganancia_bruta_estimada'])}"
-            ),
-            (
-                "_La ganancia histórica es estimada con el costo "
-                "actual disponible; todavía no existe costo "
-                "congelado por cada venta._"
-            ),
         ])
+
+        if datos.get(
+            "rentabilidad_historica_exacta"
+        ):
+            costo_historico = datos.get(
+                "costo_ventas_historico",
+                0,
+            )
+            ganancia_historica = datos.get(
+                "ganancia_bruta_historica",
+                0,
+            )
+            margen_historico = (
+                (
+                    ganancia_historica
+                    / datos["ingresos"]
+                ) * 100
+                if datos["ingresos"] > 0
+                else 0
+            )
+
+            lineas.extend([
+                (
+                    "Costo histórico de ventas: "
+                    f"{formatear_pesos(costo_historico)}"
+                ),
+                (
+                    "Ganancia bruta histórica: "
+                    f"{formatear_pesos(ganancia_historica)}"
+                ),
+                (
+                    "Margen histórico: "
+                    f"{margen_historico:.1f}%"
+                ),
+                (
+                    "_Calculado con el costo congelado "
+                    "al momento de cada venta._"
+                ),
+            ])
+        else:
+            lineas.extend([
+                (
+                    "Costo histórico conocido: "
+                    f"{formatear_pesos(datos.get('costo_ventas_historico_conocido', 0))}"
+                ),
+                (
+                    "Unidades antiguas sin costo congelado: "
+                    f"{datos.get('unidades_sin_snapshot', 0)}"
+                ),
+                (
+                    "_Las ventas nuevas ya guardan el costo "
+                    "al momento de vender. Las ventas anteriores "
+                    "a esta función no pueden reconstruirse con "
+                    "precisión sin datos históricos adicionales._"
+                ),
+            ])
+
+            if datos.get("completo"):
+                lineas.extend([
+                    (
+                        "Estimación usando costo actual: "
+                        f"{formatear_pesos(datos['ganancia_bruta_estimada'])}"
+                    ),
+                ])
 
     return "\n".join(lineas)
 
@@ -1707,40 +1745,53 @@ def formatear_rentabilidad_categoria(datos):
         ),
     ])
 
-    if datos["completo"]:
+    if datos.get(
+        "rentabilidad_historica_exacta"
+    ):
         lineas.extend([
             (
-                "Costo de ventas estimado: "
-                f"{formatear_pesos(datos['costo_ventas_estimado'])}"
+                "Costo histórico de ventas: "
+                f"{formatear_pesos(datos['costo_ventas_historico'])}"
             ),
             (
-                "Ganancia bruta estimada: "
-                f"{formatear_pesos(datos['ganancia_bruta_estimada'])}"
+                "Ganancia bruta histórica: "
+                f"{formatear_pesos(datos['ganancia_bruta_historica'])}"
             ),
         ])
 
-        if datos.get("margen_bruto_pct") is not None:
+        if datos.get(
+            "margen_bruto_historico_pct"
+        ) is not None:
             lineas.append(
-                "Margen bruto estimado: "
-                f"{datos['margen_bruto_pct']:.1f}%"
+                "Margen bruto histórico: "
+                f"{datos['margen_bruto_historico_pct']:.1f}%"
             )
-    else:
-        lineas.append(
-            "No calculé la ganancia total porque faltan "
-            "costos de productos vendidos: "
-            + ", ".join(
-                datos["faltantes_costo"]
-            )
-            + "."
-        )
 
-    lineas.append(
-        "_La ganancia histórica es estimada con los costos "
-        "actuales disponibles; el siguiente nivel será congelar "
-        "el costo al momento de cada venta._"
-    )
+        lineas.append(
+            "_Calculado con costos congelados al momento "
+            "de cada venta._"
+        )
+    else:
+        lineas.extend([
+            (
+                "Costo histórico conocido: "
+                f"{formatear_pesos(datos['costo_ventas_historico_conocido'])}"
+            ),
+            (
+                "_Hay ventas anteriores sin costo congelado. "
+                "Las ventas nuevas sí quedarán registradas "
+                "con su costo histórico exacto._"
+            ),
+        ])
+
+        if datos.get("completo"):
+            lineas.append(
+                "Ganancia estimada con costos actuales: "
+                f"{formatear_pesos(datos['ganancia_bruta_estimada'])}"
+            )
 
     return "\n".join(lineas)
+
 
 
 def interpretar_rentabilidad(texto):
