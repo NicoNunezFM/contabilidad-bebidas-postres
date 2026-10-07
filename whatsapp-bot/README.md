@@ -417,3 +417,36 @@ inventario insumo pote 37 unidades
 Al registrar una producción, Abadion valida todos los insumos antes de modificar existencias. Si alguno no alcanza, la operación completa se rechaza.
 
 `Café con leche preparado` se considera una preparación interna y no controla stock físico. Continúa formando parte de la receta de Chocotorta para el cálculo de cantidad/costo, pero no se trata como una materia prima almacenada.
+
+
+## Rentabilidad de bebidas y postres
+
+Abadion puede consultar rentabilidad actual de productos y categorías.
+
+Ejemplos:
+
+```text
+rentabilidad oreo
+ganancia chocotorta
+rentabilidad bebidas
+rentabilidad postres
+rentabilidad bebidas postres
+```
+
+Para bebidas, el costo unitario se estima con el promedio ponderado de las últimas 3 compras no anuladas del producto.
+
+Para postres, se usa primero el costo unitario de la última producción registrada. Si todavía no hubo producción, se intenta estimar el costo con la receta activa y los precios históricos de insumos.
+
+La respuesta por producto incluye:
+
+- precio de venta;
+- costo unitario estimado;
+- ganancia bruta por unidad;
+- margen sobre venta;
+- markup sobre costo;
+- unidades vendidas e ingresos registrados;
+- costo de ventas y ganancia bruta histórica estimados.
+
+La ganancia histórica todavía es una estimación: las ventas actuales no guardan un snapshot del costo al momento exacto de la venta. Por eso se utiliza el mejor costo actual disponible. Una etapa posterior puede congelar el costo por venta para obtener rentabilidad histórica contable más precisa.
+
+El comando `stock insumos` también muestra equivalencias aproximadas en paquetes cuando el insumo tiene presentaciones configuradas. Por ejemplo, 354 g de Oreo equivalen a 3 paquetes de 118 g o 1 tripack de 354 g.
