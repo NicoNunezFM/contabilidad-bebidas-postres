@@ -447,7 +447,7 @@ La respuesta por producto incluye:
 - unidades vendidas e ingresos registrados;
 - costo de ventas y ganancia bruta histórica estimados.
 
-La ganancia histórica todavía es una estimación: las ventas actuales no guardan un snapshot del costo al momento exacto de la venta. Por eso se utiliza el mejor costo actual disponible. Una etapa posterior puede congelar el costo por venta para obtener rentabilidad histórica contable más precisa.
+Las ventas nuevas guardan un snapshot del costo al momento de vender. Las ventas anteriores a esta funcionalidad quedan sin costo congelado y se reportan como historial incompleto. Los adicionales todavía no tienen costo propio modelado.
 
 El comando `stock insumos` también muestra equivalencias aproximadas en paquetes cuando el insumo tiene presentaciones configuradas. Por ejemplo, 354 g de Oreo equivalen a 3 paquetes de 118 g o 1 tripack de 354 g.
 
