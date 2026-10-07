@@ -572,6 +572,12 @@ def actualizar_tabla_movimientos_caja():
             ADD COLUMN motivo_anulacion TEXT
         """)
 
+    if "seccion" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE movimientos_caja
+            ADD COLUMN seccion TEXT
+        """)
+
     conexion.commit()
     conexion.close()
 
