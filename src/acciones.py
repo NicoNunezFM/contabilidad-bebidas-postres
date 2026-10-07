@@ -29,6 +29,17 @@ from costos_postres import (
     registrar_inventario_insumo,
     registrar_produccion_postre,
 )
+from deudas_negocio import (
+    ajustar_deuda,
+    configurar_vencimiento,
+    detalle_deuda,
+    deuda_vence_primero,
+    historial_deuda,
+    registrar_compra_deuda,
+    registrar_pago_deuda,
+    registrar_saldo_inicial,
+    resumen_deudas,
+)
 from gastos import registrar_gasto
 from productos import obtener_productos
 from rentabilidad import (
@@ -766,6 +777,142 @@ def accion_registrar_compra_pack(datos):
     }
 
 
+def accion_resumen_deudas_negocio():
+    return {
+        "ok": True,
+        "codigo": "ACCION_RESUMEN_DEUDAS_NEGOCIO",
+        "datos": resumen_deudas(),
+    }
+
+
+def accion_detalle_deuda_negocio(datos):
+    resultado = detalle_deuda(
+        datos.get("cuenta")
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_DETALLE_DEUDA_NEGOCIO",
+        "datos": resultado,
+    }
+
+
+def accion_historial_deuda_negocio(datos):
+    resultado = historial_deuda(
+        datos.get("cuenta"),
+        limite=datos.get("limite", 20),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_HISTORIAL_DEUDA_NEGOCIO",
+        "datos": resultado,
+    }
+
+
+def accion_registrar_saldo_inicial_deuda(datos):
+    resultado = registrar_saldo_inicial(
+        nombre=datos.get("cuenta"),
+        monto=datos.get("monto"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_SALDO_INICIAL_DEUDA_REGISTRADO",
+        "datos": resultado,
+    }
+
+
+def accion_registrar_compra_deuda(datos):
+    resultado = registrar_compra_deuda(
+        nombre=datos.get("cuenta"),
+        monto=datos.get("monto"),
+        descripcion=datos.get("descripcion"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_COMPRA_DEUDA_REGISTRADA",
+        "datos": resultado,
+    }
+
+
+def accion_registrar_pago_deuda(datos):
+    resultado = registrar_pago_deuda(
+        nombre=datos.get("cuenta"),
+        monto=datos.get("monto"),
+        descripcion=datos.get("descripcion"),
+        afecta_caja=datos.get(
+            "afecta_caja",
+            True,
+        ),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_PAGO_DEUDA_REGISTRADO",
+        "datos": resultado,
+    }
+
+
+def accion_ajustar_deuda(datos):
+    resultado = ajustar_deuda(
+        nombre=datos.get("cuenta"),
+        nuevo_saldo=datos.get("saldo"),
+        descripcion=datos.get("descripcion"),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_DEUDA_AJUSTADA",
+        "datos": resultado,
+    }
+
+
+def accion_configurar_vencimiento_deuda(datos):
+    resultado = configurar_vencimiento(
+        nombre=datos.get("cuenta"),
+        fecha_vencimiento=datos.get(
+            "fecha_vencimiento"
+        ),
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_VENCIMIENTO_DEUDA_CONFIGURADO",
+        "datos": resultado,
+    }
+
+
+def accion_deuda_vence_primero():
+    return {
+        "ok": True,
+        "codigo": "ACCION_DEUDA_VENCE_PRIMERO",
+        "datos": deuda_vence_primero(),
+    }
+
+
 def accion_configurar_adicional(datos):
     resultado = configurar_adicional(
         nombre=datos.get("nombre"),
@@ -1496,6 +1643,33 @@ def ejecutar_accion(solicitud):
 
     if accion == "configurar adicional":
         return accion_configurar_adicional(datos)
+
+    if accion == "consultar deudas negocio":
+        return accion_resumen_deudas_negocio()
+
+    if accion == "consultar deuda negocio":
+        return accion_detalle_deuda_negocio(datos)
+
+    if accion == "historial deuda negocio":
+        return accion_historial_deuda_negocio(datos)
+
+    if accion == "registrar saldo inicial deuda":
+        return accion_registrar_saldo_inicial_deuda(datos)
+
+    if accion == "registrar compra deuda":
+        return accion_registrar_compra_deuda(datos)
+
+    if accion == "registrar pago deuda":
+        return accion_registrar_pago_deuda(datos)
+
+    if accion == "ajustar deuda negocio":
+        return accion_ajustar_deuda(datos)
+
+    if accion == "configurar vencimiento deuda":
+        return accion_configurar_vencimiento_deuda(datos)
+
+    if accion == "consultar deuda vence primero":
+        return accion_deuda_vence_primero()
 
     if accion == "consultar adicionales":
         return accion_consultar_adicionales()
