@@ -127,13 +127,16 @@ def test_venta_usa_precio_y_costo_configurado_del_adicional(
     assert len(datos["adicionales"]) == 1
 
     adicional = datos["adicionales"][0]
+    adicional_detalle = datos["adicionales_detalle"][0]
 
-    assert adicional["descripcion"] == "huevo"
-    assert adicional["cantidad"] == 2
-    assert adicional["precio_total"] == 2000
-    assert adicional["costo_unitario_snapshot"] == 300
+    assert adicional == {
+        "descripcion": "huevo",
+        "cantidad": 2,
+        "precio_total": 2000.0,
+    }
+    assert adicional_detalle["costo_unitario_snapshot"] == 300
     assert (
-        adicional["fuente_costo_snapshot"]
+        adicional_detalle["fuente_costo_snapshot"]
         == "catálogo de adicionales"
     )
 
@@ -197,7 +200,7 @@ def test_precio_explicito_del_adicional_pisa_precio_catalogo(
     assert datos["total"] == 6500
     assert datos["adicionales"][0]["precio_total"] == 1500
     assert (
-        datos["adicionales"][0]["costo_unitario_snapshot"]
+        datos["adicionales_detalle"][0]["costo_unitario_snapshot"]
         == 300
     )
 
