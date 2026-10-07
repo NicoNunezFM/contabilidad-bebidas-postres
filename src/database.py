@@ -1023,6 +1023,33 @@ def crear_tablas_deudas_negocio():
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS movimientos_reserva_deuda_negocio (
+            id_movimiento_reserva INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_cuenta INTEGER NOT NULL,
+            fecha_hora TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            importe REAL NOT NULL,
+            descripcion TEXT,
+            id_movimiento_deuda INTEGER,
+            FOREIGN KEY (id_cuenta)
+                REFERENCES cuentas_deuda_negocio(id_cuenta),
+            FOREIGN KEY (id_movimiento_deuda)
+                REFERENCES movimientos_deuda_negocio(id_movimiento_deuda)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_reserva_deuda_cuenta_fecha
+        ON movimientos_reserva_deuda_negocio (
+            id_cuenta,
+            fecha_hora,
+            id_movimiento_reserva
+        )
+    """)
+
+
+    cursor.execute("""
         CREATE INDEX IF NOT EXISTS
         idx_movimientos_deuda_cuenta_fecha
         ON movimientos_deuda_negocio (
