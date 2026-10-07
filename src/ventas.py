@@ -3,6 +3,7 @@ import sqlite3
 
 from database import obtener_conexion
 from productos import listar_productos, buscar_producto_por_id
+from rentabilidad import costo_unitario_para_venta
 
 
 def _normalizar_contexto(contexto):
@@ -268,6 +269,20 @@ def registrar_venta(
     contexto_origen = _normalizar_contexto(contexto)
     fecha_hora = datetime.now().isoformat(timespec="seconds")
 
+    costo_snapshot = costo_unitario_para_venta(
+        id_producto
+    )
+    costo_unitario_snapshot = (
+        costo_snapshot.get("costo_unitario")
+        if costo_snapshot
+        else None
+    )
+    fuente_costo_snapshot = (
+        costo_snapshot.get("fuente")
+        if costo_snapshot
+        else None
+    )
+
     conexion = obtener_conexion()
 
     try:
@@ -310,9 +325,11 @@ def registrar_venta(
                 fecha,
                 cantidad,
                 precio_unitario,
+                costo_unitario_snapshot,
+                fuente_costo_snapshot,
                 id_operacion
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 id_producto,
@@ -361,6 +378,12 @@ def registrar_venta(
             "producto": producto[1],
             "cantidad": cantidad,
             "precio_unitario": precio_unitario,
+            "costo_unitario_snapshot": (
+                costo_unitario_snapshot
+            ),
+            "fuente_costo_snapshot": (
+                fuente_costo_snapshot
+            ),
             "subtotal_producto": subtotal_producto,
             "adicionales": adicionales_normalizados,
             "total_adicionales": total_adicionales,
@@ -779,6 +802,16 @@ def registrar_venta_multiple(
                     adicional["precio_total"]
                 )
 
+    costos_snapshot = {
+        id_producto: costo_unitario_para_venta(
+            id_producto
+        )
+        for id_producto in {
+            item["id_producto"]
+            for item in agrupados.values()
+        }
+    }
+
     conexion = obtener_conexion()
 
     try:
@@ -864,11 +897,23 @@ def registrar_venta_multiple(
                 conexion.rollback()
                 return adicionales_resultado
 
+            costo_snapshot = costos_snapshot.get(
+                id_producto
+            ) or {}
+
             items_validados.append({
                 "id_producto": id_producto,
                 "producto": nombre,
                 "cantidad": cantidad,
                 "precio_unitario": precio_unitario,
+                "costo_unitario_snapshot": (
+                    costo_snapshot.get(
+                        "costo_unitario"
+                    )
+                ),
+                "fuente_costo_snapshot": (
+                    costo_snapshot.get("fuente")
+                ),
                 "stock_anterior": stock_actual,
                 "controla_stock": controla_stock,
                 "adicionales": adicionales_resultado["adicionales"],
@@ -916,15 +961,19 @@ def registrar_venta_multiple(
                     fecha,
                     cantidad,
                     precio_unitario,
+                    costo_unitario_snapshot,
+                    fuente_costo_snapshot,
                     id_operacion
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     item["id_producto"],
                     fecha,
                     item["cantidad"],
                     item["precio_unitario"],
+                    item["costo_unitario_snapshot"],
+                    item["fuente_costo_snapshot"],
                     id_operacion,
                 )
             )
@@ -975,6 +1024,12 @@ def registrar_venta_multiple(
                 "producto": item["producto"],
                 "cantidad": item["cantidad"],
                 "precio_unitario": item["precio_unitario"],
+                "costo_unitario_snapshot": (
+                    item["costo_unitario_snapshot"]
+                ),
+                "fuente_costo_snapshot": (
+                    item["fuente_costo_snapshot"]
+                ),
                 "subtotal_producto": subtotal_producto,
                 "adicionales": item["adicionales"],
                 "total_adicionales": item["total_adicionales"],
