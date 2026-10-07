@@ -802,26 +802,81 @@ def normalizar_importe(texto):
     if texto is None:
         return None
 
-    valor = normalizar_texto(
-        str(texto)
-    )
-
+    valor = str(texto).strip().lower()
     valor = valor.replace("$", "").strip()
-    valor = valor.replace("mil", "000")
-    valor = valor.replace(".", "")
-    valor = valor.replace(" ", "")
 
-    if not valor.isdigit():
-        return None
+    if "mil" in valor:
+        valor = valor.replace("mil", "").strip()
+        valor = valor.replace(".", "")
+        valor = valor.replace(",", ".")
 
-    numero = int(valor)
+        try:
+            numero = float(valor) * 1000
+        except ValueError:
+            return None
 
-    # En el grupo "6", "7", "8", "9", etc. significan miles.
-    if 1 <= numero < 100:
+    else:
+        valor = valor.replace(" ", "")
+
+        if "," in valor:
+            partes = valor.split(",")
+
+            if len(partes) != 2:
+                return None
+
+            entero = partes[0].replace(".", "")
+            decimal = partes[1]
+
+            if (
+                not entero.isdigit()
+                or not decimal.isdigit()
+                or len(decimal) not in {1, 2}
+            ):
+                return None
+
+            numero = float(
+                entero + "." + decimal
+            )
+
+        elif "." in valor:
+            partes = valor.split(".")
+
+            if (
+                len(partes) == 2
+                and partes[0].isdigit()
+                and partes[1].isdigit()
+                and len(partes[1]) in {1, 2}
+            ):
+                numero = float(valor)
+
+            else:
+                entero = valor.replace(".", "")
+
+                if not entero.isdigit():
+                    return None
+
+                numero = int(entero)
+
+        else:
+            if not valor.isdigit():
+                return None
+
+            numero = int(valor)
+
+    if (
+        isinstance(numero, float)
+        and numero.is_integer()
+    ):
+        numero = int(numero)
+
+    # En mensajes abreviados, números chicos suelen representar miles.
+    if (
+        isinstance(numero, int)
+        and 1 <= numero < 100
+    ):
         numero *= 1000
 
     return numero
-
 
 def _categoria_precio_coincide(
     producto,
