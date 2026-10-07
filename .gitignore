@@ -15,3 +15,5 @@ whatsapp-bot/.wwebjs_cache/
 whatsapp-bot/.welcome_state.json
 whatsapp-bot/.welcome_state.json.tmp
 backups/
+gmail_credentials.json
+gmail_token.json
