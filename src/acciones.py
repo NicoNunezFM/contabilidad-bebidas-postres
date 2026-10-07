@@ -43,6 +43,10 @@ from deudas_negocio import (
     resumen_deudas,
 )
 from gastos import registrar_gasto
+from importaciones_deuda import (
+    listar_importaciones_deuda,
+    obtener_importacion_deuda,
+)
 from movimientos_caja import (
     registrar_aporte,
     registrar_retiro,
@@ -787,6 +791,34 @@ def accion_registrar_compra_pack(datos):
                 "id_movimiento_deuda"
             ),
         },
+    }
+
+
+def accion_consultar_importaciones_deuda(datos):
+    return {
+        "ok": True,
+        "codigo": "ACCION_IMPORTACIONES_DEUDA",
+        "datos": {
+            "importaciones": listar_importaciones_deuda(
+                estado=datos.get("estado"),
+                limite=datos.get("limite", 50),
+            ),
+        },
+    }
+
+
+def accion_detalle_importacion_deuda(datos):
+    resultado = obtener_importacion_deuda(
+        datos.get("id_importacion")
+    )
+
+    if not resultado["ok"]:
+        return resultado
+
+    return {
+        "ok": True,
+        "codigo": "ACCION_DETALLE_IMPORTACION_DEUDA",
+        "datos": resultado["importacion"],
     }
 
 
@@ -1745,6 +1777,12 @@ def ejecutar_accion(solicitud):
 
     if accion == "configurar adicional":
         return accion_configurar_adicional(datos)
+
+    if accion == "consultar importaciones deuda":
+        return accion_consultar_importaciones_deuda(datos)
+
+    if accion == "consultar importacion deuda":
+        return accion_detalle_importacion_deuda(datos)
 
     if accion == "consultar deudas negocio":
         return accion_resumen_deudas_negocio()
