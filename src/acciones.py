@@ -1250,6 +1250,10 @@ def accion_registrar_venta(datos):
             "precio_unitario": resultado["precio_unitario"],
             "subtotal_producto": resultado["subtotal_producto"],
             "adicionales": resultado["adicionales"],
+            "adicionales_detalle": resultado.get(
+                "adicionales_detalle",
+                [],
+            ),
             "total_adicionales": resultado["total_adicionales"],
             "total": resultado["total"],
             "stock_restante": resultado["stock_restante"],
