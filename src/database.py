@@ -575,6 +575,37 @@ def actualizar_tabla_movimientos_caja():
     conexion.commit()
     conexion.close()
 
+def crear_tabla_saldos_iniciales_caja():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS saldos_iniciales_caja (
+            id_saldo_inicial INTEGER PRIMARY KEY AUTOINCREMENT,
+            seccion TEXT NOT NULL,
+            monto REAL NOT NULL,
+            fecha_hora TEXT NOT NULL,
+            id_venta_corte INTEGER NOT NULL DEFAULT 0,
+            id_compra_corte INTEGER NOT NULL DEFAULT 0,
+            id_gasto_corte INTEGER NOT NULL DEFAULT 0,
+            id_movimiento_caja_corte INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_saldos_iniciales_caja_seccion
+        ON saldos_iniciales_caja (
+            seccion,
+            id_saldo_inicial
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
+
 def crear_tabla_cierres_semanales():
 
     conexion = obtener_conexion()
@@ -1131,6 +1162,7 @@ def inicializar_base_de_datos():
     actualizar_tabla_gastos()
     crear_tabla_movimientos_caja()
     actualizar_tabla_movimientos_caja()
+    crear_tabla_saldos_iniciales_caja()
     crear_tabla_cierres_semanales()
     actualizar_tabla_cierres_semanales()
     crear_tabla_cierres_mensuales()
