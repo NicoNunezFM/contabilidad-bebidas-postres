@@ -400,7 +400,7 @@ def test_costo_historico_venta_no_cambia_con_compra_posterior(
 
     assert venta.status_code == 201
     assert (
-        venta.json()["datos"]["costo_unitario_snapshot"]
+        venta.json()["costo_unitario_snapshot"]
         == pytest.approx(1000)
     )
 
