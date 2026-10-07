@@ -64,6 +64,7 @@ def compras_caja():
         SELECT SUM(cantidad * precio_unitario)
         FROM compras
         WHERE anulada = 0
+          AND COALESCE(medio_pago, 'Caja') = 'Caja'
         """
     )
 
@@ -200,6 +201,7 @@ def _compras_por_categorias(
 
     condiciones = [
         "compras.anulada = 0",
+        "COALESCE(compras.medio_pago, 'Caja') = 'Caja'",
     ]
     parametros = []
 
