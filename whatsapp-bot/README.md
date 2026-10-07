@@ -586,3 +586,52 @@ reservar deuda naranja 100000
 ```
 
 el dinero sigue físicamente en caja, pero deja de contarse como disponible. El comando `caja` muestra también el total reservado para deudas.
+
+
+## Importación automática desde Naranja por Gmail
+
+La integración con Gmail usa OAuth de solo lectura y únicamente genera deuda automática cuando el aviso de compra identifica:
+
+```text
+Adicional - Claudia Elizabet Rotondo
+```
+
+Los avisos de la tarjeta titular de Sergio no se cargan como deuda del negocio.
+
+El flujo es:
+
+```text
+Gmail -> parser Naranja -> importaciones_deuda
+      -> movimiento deuda Naranja
+      -> pendiente_clasificacion
+```
+
+La importación no aumenta stock ni registra un gasto. La clasificación posterior deberá reutilizar el `id_movimiento_deuda` ya generado para evitar duplicar la deuda.
+
+Cada correo se identifica por la combinación `fuente + id_externo`, por lo que el mismo mensaje de Gmail no puede aumentar la deuda dos veces.
+
+Antes de activar la sincronización hay que definir una fecha/hora de corte. Esto evita volver a sumar consumos que ya estaban incluidos en el saldo inicial:
+
+```env
+NARANJA_IMPORTAR_DESDE=2026-10-07T17:30:00
+GMAIL_CREDENTIALS_PATH=gmail_credentials.json
+GMAIL_TOKEN_PATH=gmail_token.json
+```
+
+Las credenciales OAuth y el token están excluidos de Git.
+
+Para instalar las dependencias:
+
+```powershell
+pip install -r requirements.txt
+```
+
+Para ejecutar una sincronización manual inicial:
+
+```powershell
+python src/gmail_naranja.py
+```
+
+La primera autorización abre el flujo OAuth de Google. El scope utilizado es exclusivamente `gmail.readonly`.
+
+Los correos anteriores al corte pueden guardarse como históricos sin aumentar la deuda. Compras en otra moneda quedan en revisión y tampoco modifican automáticamente el saldo.
