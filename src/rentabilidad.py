@@ -365,22 +365,55 @@ def rentabilidad_producto(
         else None
     )
 
+    historico_exacto = (
+        ventas["unidades_sin_snapshot"] == 0
+        and ventas["ventas_con_adicionales"] == 0
+    )
+
+    costo_historico = (
+        ventas[
+            "costo_ventas_historico_conocido"
+        ]
+        if historico_exacto
+        else None
+    )
+    ganancia_historica = (
+        ventas["ingresos"]
+        - costo_historico
+        if historico_exacto
+        else None
+    )
+
+    base = {
+        "ok": True,
+        "id_producto": producto[0],
+        "producto": producto[1],
+        "categoria": producto[2],
+        "stock": int(
+            producto[4] or 0
+        ),
+        "precio_venta": precio_venta,
+        "costo_unitario": costo_unitario,
+        "rentabilidad_historica_exacta": (
+            historico_exacto
+        ),
+        "costo_ventas_historico": (
+            costo_historico
+        ),
+        "ganancia_bruta_historica": (
+            ganancia_historica
+        ),
+        **ventas,
+    }
+
     if (
         costo_unitario is None
         or precio_venta is None
     ):
         return {
-            "ok": True,
+            **base,
             "codigo": "RENTABILIDAD_PARCIAL",
             "completo": False,
-            "id_producto": producto[0],
-            "producto": producto[1],
-            "categoria": producto[2],
-            "stock": int(
-                producto[4] or 0
-            ),
-            "precio_venta": precio_venta,
-            "costo_unitario": costo_unitario,
             "fuente_costo": (
                 costo.get("fuente")
                 if costo
@@ -391,34 +424,6 @@ def rentabilidad_producto(
                 if costo
                 else []
             ),
-            "rentabilidad_historica_exacta": (
-                (
-                ventas["unidades_sin_snapshot"] == 0
-                and ventas["ventas_con_adicionales"] == 0
-            )
-            ),
-            "costo_ventas_historico": (
-                ventas[
-                    "costo_ventas_historico_conocido"
-                ]
-                if (
-                ventas["unidades_sin_snapshot"] == 0
-                and ventas["ventas_con_adicionales"] == 0
-            )
-                else None
-            ),
-            "ganancia_bruta_historica": (
-                ventas["ingresos"]
-                - ventas[
-                    "costo_ventas_historico_conocido"
-                ]
-                if (
-                ventas["unidades_sin_snapshot"] == 0
-                and ventas["ventas_con_adicionales"] == 0
-            )
-                else None
-            ),
-            **ventas,
         }
 
     ganancia_unitaria = (
@@ -452,37 +457,10 @@ def rentabilidad_producto(
         - costo_ventas_estimado
     )
 
-    rentabilidad_historica_exacta = (
-        ventas["unidades_sin_snapshot"]
-        == 0
-    )
-
-    if rentabilidad_historica_exacta:
-        costo_ventas_historico = (
-            ventas[
-                "costo_ventas_historico_conocido"
-            ]
-        )
-        ganancia_bruta_historica = (
-            ventas["ingresos"]
-            - costo_ventas_historico
-        )
-    else:
-        costo_ventas_historico = None
-        ganancia_bruta_historica = None
-
     resultado = {
-        "ok": True,
+        **base,
         "codigo": "RENTABILIDAD_PRODUCTO",
         "completo": True,
-        "id_producto": producto[0],
-        "producto": producto[1],
-        "categoria": producto[2],
-        "stock": int(
-            producto[4] or 0
-        ),
-        "precio_venta": precio_venta,
-        "costo_unitario": costo_unitario,
         "ganancia_unitaria": ganancia_unitaria,
         "margen_sobre_venta_pct": (
             margen_sobre_venta
@@ -491,32 +469,11 @@ def rentabilidad_producto(
             markup_sobre_costo
         ),
         "fuente_costo": costo["fuente"],
-        "unidades_vendidas": (
-            ventas["unidades_vendidas"]
-        ),
-        "ingresos": ventas["ingresos"],
         "costo_ventas_estimado": (
             costo_ventas_estimado
         ),
         "ganancia_bruta_estimada": (
             ganancia_bruta_estimada
-        ),
-        "rentabilidad_historica_exacta": (
-            rentabilidad_historica_exacta
-        ),
-        "costo_ventas_historico": (
-            costo_ventas_historico
-        ),
-        "ganancia_bruta_historica": (
-            ganancia_bruta_historica
-        ),
-        "costo_ventas_historico_conocido": (
-            ventas[
-                "costo_ventas_historico_conocido"
-            ]
-        ),
-        "unidades_sin_snapshot": (
-            ventas["unidades_sin_snapshot"]
         ),
     }
 
