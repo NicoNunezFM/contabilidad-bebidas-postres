@@ -1099,7 +1099,8 @@ def interpretar_compra_pack(
         r"(.+?)\s+"
         r"(por|total|a)\s+"
         r"(\d[\d\.]*\s*(?:mil)?)"
-        r"(?:\s+(?:cada\s+pack|c/u|cada uno))?$",
+        r"(?:\s+(?:cada\s+pack|c/u|cada uno))?"
+        r"(?:\s+con\s+(.+))?$",
         normalizado
     )
 
@@ -1141,6 +1142,18 @@ def interpretar_compra_pack(
     importe = normalizar_importe(
         coincidencia.group(4)
     )
+    cuenta_deuda = (
+        coincidencia.group(5).strip()
+        if coincidencia.group(5)
+        else None
+    )
+
+    if cuenta_deuda:
+        cuenta_deuda = re.sub(
+            r"^tarjeta\s+",
+            "",
+            cuenta_deuda,
+        ).strip()
 
     if importe is None:
         return {
@@ -1154,6 +1167,9 @@ def interpretar_compra_pack(
         "cantidad_packs": cantidad_packs,
         "contexto": contexto or {},
     }
+
+    if cuenta_deuda:
+        datos_accion["cuenta_deuda"] = cuenta_deuda
 
     if modalidad == "a":
         datos_accion["precio_pack"] = importe
@@ -1170,24 +1186,39 @@ def interpretar_compra_pack(
 
     datos = resultado["datos"]
 
+    lineas = [
+        "*Compra registrada*",
+        (
+            f"{datos['cantidad_packs']} pack(s) x "
+            f"{datos['unidades_por_pack']} unidades"
+        ),
+        f"Producto: {datos['producto']}",
+        (
+            "Unidades agregadas al stock: "
+            f"{datos['cantidad_unidades']}"
+        ),
+        f"Total compra: {formatear_pesos(datos['total'])}",
+        f"Stock actual: {datos['stock_actual']}",
+    ]
+
+    if datos.get("medio_pago") == "Deuda":
+        lineas.extend([
+            (
+                "Financiada con: "
+                f"{datos['cuenta_deuda']}"
+            ),
+            (
+                "Saldo deuda: "
+                f"{formatear_pesos(datos['saldo_deuda'])}"
+            ),
+            "Salida inmediata de caja: $0",
+        ])
+
     return {
         **datos,
         "ok": True,
         "codigo": "COMANDO_COMPRA_PACK_REGISTRADA",
-        "respuesta": "\n".join([
-            "*Compra registrada*",
-            (
-                f"{datos['cantidad_packs']} pack(s) x "
-                f"{datos['unidades_por_pack']} unidades"
-            ),
-            f"Producto: {datos['producto']}",
-            (
-                "Unidades agregadas al stock: "
-                f"{datos['cantidad_unidades']}"
-            ),
-            f"Total compra: {formatear_pesos(datos['total'])}",
-            f"Stock actual: {datos['stock_actual']}",
-        ]),
+        "respuesta": "\n".join(lineas),
     }
 
 
