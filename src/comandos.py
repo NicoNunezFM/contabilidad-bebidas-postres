@@ -1903,13 +1903,17 @@ def interpretar_deudas_negocio(texto):
 
     coincidencia = re.match(
         r"^vencimiento deuda\s+(.+?)\s+"
-        r"(\d{4}-\d{2}-\d{2})$",
+        r"(\d{4})\s+(\d{2})\s+(\d{2})$",
         texto
     )
 
     if coincidencia:
         cuenta = coincidencia.group(1).strip()
-        fecha_vencimiento = coincidencia.group(2)
+        fecha_vencimiento = (
+            f"{coincidencia.group(2)}-"
+            f"{coincidencia.group(3)}-"
+            f"{coincidencia.group(4)}"
+        )
 
         resultado = ejecutar_accion({
             "accion": "configurar vencimiento deuda",
