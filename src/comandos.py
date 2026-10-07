@@ -1588,6 +1588,149 @@ def interpretar_necesidades_produccion(texto):
     }
 
 
+def interpretar_adicionales(texto):
+    if texto in {
+        "adicionales",
+        "ver adicionales",
+        "catalogo adicionales",
+    }:
+        resultado = ejecutar_accion({
+            "accion": "consultar adicionales",
+            "datos": {},
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        adicionales = resultado["datos"][
+            "adicionales"
+        ]
+        lineas = [
+            "*Adicionales*",
+        ]
+
+        for adicional in adicionales:
+            precio = (
+                formatear_pesos(
+                    adicional["precio_venta"]
+                )
+                if adicional["precio_venta"] is not None
+                else "sin configurar"
+            )
+            costo = (
+                formatear_pesos(
+                    adicional["costo_unitario"]
+                )
+                if adicional["costo_unitario"] is not None
+                else "sin configurar"
+            )
+
+            lineas.append(
+                f"- {adicional['nombre']} | "
+                f"venta: {precio} | costo: {costo}"
+            )
+
+        return {
+            "ok": True,
+            "codigo": "COMANDO_ADICIONALES",
+            "adicionales": adicionales,
+            "respuesta": "\n".join(lineas),
+        }
+
+    coincidencia = re.match(
+        r"^(?:configurar\s+)?adicional\s+"
+        r"(.+?)(?=\s+(?:precio|costo)\s+)"
+        r"(.+)$",
+        texto
+    )
+
+    if not coincidencia:
+        return None
+
+    nombre = coincidencia.group(1).strip()
+    parametros = coincidencia.group(2).strip()
+
+    precio_venta = None
+    costo_unitario = None
+
+    precio = re.search(
+        r"(?:^|\s)precio\s+"
+        r"(\d[\d\.]*\s*(?:mil)?)",
+        parametros
+    )
+
+    costo = re.search(
+        r"(?:^|\s)costo\s+"
+        r"(\d[\d\.]*\s*(?:mil)?)",
+        parametros
+    )
+
+    if precio:
+        precio_venta = normalizar_importe(
+            precio.group(1)
+        )
+
+    if costo:
+        costo_unitario = normalizar_importe(
+            costo.group(1)
+        )
+
+    if precio_venta is None and costo_unitario is None:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_ADICIONAL_INVALIDO",
+            "respuesta": (
+                "Indicá precio, costo o ambos. "
+                "Ejemplo: adicional huevo precio 1000 costo 300"
+            ),
+        }
+
+    resultado = ejecutar_accion({
+        "accion": "configurar adicional",
+        "datos": {
+            "nombre": nombre,
+            "precio_venta": precio_venta,
+            "costo_unitario": costo_unitario,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+    lineas = [
+        "*Adicional configurado*",
+        f"Adicional: {datos['nombre']}",
+        (
+            "Precio de venta: "
+            + (
+                formatear_pesos(
+                    datos["precio_venta"]
+                )
+                if datos["precio_venta"] is not None
+                else "sin configurar"
+            )
+        ),
+        (
+            "Costo unitario: "
+            + (
+                formatear_pesos(
+                    datos["costo_unitario"]
+                )
+                if datos["costo_unitario"] is not None
+                else "sin configurar"
+            )
+        ),
+    ]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_ADICIONAL_CONFIGURADO",
+        "respuesta": "\n".join(lineas),
+    }
+
+
 def formatear_rentabilidad_producto(datos):
     lineas = [
         f"*Rentabilidad - {datos['producto']}*",
@@ -1718,13 +1861,13 @@ def formatear_rentabilidad_producto(datos):
                 ])
 
             if datos.get(
-                "ventas_con_adicionales",
+                "adicionales_sin_costo_snapshot",
                 0
             ) > 0:
                 lineas.append(
-                    "_Hay ventas con adicionales. Hasta que "
-                    "modelemos el costo de esos adicionales, "
-                    "su rentabilidad histórica no se considera exacta._"
+                    "_Hay adicionales vendidos sin costo congelado. "
+                    "Configurá su costo para que las ventas futuras "
+                    "queden con rentabilidad histórica exacta._"
                 )
 
             if datos.get("completo"):
@@ -2617,6 +2760,8 @@ def mensaje_ayuda():
         "- rentabilidad bebidas",
         "- rentabilidad postres",
         "- rentabilidad bebidas postres",
+        "- adicionales",
+        "- adicional huevo precio 1000 costo 300",
         "- anular ultima venta",
         "- anular operacion 14",
         "- stock",
@@ -2756,6 +2901,13 @@ def procesar_comando(
             ),
         }
 
+    adicionales = interpretar_adicionales(
+        texto
+    )
+
+    if adicionales is not None:
+        return adicionales
+
     rentabilidad = interpretar_rentabilidad(
         texto
     )
@@ -2835,6 +2987,9 @@ def procesar_comando(
         "stock insumos",
         "ver stock insumos",
         "stock de insumos",
+        "adicionales",
+        "ver adicionales",
+        "catalogo adicionales",
         "precios",
         "ver precios",
         "caja",
