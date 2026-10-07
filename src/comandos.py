@@ -1690,22 +1690,37 @@ def formatear_rentabilidad_producto(datos):
                 ),
             ])
         else:
-            lineas.extend([
-                (
-                    "Costo histórico conocido: "
-                    f"{formatear_pesos(datos.get('costo_ventas_historico_conocido', 0))}"
-                ),
-                (
-                    "Unidades antiguas sin costo congelado: "
-                    f"{datos.get('unidades_sin_snapshot', 0)}"
-                ),
-                (
-                    "_Las ventas nuevas ya guardan el costo "
-                    "al momento de vender. Las ventas anteriores "
-                    "a esta función no pueden reconstruirse con "
-                    "precisión sin datos históricos adicionales._"
-                ),
-            ])
+            lineas.append(
+                "Costo histórico conocido: "
+                f"{formatear_pesos(datos.get('costo_ventas_historico_conocido', 0))}"
+            )
+
+            if datos.get(
+                "unidades_sin_snapshot",
+                0
+            ) > 0:
+                lineas.extend([
+                    (
+                        "Unidades antiguas sin costo congelado: "
+                        f"{datos.get('unidades_sin_snapshot', 0)}"
+                    ),
+                    (
+                        "_Las ventas nuevas ya guardan el costo "
+                        "al momento de vender. Las ventas anteriores "
+                        "a esta función no pueden reconstruirse con "
+                        "precisión sin datos históricos adicionales._"
+                    ),
+                ])
+
+            if datos.get(
+                "ventas_con_adicionales",
+                0
+            ) > 0:
+                lineas.append(
+                    "_Hay ventas con adicionales. Hasta que "
+                    "modelemos el costo de esos adicionales, "
+                    "su rentabilidad histórica no se considera exacta._"
+                )
 
             if datos.get("completo"):
                 lineas.extend([
@@ -1778,9 +1793,10 @@ def formatear_rentabilidad_categoria(datos):
                 f"{formatear_pesos(datos['costo_ventas_historico_conocido'])}"
             ),
             (
-                "_Hay ventas anteriores sin costo congelado. "
-                "Las ventas nuevas sí quedarán registradas "
-                "con su costo histórico exacto._"
+                "_Hay ventas antiguas sin costo congelado o "
+                "ventas con adicionales sin costo modelado. "
+                "Las ventas nuevas del producto base sí guardan "
+                "su costo al momento de vender._"
             ),
         ])
 
