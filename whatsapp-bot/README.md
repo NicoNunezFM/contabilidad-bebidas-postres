@@ -563,3 +563,26 @@ Todavía por cubrir: $289.547,18
 ```
 
 Los importes de deuda aceptan centavos con formato argentino, por ejemplo `389.547,18`.
+
+
+## Movimientos manuales de caja
+
+Los aportes y retiros pueden registrarse directamente desde WhatsApp.
+
+Ejemplos:
+
+```text
+aporte 100000
+aporte 100000 dinero recibido para pagar deuda naranja
+retiro 25000 compra personal
+```
+
+Un aporte aumenta la caja física y disponible. Un retiro la reduce.
+
+Si después se reserva parte del dinero para una deuda:
+
+```text
+reservar deuda naranja 100000
+```
+
+el dinero sigue físicamente en caja, pero deja de contarse como disponible. El comando `caja` muestra también el total reservado para deudas.
