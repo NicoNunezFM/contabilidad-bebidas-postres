@@ -344,3 +344,62 @@ def test_comando_no_separa_y_dentro_del_nombre_producto(
     assert datos["codigo"] == "COMANDO_VENTA_REGISTRADA"
     assert datos["producto"] == "Cheddar y huevo doble"
     assert datos["total"] == 9000
+
+
+
+def test_venta_multiple_guarda_costo_snapshot(
+    base_prueba
+):
+    id_pepsi = crear_producto(
+        "Pepsi snapshot",
+        precio=2000,
+        stock=0,
+    )
+
+    compra = client.post(
+        "/compras",
+        json={
+            "id_producto": id_pepsi,
+            "cantidad": 6,
+            "precio_unitario": 1200,
+        }
+    )
+
+    assert compra.status_code == 201
+
+    resultado = registrar_venta_multiple([
+        {
+            "id_producto": id_pepsi,
+            "cantidad": 2,
+        },
+    ])
+
+    assert resultado["ok"] is True
+    assert (
+        resultado["items"][0]["costo_unitario_snapshot"]
+        == 1200
+    )
+    assert (
+        resultado["items"][0]["fuente_costo_snapshot"]
+        .startswith("promedio ponderado")
+    )
+
+    conexion = obtener_conexion()
+
+    fila = conexion.execute(
+        """
+        SELECT
+            costo_unitario_snapshot,
+            fuente_costo_snapshot
+        FROM ventas
+        WHERE id_producto = ?
+        """,
+        (id_pepsi,)
+    ).fetchone()
+
+    conexion.close()
+
+    assert fila[0] == 1200
+    assert fila[1].startswith(
+        "promedio ponderado"
+    )
