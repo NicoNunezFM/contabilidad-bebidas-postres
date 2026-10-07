@@ -86,3 +86,22 @@ def test_rechaza_correo_que_no_es_aviso_de_compra():
 
     assert resultado["ok"] is False
     assert resultado["codigo"] == "CORREO_NARANJA_NO_ES_COMPRA"
+
+
+
+def test_rechaza_remitente_no_oficial_de_naranja():
+    resultado = parsear_correo_compra_naranja(
+        asunto=(
+            "Sergio Nicolas👉 Ingresó una compra "
+            "en tu tarjeta crédito"
+        ),
+        cuerpo=CUERPO_ADICIONAL,
+        fecha_email="2026-09-15T13:00:58-03:00",
+        remitente="Aviso <otro@example.com>",
+    )
+
+    assert resultado["ok"] is False
+    assert (
+        resultado["codigo"]
+        == "REMITENTE_NARANJA_NO_CONFIABLE"
+    )
