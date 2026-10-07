@@ -1,5 +1,6 @@
 import re
 
+from adicionales import resolver_adicional
 from acciones import (
     ejecutar_accion,
     formatear_pesos,
@@ -328,7 +329,7 @@ def interpretar_inventario(texto):
 
 def _extraer_adicional_reconocido(texto_producto):
     """
-    Separa adicionales explícitos sin confundir guarniciones que
+    Separa adicionales configurados sin confundir guarniciones que
     forman parte del producto base (por ejemplo, 'mila con pure').
     """
     coincidencia = re.match(
@@ -344,26 +345,9 @@ def _extraer_adicional_reconocido(texto_producto):
 
     producto_base = coincidencia.group(1).strip()
     detalle = coincidencia.group(2).strip()
-
-    detalle_normalizado = normalizar_texto(detalle)
-
-    palabras_adicional = (
-        "huevo",
-        "huevos",
-        "cheddar",
-        "doble porcion",
-        "extra de papa",
-        "extra papa",
+    detalle_normalizado = normalizar_texto(
+        detalle
     )
-
-    if not any(
-        palabra in detalle_normalizado
-        for palabra in palabras_adicional
-    ):
-        return {
-            "producto": texto_producto,
-            "adicionales": [],
-        }
 
     precio_total = None
     detalle_sin_precio = detalle_normalizado
@@ -449,18 +433,38 @@ def _extraer_adicional_reconocido(texto_producto):
                 partes[1:]
             )
 
-    if descripcion in {"huevos", "huevo"}:
-        descripcion = "huevo"
+    resolucion = resolver_adicional(
+        descripcion
+    )
+
+    if not resolucion["ok"]:
+        return {
+            "producto": texto_producto,
+            "adicionales": [],
+        }
+
+    adicional = resolucion["adicional"]
+    descripcion = adicional["nombre"]
 
     if precio_total is None:
-        return {
-            "producto": producto_base,
-            "adicionales": [],
-            "error_adicional": {
-                "descripcion": descripcion,
-                "cantidad": cantidad_adicional,
-            },
-        }
+        precio_unitario = adicional.get(
+            "precio_venta"
+        )
+
+        if precio_unitario is None:
+            return {
+                "producto": producto_base,
+                "adicionales": [],
+                "error_adicional": {
+                    "descripcion": descripcion,
+                    "cantidad": cantidad_adicional,
+                },
+            }
+
+        precio_total = (
+            precio_unitario
+            * cantidad_adicional
+        )
 
     return {
         "producto": producto_base,
@@ -472,6 +476,7 @@ def _extraer_adicional_reconocido(texto_producto):
             }
         ],
     }
+
 
 
 def interpretar_item_venta(texto_item):
