@@ -2,6 +2,7 @@ from datetime import datetime
 import sqlite3
 
 from database import obtener_conexion
+from deudas_negocio import registrar_compra_deuda_en_cursor
 from productos import listar_productos, buscar_producto_por_id
 
 
@@ -9,15 +10,20 @@ from productos import listar_productos, buscar_producto_por_id
 # REGISTRAR COMPRA
 # ============================================================
 
-def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
+def registrar_compra(
+    id_producto,
+    cantidad,
+    precio_unitario,
+    fecha=None,
+    cuenta_deuda=None
+):
     """
     Registra una compra y aumenta el stock.
 
-    Esta función no utiliza input(), por lo que puede ser llamada
-    desde la terminal, WhatsApp, Notion u otra interfaz.
+    Si cuenta_deuda se informa, la compra aumenta esa deuda y no
+    representa una salida inmediata de caja.
     """
 
-    # Validar ID
     if isinstance(id_producto, bool) or not isinstance(id_producto, int):
         return {
             "ok": False,
@@ -34,7 +40,6 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
             "mensaje": "Producto no encontrado."
         }
 
-    # Validar cantidad
     if isinstance(cantidad, bool) or not isinstance(cantidad, int):
         return {
             "ok": False,
@@ -49,10 +54,9 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
             "mensaje": "La cantidad debe ser mayor que cero."
         }
 
-    # Validar precio
     if isinstance(precio_unitario, bool) or not isinstance(
-    precio_unitario,
-    (int, float)
+        precio_unitario,
+        (int, float)
     ):
         return {
             "ok": False,
@@ -70,43 +74,94 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
     if fecha is None:
         fecha = datetime.now().strftime("%Y-%m-%d")
 
+    cuenta_deuda_limpia = (
+        str(cuenta_deuda).strip()
+        if cuenta_deuda is not None
+        and str(cuenta_deuda).strip()
+        else None
+    )
+
+    total = cantidad * precio_unitario
     stock_actual = producto[7]
 
     conexion = obtener_conexion()
 
     try:
-
+        conexion.execute("BEGIN IMMEDIATE")
         cursor = conexion.cursor()
 
-        cursor.execute("""
+        medio_pago = (
+            "Deuda"
+            if cuenta_deuda_limpia
+            else "Caja"
+        )
+        id_cuenta_deuda = None
+        id_movimiento_deuda = None
+        saldo_deuda = None
+        nombre_cuenta_deuda = None
+
+        if cuenta_deuda_limpia:
+            deuda = registrar_compra_deuda_en_cursor(
+                cursor=cursor,
+                nombre=cuenta_deuda_limpia,
+                monto=total,
+                descripcion=(
+                    f"Compra financiada: "
+                    f"{cantidad} x {producto[1]}"
+                ),
+            )
+            id_cuenta_deuda = deuda[
+                "id_cuenta"
+            ]
+            id_movimiento_deuda = deuda[
+                "id_movimiento_deuda"
+            ]
+            saldo_deuda = deuda[
+                "saldo"
+            ]
+            nombre_cuenta_deuda = deuda[
+                "cuenta"
+            ]
+
+        cursor.execute(
+            """
             INSERT INTO compras (
                 id_producto,
                 fecha,
                 cantidad,
-                precio_unitario
+                precio_unitario,
+                medio_pago,
+                id_cuenta_deuda,
+                id_movimiento_deuda
             )
-            VALUES (?, ?, ?, ?)
-        """, (
-            id_producto,
-            fecha,
-            cantidad,
-            precio_unitario
-        ))
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                id_producto,
+                fecha,
+                cantidad,
+                precio_unitario,
+                medio_pago,
+                id_cuenta_deuda,
+                id_movimiento_deuda,
+            )
+        )
 
         id_compra = cursor.lastrowid
 
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE productos
             SET stock = stock + ?
             WHERE id_producto = ?
-        """, (
-            cantidad,
-            id_producto
-        ))
+            """,
+            (
+                cantidad,
+                id_producto
+            )
+        )
 
         conexion.commit()
-
-        total = cantidad * precio_unitario
 
         return {
             "ok": True,
@@ -118,11 +173,15 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
             "precio_unitario": precio_unitario,
             "total": total,
             "fecha": fecha,
-            "stock_actual": stock_actual + cantidad
+            "stock_actual": stock_actual + cantidad,
+            "medio_pago": medio_pago,
+            "id_cuenta_deuda": id_cuenta_deuda,
+            "cuenta_deuda": nombre_cuenta_deuda,
+            "id_movimiento_deuda": id_movimiento_deuda,
+            "saldo_deuda": saldo_deuda,
         }
 
-    except sqlite3.Error as error:
-
+    except (sqlite3.Error, ValueError) as error:
         conexion.rollback()
 
         return {
@@ -132,7 +191,6 @@ def registrar_compra(id_producto, cantidad, precio_unitario, fecha=None):
         }
 
     finally:
-
         conexion.close()
 
 
@@ -286,7 +344,10 @@ def anular_compra(id_compra, motivo):
             SELECT
                 id_producto,
                 cantidad,
-                anulada
+                anulada,
+                precio_unitario,
+                id_cuenta_deuda,
+                id_movimiento_deuda
             FROM compras
             WHERE id_compra = ?
         """, (id_compra,))
@@ -303,6 +364,9 @@ def anular_compra(id_compra, motivo):
         id_producto = compra[0]
         cantidad = compra[1]
         anulada = compra[2]
+        precio_unitario = compra[3]
+        id_cuenta_deuda = compra[4]
+        id_movimiento_deuda = compra[5]
 
         if anulada == 1:
             return {
@@ -357,6 +421,41 @@ def anular_compra(id_compra, motivo):
             id_compra
         ))
 
+        deuda_revertida = 0
+
+        if (
+            id_cuenta_deuda is not None
+            and id_movimiento_deuda is not None
+        ):
+            deuda_revertida = (
+                cantidad
+                * precio_unitario
+            )
+
+            cursor.execute(
+                """
+                INSERT INTO movimientos_deuda_negocio (
+                    id_cuenta,
+                    fecha_hora,
+                    tipo,
+                    importe,
+                    descripcion
+                )
+                VALUES (?, ?, 'Anulación compra', ?, ?)
+                """,
+                (
+                    id_cuenta_deuda,
+                    datetime.now().isoformat(
+                        timespec="seconds"
+                    ),
+                    -float(deuda_revertida),
+                    (
+                        "Anulación compra #"
+                        f"{id_compra}: {motivo.strip()}"
+                    ),
+                )
+            )
+
         conexion.commit()
 
         return {
@@ -366,7 +465,8 @@ def anular_compra(id_compra, motivo):
             "id_compra": id_compra,
             "cantidad_retirada_stock": cantidad,
             "fecha_anulacion": fecha_anulacion,
-            "motivo": motivo.strip()
+            "motivo": motivo.strip(),
+            "deuda_revertida": deuda_revertida
         }
 
     except sqlite3.Error as error:
