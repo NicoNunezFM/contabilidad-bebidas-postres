@@ -28,6 +28,13 @@ const SEND_GROUP_WELCOME =
     .trim()
     .toLowerCase() === "true";
 
+const SILENT_UNKNOWN_GROUP_MESSAGES =
+  String(
+    process.env.SILENT_UNKNOWN_GROUP_MESSAGES || "true"
+  )
+    .trim()
+    .toLowerCase() === "true";
+
 const WELCOME_STATE_PATH = path.join(
   __dirname,
   ".welcome_state.json"
@@ -513,6 +520,10 @@ client.on("ready", async () => {
     `Bienvenida automática: ${SEND_GROUP_WELCOME ? "activada" : "desactivada"}`
   );
 
+  console.log(
+    `Mensajes grupales no reconocidos: ${SILENT_UNKNOWN_GROUP_MESSAGES ? "silenciosos" : "con respuesta"}`
+  );
+
   if (
     ALLOW_GROUPS &&
     SEND_GROUP_WELCOME
@@ -693,6 +704,19 @@ async function procesarMensajeEntrante(message, origenEvento) {
     console.log(
       `API HTTP ${status}: ${datos.codigo || "SIN_CODIGO"}`
     );
+
+    if (
+      mensajeDeGrupo &&
+      SILENT_UNKNOWN_GROUP_MESSAGES &&
+      datos?.codigo === "COMANDO_NO_RECONOCIDO"
+    ) {
+      if (DEBUG_MESSAGES) {
+        console.log(
+          "Mensaje grupal no reconocido ignorado sin responder."
+        );
+      }
+      return;
+    }
 
     await message.reply(respuesta);
 
