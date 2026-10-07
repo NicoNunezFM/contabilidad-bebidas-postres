@@ -204,6 +204,17 @@ def _normalizar_adicionales(adicionales):
     }
 
 
+def _adicionales_publicos(adicionales):
+    return [
+        {
+            "descripcion": adicional["descripcion"],
+            "cantidad": adicional["cantidad"],
+            "precio_total": adicional["precio_total"],
+        }
+        for adicional in adicionales
+    ]
+
+
 def _insertar_adicionales(
     cursor,
     id_venta,
@@ -471,7 +482,10 @@ def registrar_venta(
                 fuente_costo_snapshot
             ),
             "subtotal_producto": subtotal_producto,
-            "adicionales": adicionales_normalizados,
+            "adicionales": _adicionales_publicos(
+                adicionales_normalizados
+            ),
+            "adicionales_detalle": adicionales_normalizados,
             "total_adicionales": total_adicionales,
             "total": total,
             "fecha": fecha,
@@ -1117,7 +1131,10 @@ def registrar_venta_multiple(
                     item["fuente_costo_snapshot"]
                 ),
                 "subtotal_producto": subtotal_producto,
-                "adicionales": item["adicionales"],
+                "adicionales": _adicionales_publicos(
+                    item["adicionales"]
+                ),
+                "adicionales_detalle": item["adicionales"],
                 "total_adicionales": item["total_adicionales"],
                 "subtotal": subtotal,
                 "controla_stock": item["controla_stock"],
