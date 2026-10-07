@@ -3458,8 +3458,16 @@ def interpretar_gasto_natural(
     )
     limpio = " ".join(limpio.split())
 
-    seccion = None
-    subseccion = None
+    contexto_activo = obtener_contexto_activo(
+        contexto or {}
+    )
+
+    if contexto_activo in {"postres", "bebidas"}:
+        seccion = "bebidas_postres"
+        subseccion = contexto_activo
+    else:
+        seccion = "rotiseria"
+        subseccion = "rotiseria"
 
     for (
         prefijo,
@@ -3487,14 +3495,19 @@ def interpretar_gasto_natural(
             "bebidas",
         ),
         (
+            "rotiseria ",
+            "rotiseria",
+            "rotiseria",
+        ),
+        (
             "comidas ",
-            "comidas",
-            "comidas",
+            "rotiseria",
+            "rotiseria",
         ),
         (
             "comida ",
-            "comidas",
-            "comidas",
+            "rotiseria",
+            "rotiseria",
         ),
     ):
         if limpio.startswith(prefijo):
@@ -3580,8 +3593,11 @@ def interpretar_gasto_natural(
                 "\nCaja: Bebidas + Postres"
                 if datos.get("seccion") == "bebidas_postres"
                 else (
-                    "\nCaja: Comidas"
-                    if datos.get("seccion") == "comidas"
+                    "\nCaja: Rotisería"
+                    if datos.get("seccion") in {
+                        "rotiseria",
+                        "comidas",
+                    }
                     else ""
                 )
             )
@@ -3685,7 +3701,7 @@ def mensaje_menu():
         "",
         "*Cajas por sección*",
         "- caja bebidas postres",
-        "- caja comidas",
+        "- caja rotiseria",
         "- recaudado bebidas",
         "- recaudado postres",
         "- recaudado comidas",
