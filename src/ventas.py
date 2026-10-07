@@ -1,6 +1,7 @@
 from datetime import datetime
 import sqlite3
 
+from adicionales import resolver_adicional
 from database import obtener_conexion
 from productos import listar_productos, buscar_producto_por_id
 from rentabilidad import costo_unitario_para_venta
@@ -102,6 +103,68 @@ def _normalizar_adicionales(adicionales):
                 )
             }
 
+        resolucion = resolver_adicional(
+            descripcion
+        )
+
+        if resolucion["ok"]:
+            adicional_catalogo = resolucion[
+                "adicional"
+            ]
+            descripcion_final = adicional_catalogo[
+                "nombre"
+            ]
+            id_adicional_catalogo = adicional_catalogo[
+                "id_adicional_catalogo"
+            ]
+            costo_unitario_snapshot = adicional_catalogo[
+                "costo_unitario"
+            ]
+
+            if precio_total is None:
+                precio_unitario_configurado = adicional_catalogo[
+                    "precio_venta"
+                ]
+
+                if precio_unitario_configurado is None:
+                    return {
+                        "ok": False,
+                        "codigo": "PRECIO_ADICIONAL_REQUERIDO",
+                        "mensaje": (
+                            f"El adicional '{descripcion_final}' "
+                            "no tiene precio de venta configurado."
+                        ),
+                        "adicional": descripcion_final,
+                    }
+
+                precio_total = (
+                    precio_unitario_configurado
+                    * cantidad
+                )
+
+            fuente_costo_snapshot = (
+                "catálogo de adicionales"
+                if costo_unitario_snapshot is not None
+                else None
+            )
+
+        else:
+            descripcion_final = descripcion.strip()
+            id_adicional_catalogo = None
+            costo_unitario_snapshot = None
+            fuente_costo_snapshot = None
+
+            if precio_total is None:
+                return {
+                    "ok": False,
+                    "codigo": "PRECIO_ADICIONAL_REQUERIDO",
+                    "mensaje": (
+                        f"Necesito el precio del adicional "
+                        f"'{descripcion_final}'."
+                    ),
+                    "adicional": descripcion_final,
+                }
+
         if (
             isinstance(precio_total, bool)
             or not isinstance(precio_total, (int, float))
@@ -117,9 +180,18 @@ def _normalizar_adicionales(adicionales):
             }
 
         normalizado = {
-            "descripcion": descripcion.strip(),
+            "id_adicional_catalogo": id_adicional_catalogo,
+            "descripcion": descripcion_final,
             "cantidad": cantidad,
             "precio_total": float(precio_total),
+            "costo_unitario_snapshot": (
+                float(costo_unitario_snapshot)
+                if costo_unitario_snapshot is not None
+                else None
+            ),
+            "fuente_costo_snapshot": (
+                fuente_costo_snapshot
+            ),
         }
 
         normalizados.append(normalizado)
@@ -142,17 +214,29 @@ def _insertar_adicionales(
             """
             INSERT INTO venta_adicionales (
                 id_venta,
+                id_adicional_catalogo,
                 descripcion,
                 cantidad,
-                precio_total
+                precio_total,
+                costo_unitario_snapshot,
+                fuente_costo_snapshot
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 id_venta,
+                adicional.get(
+                    "id_adicional_catalogo"
+                ),
                 adicional["descripcion"],
                 adicional["cantidad"],
                 adicional["precio_total"],
+                adicional.get(
+                    "costo_unitario_snapshot"
+                ),
+                adicional.get(
+                    "fuente_costo_snapshot"
+                ),
             )
         )
 
