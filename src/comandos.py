@@ -124,6 +124,34 @@ def formatear_resumen(titulo, resumen):
 
 
 def formatear_caja(estado):
+    if estado.get("cajas_separadas_activas"):
+        bebidas_postres = estado[
+            "caja_bebidas_postres"
+        ]
+        rotiseria = estado[
+            "caja_rotiseria"
+        ]
+
+        return "\n".join([
+            "*Cajas del negocio*",
+            "",
+            (
+                "Bebidas + Postres: "
+                f"{formatear_pesos(bebidas_postres['saldo_actual'])}"
+            ),
+            (
+                "Rotisería: "
+                f"{formatear_pesos(rotiseria['saldo_actual'])}"
+            ),
+            "",
+            (
+                "*Total administrado: "
+                f"{formatear_pesos(estado['total_cajas_actuales'])}*"
+            ),
+            "",
+            "_Las dos cajas se contabilizan por separado._",
+        ])
+
     return "\n".join([
         "*Estado de caja*",
         f"Ventas: {formatear_pesos(estado['ventas'])}",
@@ -149,47 +177,63 @@ def formatear_caja_seccion(estado):
         f"*Caja {estado['nombre']}*",
     ]
 
-    if estado["seccion"] == "bebidas_postres":
+    if estado.get("saldo_inicial_configurado"):
         lineas.extend([
             (
-                "Recaudado bebidas: "
-                f"{formatear_pesos(estado['recaudado_bebidas'])}"
+                "Saldo inicial: "
+                f"{formatear_pesos(estado['saldo_inicial'])}"
             ),
             (
-                "Recaudado postres: "
-                f"{formatear_pesos(estado['recaudado_postres'])}"
+                "Inicio: "
+                f"{estado.get('fecha_inicio')}"
             ),
         ])
 
+    if estado["seccion"] == "bebidas_postres":
+        lineas.extend([
+            (
+                "Ventas bebidas desde inicio: "
+                f"{formatear_pesos(estado['recaudado_bebidas'])}"
+            ),
+            (
+                "Ventas postres desde inicio: "
+                f"{formatear_pesos(estado['recaudado_postres'])}"
+            ),
+        ])
     else:
         lineas.append(
-            "Recaudado comidas: "
+            "Ventas rotisería desde inicio: "
             f"{formatear_pesos(estado['recaudado_comidas'])}"
         )
 
     lineas.extend([
         (
-            "Ventas de la sección: "
-            f"{formatear_pesos(estado['ventas'])}"
-        ),
-        (
-            "Compras directas: "
+            "Compras desde inicio: "
             f"{formatear_pesos(estado['compras_directas'])}"
         ),
         (
-            "Gastos asignados: "
+            "Gastos desde inicio: "
             f"{formatear_pesos(estado.get('gastos_seccion', 0))}"
         ),
         (
-            "Saldo operativo: "
-            f"{formatear_pesos(estado['saldo_operativo'])}"
+            "Aportes desde inicio: "
+            f"{formatear_pesos(estado.get('aportes', 0))}"
         ),
-        "",
         (
-            "_Los gastos sin sección continúan únicamente "
-            "en la caja general._"
+            "Retiros desde inicio: "
+            f"{formatear_pesos(estado.get('retiros', 0))}"
+        ),
+        (
+            "*Saldo actual: "
+            f"{formatear_pesos(estado['saldo_actual'])}*"
         ),
     ])
+
+    if not estado.get("saldo_inicial_configurado"):
+        lineas.extend([
+            "",
+            "_Todavía no se configuró un saldo inicial físico._",
+        ])
 
     return "\n".join(lineas)
 
@@ -1675,9 +1719,67 @@ def interpretar_necesidades_produccion(texto):
     }
 
 
+def interpretar_saldo_inicial_caja(texto):
+    coincidencia = re.match(
+        r"^(?:inicio|saldo inicial) caja\s+"
+        r"(.+?)\s+"
+        r"(\d[\d\.,]*\s*(?:mil)?)$",
+        texto
+    )
+
+    if not coincidencia:
+        return None
+
+    seccion = coincidencia.group(1).strip()
+    monto = normalizar_importe(
+        coincidencia.group(2)
+    )
+
+    if monto is None:
+        return {
+            "ok": False,
+            "codigo": "FORMATO_SALDO_INICIAL_CAJA_INVALIDO",
+            "respuesta": "No pude interpretar el monto.",
+        }
+
+    resultado = ejecutar_accion({
+        "accion": "registrar saldo inicial caja",
+        "datos": {
+            "seccion": seccion,
+            "monto": monto,
+        },
+    })
+
+    if not resultado["ok"]:
+        return error_comando(resultado)
+
+    datos = resultado["datos"]
+
+    return {
+        **datos,
+        "ok": True,
+        "codigo": "COMANDO_SALDO_INICIAL_CAJA",
+        "respuesta": "\n".join([
+            "*Inicio de caja registrado*",
+            f"Caja: {datos['nombre']}",
+            (
+                "Saldo inicial: "
+                f"{formatear_pesos(datos['monto'])}"
+            ),
+            (
+                "Desde este punto se contabilizan "
+                "los movimientos nuevos."
+            ),
+        ]),
+    }
+
+
 def interpretar_movimiento_caja(texto):
     coincidencia = re.match(
         r"^(aporte|retiro)(?:\s+caja)?\s+"
+        r"(?:(bebidas(?:\s+y)?\s+postres|"
+        r"postres(?:\s+y)?\s+bebidas|"
+        r"rotiseria|comidas?)\s+)?"
         r"(\d[\d\.,]*\s*(?:mil)?)"
         r"(?:\s+(.+))?$",
         texto
@@ -1687,12 +1789,13 @@ def interpretar_movimiento_caja(texto):
         return None
 
     tipo = coincidencia.group(1)
+    seccion = coincidencia.group(2)
     monto = normalizar_importe(
-        coincidencia.group(2)
+        coincidencia.group(3)
     )
     descripcion = (
-        coincidencia.group(3).strip()
-        if coincidencia.group(3)
+        coincidencia.group(4).strip()
+        if coincidencia.group(4)
         else (
             "Aporte a caja"
             if tipo == "aporte"
@@ -1713,6 +1816,7 @@ def interpretar_movimiento_caja(texto):
             "tipo": tipo,
             "monto": monto,
             "descripcion": descripcion,
+            "seccion": seccion,
         },
     })
 
@@ -1734,6 +1838,18 @@ def interpretar_movimiento_caja(texto):
             (
                 "Monto: "
                 f"{formatear_pesos(datos['monto'])}"
+            ),
+            (
+                "Caja: "
+                + (
+                    "Bebidas + Postres"
+                    if datos.get("seccion") == "bebidas_postres"
+                    else (
+                        "Rotisería"
+                        if datos.get("seccion") == "rotiseria"
+                        else "General"
+                    )
+                )
             ),
             (
                 "Descripción: "
@@ -3697,6 +3813,8 @@ def mensaje_ayuda():
         "- historial deuda naranja",
         "- aporte 100000",
         "- retiro 5000",
+        "- aporte rotiseria 50000",
+        "- retiro bebidas postres 10000",
         "- reservar deuda naranja 100000",
         "- liberar reserva deuda naranja 20000",
         "- pago deuda naranja 30000",
@@ -3707,7 +3825,10 @@ def mensaje_ayuda():
         "- ver stock",
         "- precios",
         "- caja",
+        "- inicio caja rotiseria 56000",
+        "- inicio caja bebidas postres 46120",
         "- caja bebidas postres",
+        "- caja rotiseria",
         "- caja comidas",
         "- recaudado bebidas",
         "- recaudado postres",
@@ -3839,6 +3960,13 @@ def procesar_comando(
                 insumos
             ),
         }
+
+    saldo_inicial_caja = interpretar_saldo_inicial_caja(
+        texto
+    )
+
+    if saldo_inicial_caja is not None:
+        return saldo_inicial_caja
 
     movimiento_caja = interpretar_movimiento_caja(
         texto
@@ -4121,8 +4249,10 @@ def procesar_comando(
         "caja bebidas postres": "bebidas_postres",
         "caja bebidas y postres": "bebidas_postres",
         "caja postres y bebidas": "bebidas_postres",
-        "caja comidas": "comidas",
-        "caja general comidas": "comidas",
+        "caja postres bebida": "bebidas_postres",
+        "caja rotiseria": "rotiseria",
+        "caja comidas": "rotiseria",
+        "caja general comidas": "rotiseria",
     }
 
     if texto in cajas_seccion:
