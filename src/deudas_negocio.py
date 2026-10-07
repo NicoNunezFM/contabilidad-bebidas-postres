@@ -45,6 +45,40 @@ def _saldo_cuenta(cursor, id_cuenta):
     )
 
 
+def _reserva_cuenta(cursor, id_cuenta):
+    fila = cursor.execute(
+        """
+        SELECT COALESCE(SUM(importe), 0)
+        FROM movimientos_reserva_deuda_negocio
+        WHERE id_cuenta = ?
+        """,
+        (id_cuenta,)
+    ).fetchone()
+
+    return float(
+        fila[0] or 0
+    )
+
+
+def total_reservado_deudas():
+    conexion = obtener_conexion()
+
+    try:
+        fila = conexion.execute(
+            """
+            SELECT COALESCE(SUM(importe), 0)
+            FROM movimientos_reserva_deuda_negocio
+            """
+        ).fetchone()
+
+        return float(
+            fila[0] or 0
+        )
+
+    finally:
+        conexion.close()
+
+
 def _crear_cuenta(
     cursor,
     nombre,
@@ -341,6 +375,273 @@ def registrar_compra_deuda(
         conexion.close()
 
 
+def registrar_reserva_deuda(
+    nombre,
+    monto,
+    descripcion=None,
+):
+    if not _validar_monto_positivo(
+        monto
+    ):
+        return {
+            "ok": False,
+            "codigo": "MONTO_RESERVA_INVALIDO",
+            "mensaje": (
+                "La reserva debe ser un número mayor que cero."
+            ),
+        }
+
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute(
+            "BEGIN IMMEDIATE"
+        )
+        cursor = conexion.cursor()
+
+        cuenta = _buscar_cuenta(
+            cursor,
+            nombre,
+        )
+
+        if cuenta is None:
+            conexion.rollback()
+
+            return {
+                "ok": False,
+                "codigo": "CUENTA_DEUDA_NO_ENCONTRADA",
+                "mensaje": (
+                    f"No existe una deuda registrada como "
+                    f"'{_nombre_limpio(nombre)}'."
+                ),
+            }
+
+        saldo = _saldo_cuenta(
+            cursor,
+            cuenta[0],
+        )
+        reservado_anterior = _reserva_cuenta(
+            cursor,
+            cuenta[0],
+        )
+
+        if (
+            reservado_anterior
+            + float(monto)
+            > saldo + 1e-9
+        ):
+            conexion.rollback()
+
+            return {
+                "ok": False,
+                "codigo": "RESERVA_DEUDA_EXCESIVA",
+                "mensaje": (
+                    "La reserva supera el saldo pendiente "
+                    "de la deuda."
+                ),
+                "saldo": saldo,
+                "reservado": reservado_anterior,
+                "maximo_reservable": max(
+                    0.0,
+                    saldo - reservado_anterior,
+                ),
+            }
+
+        fecha_hora = datetime.now().isoformat(
+            timespec="seconds"
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO movimientos_reserva_deuda_negocio (
+                id_cuenta,
+                fecha_hora,
+                tipo,
+                importe,
+                descripcion
+            )
+            VALUES (?, ?, 'Reserva', ?, ?)
+            """,
+            (
+                cuenta[0],
+                fecha_hora,
+                float(monto),
+                (
+                    str(descripcion).strip()
+                    if descripcion
+                    else "Dinero reservado para pagar deuda"
+                ),
+            )
+        )
+
+        id_movimiento_reserva = cursor.lastrowid
+        reservado_nuevo = (
+            reservado_anterior
+            + float(monto)
+        )
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "codigo": "RESERVA_DEUDA_REGISTRADA",
+            "id_movimiento_reserva": id_movimiento_reserva,
+            "id_cuenta": cuenta[0],
+            "cuenta": cuenta[1],
+            "monto": float(monto),
+            "saldo": saldo,
+            "reservado_anterior": reservado_anterior,
+            "reservado": reservado_nuevo,
+            "por_cubrir": max(
+                0.0,
+                saldo - reservado_nuevo,
+            ),
+            "moneda": cuenta[3],
+        }
+
+    except Exception as error:
+        conexion.rollback()
+        return {
+            "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": (
+                "Error al reservar dinero para deuda: "
+                f"{error}"
+            ),
+        }
+
+    finally:
+        conexion.close()
+
+
+def liberar_reserva_deuda(
+    nombre,
+    monto,
+    descripcion=None,
+):
+    if not _validar_monto_positivo(
+        monto
+    ):
+        return {
+            "ok": False,
+            "codigo": "MONTO_RESERVA_INVALIDO",
+            "mensaje": (
+                "El monto a liberar debe ser mayor que cero."
+            ),
+        }
+
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute(
+            "BEGIN IMMEDIATE"
+        )
+        cursor = conexion.cursor()
+
+        cuenta = _buscar_cuenta(
+            cursor,
+            nombre,
+        )
+
+        if cuenta is None:
+            conexion.rollback()
+
+            return {
+                "ok": False,
+                "codigo": "CUENTA_DEUDA_NO_ENCONTRADA",
+                "mensaje": (
+                    f"No existe una deuda registrada como "
+                    f"'{_nombre_limpio(nombre)}'."
+                ),
+            }
+
+        reservado_anterior = _reserva_cuenta(
+            cursor,
+            cuenta[0],
+        )
+
+        if float(monto) > reservado_anterior + 1e-9:
+            conexion.rollback()
+
+            return {
+                "ok": False,
+                "codigo": "LIBERACION_RESERVA_EXCESIVA",
+                "mensaje": (
+                    "No se puede liberar más dinero del "
+                    "que está reservado."
+                ),
+                "reservado": reservado_anterior,
+            }
+
+        fecha_hora = datetime.now().isoformat(
+            timespec="seconds"
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO movimientos_reserva_deuda_negocio (
+                id_cuenta,
+                fecha_hora,
+                tipo,
+                importe,
+                descripcion
+            )
+            VALUES (?, ?, 'Liberación', ?, ?)
+            """,
+            (
+                cuenta[0],
+                fecha_hora,
+                -float(monto),
+                (
+                    str(descripcion).strip()
+                    if descripcion
+                    else "Liberación de dinero reservado"
+                ),
+            )
+        )
+
+        reservado_nuevo = (
+            reservado_anterior
+            - float(monto)
+        )
+        saldo = _saldo_cuenta(
+            cursor,
+            cuenta[0],
+        )
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "codigo": "RESERVA_DEUDA_LIBERADA",
+            "id_cuenta": cuenta[0],
+            "cuenta": cuenta[1],
+            "monto": float(monto),
+            "saldo": saldo,
+            "reservado_anterior": reservado_anterior,
+            "reservado": reservado_nuevo,
+            "por_cubrir": max(
+                0.0,
+                saldo - reservado_nuevo,
+            ),
+            "moneda": cuenta[3],
+        }
+
+    except Exception as error:
+        conexion.rollback()
+        return {
+            "ok": False,
+            "codigo": "ERROR_BASE_DATOS",
+            "mensaje": (
+                "Error al liberar reserva de deuda: "
+                f"{error}"
+            ),
+        }
+
+    finally:
+        conexion.close()
+
+
 def registrar_pago_deuda(
     nombre,
     monto,
@@ -464,6 +765,44 @@ def registrar_pago_deuda(
             - float(monto)
         )
 
+        reservado_anterior = _reserva_cuenta(
+            cursor,
+            id_cuenta,
+        )
+        reserva_aplicada = 0.0
+
+        if afecta_caja and reservado_anterior > 0:
+            reserva_aplicada = min(
+                reservado_anterior,
+                float(monto),
+            )
+
+            cursor.execute(
+                """
+                INSERT INTO movimientos_reserva_deuda_negocio (
+                    id_cuenta,
+                    fecha_hora,
+                    tipo,
+                    importe,
+                    descripcion,
+                    id_movimiento_deuda
+                )
+                VALUES (?, ?, 'Aplicación pago', ?, ?, ?)
+                """,
+                (
+                    id_cuenta,
+                    fecha_hora,
+                    -reserva_aplicada,
+                    "Reserva aplicada al pago de deuda",
+                    id_movimiento,
+                )
+            )
+
+        reservado_nuevo = (
+            reservado_anterior
+            - reserva_aplicada
+        )
+
         conexion.commit()
 
         return {
@@ -478,6 +817,13 @@ def registrar_pago_deuda(
             "saldo": saldo_nuevo,
             "afecta_caja": bool(
                 afecta_caja
+            ),
+            "reservado_anterior": reservado_anterior,
+            "reserva_aplicada": reserva_aplicada,
+            "reservado": reservado_nuevo,
+            "por_cubrir": max(
+                0.0,
+                saldo_nuevo - reservado_nuevo,
             ),
             "moneda": cuenta[3],
         }
@@ -553,6 +899,10 @@ def ajustar_deuda(
             - saldo_anterior
         )
 
+        fecha_hora_ajuste = datetime.now().isoformat(
+            timespec="seconds"
+        )
+
         if abs(diferencia) > 1e-9:
             cursor.execute(
                 """
@@ -567,9 +917,7 @@ def ajustar_deuda(
                 """,
                 (
                     cuenta[0],
-                    datetime.now().isoformat(
-                        timespec="seconds"
-                    ),
+                    fecha_hora_ajuste,
                     diferencia,
                     (
                         str(descripcion).strip()
@@ -578,6 +926,40 @@ def ajustar_deuda(
                     ),
                 )
             )
+
+        reservado_anterior = _reserva_cuenta(
+            cursor,
+            cuenta[0],
+        )
+        reserva_liberada = max(
+            0.0,
+            reservado_anterior - float(nuevo_saldo),
+        )
+
+        if reserva_liberada > 0:
+            cursor.execute(
+                """
+                INSERT INTO movimientos_reserva_deuda_negocio (
+                    id_cuenta,
+                    fecha_hora,
+                    tipo,
+                    importe,
+                    descripcion
+                )
+                VALUES (?, ?, 'Liberación por ajuste', ?, ?)
+                """,
+                (
+                    cuenta[0],
+                    fecha_hora_ajuste,
+                    -reserva_liberada,
+                    "Reserva liberada por ajuste de deuda",
+                )
+            )
+
+        reservado_nuevo = (
+            reservado_anterior
+            - reserva_liberada
+        )
 
         conexion.commit()
 
@@ -591,6 +973,13 @@ def ajustar_deuda(
                 nuevo_saldo
             ),
             "diferencia": diferencia,
+            "reservado_anterior": reservado_anterior,
+            "reserva_liberada": reserva_liberada,
+            "reservado": reservado_nuevo,
+            "por_cubrir": max(
+                0.0,
+                float(nuevo_saldo) - reservado_nuevo,
+            ),
             "moneda": cuenta[3],
         }
 
@@ -702,19 +1091,23 @@ def resumen_deudas():
                 c.moneda,
                 c.proximo_vencimiento,
                 COALESCE(
-                    SUM(m.importe),
+                    (
+                        SELECT SUM(m.importe)
+                        FROM movimientos_deuda_negocio m
+                        WHERE m.id_cuenta = c.id_cuenta
+                    ),
                     0
-                ) AS saldo
+                ) AS saldo,
+                COALESCE(
+                    (
+                        SELECT SUM(r.importe)
+                        FROM movimientos_reserva_deuda_negocio r
+                        WHERE r.id_cuenta = c.id_cuenta
+                    ),
+                    0
+                ) AS reservado
             FROM cuentas_deuda_negocio c
-            LEFT JOIN movimientos_deuda_negocio m
-                ON m.id_cuenta = c.id_cuenta
             WHERE c.activa = 1
-            GROUP BY
-                c.id_cuenta,
-                c.nombre,
-                c.tipo,
-                c.moneda,
-                c.proximo_vencimiento
             ORDER BY
                 CASE
                     WHEN c.proximo_vencimiento IS NULL
@@ -726,22 +1119,37 @@ def resumen_deudas():
             """
         ).fetchall()
 
-        cuentas = [
-            {
+        cuentas = []
+
+        for fila in filas:
+            saldo = float(
+                fila[5] or 0
+            )
+            reservado = float(
+                fila[6] or 0
+            )
+
+            cuentas.append({
                 "id_cuenta": fila[0],
                 "nombre": fila[1],
                 "tipo": fila[2],
                 "moneda": fila[3],
                 "proximo_vencimiento": fila[4],
-                "saldo": float(
-                    fila[5] or 0
+                "saldo": saldo,
+                "reservado": reservado,
+                "por_cubrir": max(
+                    0.0,
+                    saldo - reservado,
                 ),
-            }
-            for fila in filas
-        ]
+            })
 
         total_ars = sum(
             cuenta["saldo"]
+            for cuenta in cuentas
+            if cuenta["moneda"] == "ARS"
+        )
+        reservado_ars = sum(
+            cuenta["reservado"]
             for cuenta in cuentas
             if cuenta["moneda"] == "ARS"
         )
@@ -751,6 +1159,11 @@ def resumen_deudas():
             "codigo": "RESUMEN_DEUDAS_NEGOCIO",
             "cuentas": cuentas,
             "total_ars": total_ars,
+            "reservado_ars": reservado_ars,
+            "por_cubrir_ars": max(
+                0.0,
+                total_ars - reservado_ars,
+            ),
         }
 
     finally:
@@ -781,6 +1194,10 @@ def detalle_deuda(nombre):
             cursor,
             cuenta[0],
         )
+        reservado = _reserva_cuenta(
+            cursor,
+            cuenta[0],
+        )
 
         return {
             "ok": True,
@@ -791,6 +1208,11 @@ def detalle_deuda(nombre):
             "moneda": cuenta[3],
             "proximo_vencimiento": cuenta[4],
             "saldo": saldo,
+            "reservado": reservado,
+            "por_cubrir": max(
+                0.0,
+                saldo - reservado,
+            ),
         }
 
     finally:
