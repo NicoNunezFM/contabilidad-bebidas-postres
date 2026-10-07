@@ -285,9 +285,9 @@ def buscar_ids_compras_naranja(
         )
     )
 
-    # Se busca desde el día anterior y la fecha de corte se vuelve
-    # a validar antes de tocar la deuda. Evita depender de la
-    # semántica horaria del operador after: de Gmail.
+    # Se busca desde el día de corte y la hora exacta se vuelve
+    # a validar antes de tocar la deuda. Así no dependemos de la
+    # granularidad por fecha del operador after: de Gmail.
     dia_busqueda = fecha.date()
 
     query = (
