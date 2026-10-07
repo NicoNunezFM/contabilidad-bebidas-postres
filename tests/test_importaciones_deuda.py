@@ -1,8 +1,13 @@
+from fastapi.testclient import TestClient
+
+from api import app
 from database import obtener_conexion
 from deudas_negocio import detalle_deuda
 from gmail_naranja import procesar_mensaje_naranja
 from importaciones_deuda import registrar_importacion_deuda
 
+
+client = TestClient(app)
 
 CUERPO = """
 TU COMPRA
@@ -154,3 +159,87 @@ def test_moneda_no_ars_requiere_revision_y_no_aumenta_deuda(
     assert resultado["ok"] is True
     assert resultado["genera_deuda"] is False
     assert resultado["estado"] == "requiere_revision_moneda"
+
+
+
+def test_comando_lista_compras_naranja_pendientes(
+    base_prueba
+):
+    importacion = registrar_importacion_deuda(
+        fuente="gmail_naranja",
+        id_externo="pendiente-1",
+        importe=28000,
+        fecha_operacion="2026-10-08T10:15:00",
+        moneda="ARS",
+        comercio="DISTRIBUIDORA PRUEBA",
+        titular="Claudia Elizabet Rotondo",
+        tipo_tarjeta="Adicional",
+        plan="01",
+        cuenta_deuda="naranja",
+        aplica_deuda=True,
+        fecha_corte="2026-10-07T13:25:00",
+    )
+
+    assert importacion["ok"] is True
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "compras naranja pendientes"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert len(datos["importaciones"]) == 1
+    assert datos["importaciones"][0]["importe"] == 28000
+    assert "DISTRIBUIDORA PRUEBA" in datos["respuesta"]
+    assert (
+        f"#{importacion['id_importacion']}"
+        in datos["respuesta"]
+    )
+
+
+def test_comando_detalle_importacion_naranja(
+    base_prueba
+):
+    importacion = registrar_importacion_deuda(
+        fuente="gmail_naranja",
+        id_externo="detalle-1",
+        importe=44500,
+        fecha_operacion="2026-10-08T11:30:00",
+        moneda="ARS",
+        comercio="COMERCIO DETALLE",
+        titular="Claudia Elizabet Rotondo",
+        tipo_tarjeta="Adicional",
+        plan="01",
+        cuenta_deuda="naranja",
+        aplica_deuda=True,
+        fecha_corte="2026-10-07T13:25:00",
+    )
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": (
+                "importacion "
+                f"{importacion['id_importacion']}"
+            )
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["ok"] is True
+    assert datos["importe"] == 44500
+    assert datos["comercio"] == "COMERCIO DETALLE"
+    assert datos["estado"] == "pendiente_clasificacion"
+    assert (
+        datos["id_movimiento_deuda"]
+        == importacion["id_movimiento_deuda"]
+    )
