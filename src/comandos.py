@@ -1153,7 +1153,7 @@ def interpretar_compra_pack(
         r"packs?\s+(?:de\s+)?"
         r"(.+?)\s+"
         r"(por|total|a)\s+"
-        r"(\d[\d\.]*\s*(?:mil)?)"
+        r"(\d[\d\.,]*\s*(?:mil)?)"
         r"(?:\s+(?:cada\s+pack|c/u|cada uno))?"
         r"(?:\s+con\s+(.+))?$",
         normalizado
@@ -1296,7 +1296,7 @@ def interpretar_compra_insumo_paquetes(
         r"(x\s*[34]|tripack)"
         r"))\s+"
         r"(?:por\s+)?"
-        r"(\d[\d\.]*\s*(?:mil)?)"
+        r"(\d[\d\.,]*\s*(?:mil)?)"
         r"(?:\s+(?:en\s+)?(.+))?$",
         normalizado
     )
@@ -1399,7 +1399,7 @@ def interpretar_compra_insumo(
         r"(.+?)\s+"
         r"(\d+(?:[\.,]\d+)?)\s*"
         r"(kg|kilos?|g|gr|gramos?|l|lt|litros?|ml|mililitros?|un|u|unidad|unidades)\s+"
-        r"(\d[\d\.]*\s*(?:mil)?)"
+        r"(\d[\d\.,]*\s*(?:mil)?)"
         r"(?:\s+(?:en\s+)?(.+))?$",
         normalizado
     )
@@ -1713,6 +1713,10 @@ def interpretar_deudas_negocio(texto):
             linea = (
                 f"- {cuenta['nombre']}: "
                 f"{formatear_pesos(cuenta['saldo'])}"
+                f" | reservado "
+                f"{formatear_pesos(cuenta.get('reservado', 0))}"
+                f" | por cubrir "
+                f"{formatear_pesos(cuenta.get('por_cubrir', cuenta['saldo']))}"
             )
 
             if cuenta.get(
@@ -1730,6 +1734,14 @@ def interpretar_deudas_negocio(texto):
             (
                 "*Total pendiente ARS: "
                 f"{formatear_pesos(datos['total_ars'])}*"
+            ),
+            (
+                "Reservado: "
+                f"{formatear_pesos(datos.get('reservado_ars', 0))}"
+            ),
+            (
+                "Todavía por cubrir: "
+                f"{formatear_pesos(datos.get('por_cubrir_ars', datos['total_ars']))}"
             ),
         ])
 
@@ -1814,15 +1826,108 @@ def interpretar_deudas_negocio(texto):
         }
 
     coincidencia = re.match(
+        r"^(?:reservar deuda|reserva deuda)\s+"
+        r"(.+?)\s+"
+        r"(\d[\d\.,]*\s*(?:mil)?)$",
+        texto
+    )
+
+    if coincidencia:
+        cuenta = coincidencia.group(1).strip()
+        monto = normalizar_importe(
+            coincidencia.group(2)
+        )
+
+        resultado = ejecutar_accion({
+            "accion": "registrar reserva deuda",
+            "datos": {
+                "cuenta": cuenta,
+                "monto": monto,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_RESERVA_DEUDA",
+            "respuesta": "\n".join([
+                "*Dinero reservado para deuda*",
+                f"Cuenta: {datos['cuenta']}",
+                (
+                    "Reservado ahora: "
+                    f"{formatear_pesos(datos['reservado'])}"
+                ),
+                (
+                    "Deuda pendiente: "
+                    f"{formatear_pesos(datos['saldo'])}"
+                ),
+                (
+                    "Todavía por cubrir: "
+                    f"{formatear_pesos(datos['por_cubrir'])}"
+                ),
+                "La deuda todavía no bajó; el dinero quedó apartado.",
+            ]),
+        }
+
+    coincidencia = re.match(
+        r"^liberar reserva deuda\s+"
+        r"(.+?)\s+"
+        r"(\d[\d\.,]*\s*(?:mil)?)$",
+        texto
+    )
+
+    if coincidencia:
+        cuenta = coincidencia.group(1).strip()
+        monto = normalizar_importe(
+            coincidencia.group(2)
+        )
+
+        resultado = ejecutar_accion({
+            "accion": "liberar reserva deuda",
+            "datos": {
+                "cuenta": cuenta,
+                "monto": monto,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_RESERVA_DEUDA_LIBERADA",
+            "respuesta": "\n".join([
+                "*Reserva de deuda liberada*",
+                f"Cuenta: {datos['cuenta']}",
+                (
+                    "Liberado: "
+                    f"{formatear_pesos(datos['monto'])}"
+                ),
+                (
+                    "Reservado restante: "
+                    f"{formatear_pesos(datos['reservado'])}"
+                ),
+            ]),
+        }
+
+    coincidencia = re.match(
         r"^pago deuda\s+(.+?)\s+"
-        r"(\d[\d\.]*\s*(?:mil)?)$",
+        r"(\d[\d\.,]*\s*(?:mil)?)$",
         texto
     )
 
     if not coincidencia:
         coincidencia_pago = re.match(
             r"^pagamos\s+"
-            r"(\d[\d\.]*\s*(?:mil)?)\s+"
+            r"(\d[\d\.,]*\s*(?:mil)?)\s+"
             r"de\s+(.+)$",
             texto
         )
@@ -1856,28 +1961,48 @@ def interpretar_deudas_negocio(texto):
 
         datos = resultado["datos"]
 
+        lineas = [
+            "*Pago de deuda registrado*",
+            f"Cuenta: {datos['cuenta']}",
+            (
+                "Pago: "
+                f"{formatear_pesos(datos['monto'])}"
+            ),
+            (
+                "Saldo pendiente: "
+                f"{formatear_pesos(datos['saldo'])}"
+            ),
+        ]
+
+        if datos.get(
+            "reserva_aplicada",
+            0
+        ) > 0:
+            lineas.extend([
+                (
+                    "Reserva aplicada: "
+                    f"{formatear_pesos(datos['reserva_aplicada'])}"
+                ),
+                (
+                    "Reserva restante: "
+                    f"{formatear_pesos(datos['reservado'])}"
+                ),
+            ])
+
+        lineas.append(
+            "El pago se descontó de la caja del negocio."
+        )
+
         return {
             **datos,
             "ok": True,
             "codigo": "COMANDO_PAGO_DEUDA",
-            "respuesta": "\n".join([
-                "*Pago de deuda registrado*",
-                f"Cuenta: {datos['cuenta']}",
-                (
-                    "Pago: "
-                    f"{formatear_pesos(datos['monto'])}"
-                ),
-                (
-                    "Saldo pendiente: "
-                    f"{formatear_pesos(datos['saldo'])}"
-                ),
-                "El pago se descontó de la caja del negocio.",
-            ]),
+            "respuesta": "\n".join(lineas),
         }
 
     coincidencia = re.match(
         r"^compra deuda\s+(.+?)\s+"
-        r"(\d[\d\.]*\s*(?:mil)?)"
+        r"(\d[\d\.,]*\s*(?:mil)?)"
         r"(?:\s+(.+))?$",
         texto
     )
@@ -1921,7 +2046,7 @@ def interpretar_deudas_negocio(texto):
 
     coincidencia = re.match(
         r"^ajustar deuda\s+(.+?)\s+"
-        r"(\d[\d\.]*\s*(?:mil)?)$",
+        r"(\d[\d\.,]*\s*(?:mil)?)$",
         texto
     )
 
@@ -2068,6 +2193,14 @@ def interpretar_deudas_negocio(texto):
                 "Saldo pendiente: "
                 f"{formatear_pesos(datos['saldo'])}"
             ),
+            (
+                "Dinero reservado: "
+                f"{formatear_pesos(datos.get('reservado', 0))}"
+            ),
+            (
+                "Todavía por cubrir: "
+                f"{formatear_pesos(datos.get('por_cubrir', datos['saldo']))}"
+            ),
         ]
 
         if datos.get(
@@ -2155,13 +2288,13 @@ def interpretar_adicionales(texto):
 
     precio = re.search(
         r"(?:^|\s)precio\s+"
-        r"(\d[\d\.]*\s*(?:mil)?)",
+        r"(\d[\d\.,]*\s*(?:mil)?)",
         parametros
     )
 
     costo = re.search(
         r"(?:^|\s)costo\s+"
-        r"(\d[\d\.]*\s*(?:mil)?)",
+        r"(\d[\d\.,]*\s*(?:mil)?)",
         parametros
     )
 
@@ -3266,6 +3399,8 @@ def mensaje_ayuda():
         "- saldo inicial deuda naranja 100000",
         "- deuda naranja",
         "- historial deuda naranja",
+        "- reservar deuda naranja 100000",
+        "- liberar reserva deuda naranja 20000",
         "- pago deuda naranja 30000",
         "- vencimiento deuda naranja 2026-10-20",
         "- anular ultima venta",
