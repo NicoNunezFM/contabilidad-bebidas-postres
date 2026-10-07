@@ -747,6 +747,7 @@ def accion_registrar_compra_pack(datos):
         id_producto=producto["id_producto"],
         cantidad=cantidad_unidades,
         precio_unitario=precio_unitario,
+        cuenta_deuda=datos.get("cuenta_deuda"),
     )
 
     if not resultado["ok"]:
@@ -773,6 +774,12 @@ def accion_registrar_compra_pack(datos):
             ),
             "total": total_compra,
             "stock_actual": resultado["stock_actual"],
+            "medio_pago": resultado.get("medio_pago"),
+            "cuenta_deuda": resultado.get("cuenta_deuda"),
+            "saldo_deuda": resultado.get("saldo_deuda"),
+            "id_movimiento_deuda": resultado.get(
+                "id_movimiento_deuda"
+            ),
         },
     }
 
