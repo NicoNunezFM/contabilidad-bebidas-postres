@@ -240,6 +240,25 @@ def _ventas_producto(
                                 * ventas.costo_unitario_snapshot
                             ELSE 0
                         END
+                        + COALESCE(
+                            (
+                                SELECT SUM(
+                                    CASE
+                                        WHEN costo_unitario_snapshot
+                                            IS NOT NULL
+                                        THEN
+                                            cantidad
+                                            * costo_unitario_snapshot
+                                        ELSE 0
+                                    END
+                                )
+                                FROM venta_adicionales
+                                WHERE
+                                    venta_adicionales.id_venta
+                                    = ventas.id_venta
+                            ),
+                            0
+                        )
                     ),
                     0
                 ),
@@ -269,6 +288,20 @@ def _ventas_producto(
                         END
                     ),
                     0
+                ),
+                COALESCE(
+                    SUM(
+                        (
+                            SELECT COUNT(*)
+                            FROM venta_adicionales
+                            WHERE
+                                venta_adicionales.id_venta
+                                = ventas.id_venta
+                                AND costo_unitario_snapshot
+                                    IS NULL
+                        )
+                    ),
+                    0
                 )
             FROM ventas
             WHERE id_producto = ?
@@ -296,8 +329,10 @@ def _ventas_producto(
         "ventas_con_adicionales": int(
             fila[4] or 0
         ),
+        "adicionales_sin_costo_snapshot": int(
+            fila[5] or 0
+        ),
     }
-
 
 def rentabilidad_producto(
     id_producto,
@@ -367,7 +402,7 @@ def rentabilidad_producto(
 
     historico_exacto = (
         ventas["unidades_sin_snapshot"] == 0
-        and ventas["ventas_con_adicionales"] == 0
+        and ventas["adicionales_sin_costo_snapshot"] == 0
     )
 
     costo_historico = (
