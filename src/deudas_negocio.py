@@ -219,6 +219,73 @@ def registrar_saldo_inicial(
         conexion.close()
 
 
+def registrar_compra_deuda_en_cursor(
+    cursor,
+    nombre,
+    monto,
+    descripcion=None,
+    fecha_hora=None,
+):
+    if not _validar_monto_positivo(
+        monto
+    ):
+        raise ValueError(
+            "El monto de la compra financiada debe ser mayor que cero."
+        )
+
+    id_cuenta = _obtener_o_crear_cuenta(
+        cursor,
+        nombre,
+    )
+
+    if fecha_hora is None:
+        fecha_hora = datetime.now().isoformat(
+            timespec="seconds"
+        )
+
+    cursor.execute(
+        """
+        INSERT INTO movimientos_deuda_negocio (
+            id_cuenta,
+            fecha_hora,
+            tipo,
+            importe,
+            descripcion
+        )
+        VALUES (?, ?, 'Compra', ?, ?)
+        """,
+        (
+            id_cuenta,
+            fecha_hora,
+            float(monto),
+            (
+                str(descripcion).strip()
+                if descripcion
+                else "Compra financiada del negocio"
+            ),
+        )
+    )
+
+    id_movimiento = cursor.lastrowid
+    cuenta = _buscar_cuenta(
+        cursor,
+        nombre,
+    )
+    saldo = _saldo_cuenta(
+        cursor,
+        id_cuenta,
+    )
+
+    return {
+        "id_movimiento_deuda": id_movimiento,
+        "id_cuenta": id_cuenta,
+        "cuenta": cuenta[1],
+        "monto": float(monto),
+        "saldo": saldo,
+        "moneda": cuenta[3],
+    }
+
+
 def registrar_compra_deuda(
     nombre,
     monto,
@@ -244,45 +311,11 @@ def registrar_compra_deuda(
         )
         cursor = conexion.cursor()
 
-        id_cuenta = _obtener_o_crear_cuenta(
-            cursor,
-            nombre,
-        )
-        fecha_hora = datetime.now().isoformat(
-            timespec="seconds"
-        )
-
-        cursor.execute(
-            """
-            INSERT INTO movimientos_deuda_negocio (
-                id_cuenta,
-                fecha_hora,
-                tipo,
-                importe,
-                descripcion
-            )
-            VALUES (?, ?, 'Compra', ?, ?)
-            """,
-            (
-                id_cuenta,
-                fecha_hora,
-                float(monto),
-                (
-                    str(descripcion).strip()
-                    if descripcion
-                    else "Compra financiada del negocio"
-                ),
-            )
-        )
-
-        id_movimiento = cursor.lastrowid
-        saldo = _saldo_cuenta(
-            cursor,
-            id_cuenta,
-        )
-        cuenta = _buscar_cuenta(
-            cursor,
-            nombre,
+        datos = registrar_compra_deuda_en_cursor(
+            cursor=cursor,
+            nombre=nombre,
+            monto=monto,
+            descripcion=descripcion,
         )
 
         conexion.commit()
@@ -290,12 +323,7 @@ def registrar_compra_deuda(
         return {
             "ok": True,
             "codigo": "COMPRA_DEUDA_REGISTRADA",
-            "id_movimiento_deuda": id_movimiento,
-            "id_cuenta": id_cuenta,
-            "cuenta": cuenta[1],
-            "monto": float(monto),
-            "saldo": saldo,
-            "moneda": cuenta[3],
+            **datos,
         }
 
     except Exception as error:
