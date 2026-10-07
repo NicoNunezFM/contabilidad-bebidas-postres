@@ -336,6 +336,8 @@ def registrar_venta(
                 fecha,
                 cantidad,
                 precio_unitario,
+                costo_unitario_snapshot,
+                fuente_costo_snapshot,
                 id_operacion
             )
         )
