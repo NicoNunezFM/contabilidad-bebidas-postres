@@ -1062,6 +1062,58 @@ def crear_tablas_deudas_negocio():
     conexion.commit()
     conexion.close()
 
+def crear_tabla_importaciones_deuda():
+
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS importaciones_deuda (
+            id_importacion INTEGER PRIMARY KEY AUTOINCREMENT,
+            fuente TEXT NOT NULL,
+            id_externo TEXT NOT NULL,
+            id_cuenta_deuda INTEGER,
+            fecha_operacion TEXT,
+            fecha_importacion TEXT NOT NULL,
+            importe REAL NOT NULL,
+            moneda TEXT NOT NULL DEFAULT 'ARS',
+            comercio TEXT,
+            titular TEXT,
+            tipo_tarjeta TEXT,
+            plan TEXT,
+            estado TEXT NOT NULL,
+            id_movimiento_deuda INTEGER,
+            asunto TEXT,
+            FOREIGN KEY (id_cuenta_deuda)
+                REFERENCES cuentas_deuda_negocio(id_cuenta),
+            FOREIGN KEY (id_movimiento_deuda)
+                REFERENCES movimientos_deuda_negocio(id_movimiento_deuda),
+            UNIQUE(fuente, id_externo)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_importaciones_deuda_estado_fecha
+        ON importaciones_deuda (
+            estado,
+            fecha_operacion,
+            id_importacion
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_importaciones_deuda_movimiento
+        ON importaciones_deuda (
+            id_movimiento_deuda
+        )
+    """)
+
+    conexion.commit()
+    conexion.close()
+
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -1087,6 +1139,7 @@ def inicializar_base_de_datos():
     actualizar_tabla_mensajes_procesados()
     crear_tabla_contextos_conversacion()
     crear_tablas_deudas_negocio()
+    crear_tabla_importaciones_deuda()
 
 
 
