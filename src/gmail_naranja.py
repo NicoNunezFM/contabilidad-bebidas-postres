@@ -262,6 +262,10 @@ def leer_mensaje_gmail(
             "subject",
             "",
         ),
+        "remitente": headers.get(
+            "from",
+            "",
+        ),
         "fecha_email": fecha_email,
         "cuerpo": _extraer_cuerpo(
             payload
@@ -287,7 +291,9 @@ def buscar_ids_compras_naranja(
     dia_busqueda = fecha.date()
 
     query = (
+        'from:naranjax@novedades.naranjax.com '
         'subject:"Ingresó una compra en tu tarjeta crédito" '
+        '-in:spam -in:trash '
         f"after:{dia_busqueda.isoformat().replace('-', '/')}"
     )
 
@@ -319,11 +325,13 @@ def procesar_mensaje_naranja(
     cuerpo,
     fecha_email,
     fecha_corte,
+    remitente=None,
 ):
     parseado = parsear_correo_compra_naranja(
         asunto=asunto,
         cuerpo=cuerpo,
         fecha_email=fecha_email,
+        remitente=remitente,
     )
 
     if not parseado["ok"]:
@@ -399,6 +407,7 @@ def sincronizar_compras_naranja(
                 cuerpo=correo["cuerpo"],
                 fecha_email=correo["fecha_email"],
                 fecha_corte=fecha_corte,
+                remitente=correo["remitente"],
             )
         )
 
