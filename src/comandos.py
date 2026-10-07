@@ -1745,6 +1745,85 @@ def interpretar_movimiento_caja(texto):
 
 def interpretar_importaciones_deuda(texto):
     if texto in {
+        "historial naranja",
+        "historico naranja",
+        "compras naranja historicas",
+        "compras naranja historico",
+    }:
+        resultado = ejecutar_accion({
+            "accion": "consultar importaciones deuda",
+            "datos": {
+                "estado": "historico_no_aplicado",
+                "limite": 50,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        importaciones = resultado["datos"][
+            "importaciones"
+        ]
+
+        if not importaciones:
+            return {
+                "ok": True,
+                "codigo": "COMANDO_HISTORIAL_NARANJA",
+                "importaciones": [],
+                "respuesta": (
+                    "Todavía no hay compras históricas "
+                    "de Naranja importadas."
+                ),
+            }
+
+        lineas = [
+            "*Historial Naranja (sin afectar deuda)*",
+        ]
+
+        total = 0.0
+
+        for item in importaciones:
+            total += float(
+                item["importe"]
+            )
+            lineas.extend([
+                "",
+                (
+                    f"#{item['id_importacion']} | "
+                    f"{formatear_pesos(item['importe'])}"
+                ),
+                (
+                    f"{item.get('comercio') "
+                    "or 'Comercio no informado'}"
+                ),
+                (
+                    "Fecha: "
+                    f"{item.get('fecha_operacion') "
+                    "or 'No informada'}"
+                ),
+            ])
+
+        lineas.extend([
+            "",
+            (
+                "Total histórico listado: "
+                f"{formatear_pesos(total)}"
+            ),
+            (
+                "Estos movimientos son informativos y "
+                "no aumentaron la deuda actual."
+            ),
+        ])
+
+        return {
+            "ok": True,
+            "codigo": "COMANDO_HISTORIAL_NARANJA",
+            "importaciones": importaciones,
+            "total": total,
+            "respuesta": "\n".join(lineas),
+        }
+
+    if texto in {
         "compras naranja pendientes",
         "pendientes naranja",
         "importaciones naranja pendientes",
@@ -3609,6 +3688,7 @@ def mensaje_ayuda():
         "- adicional huevo precio 1000 costo 300",
         "- deudas negocio",
         "- compras naranja pendientes",
+        "- historial naranja",
         "- importacion 1",
         "- saldo inicial deuda naranja 100000",
         "- deuda naranja",
@@ -3875,6 +3955,10 @@ def procesar_comando(
         "pendientes naranja",
         "importaciones naranja pendientes",
         "compras tarjeta pendientes",
+        "historial naranja",
+        "historico naranja",
+        "compras naranja historicas",
+        "compras naranja historico",
         "precios",
         "ver precios",
         "caja",
