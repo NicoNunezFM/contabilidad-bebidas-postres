@@ -202,6 +202,8 @@ def crear_tabla_ventas():
         fecha TEXT NOT NULL,
         cantidad INTEGER NOT NULL,
         precio_unitario REAL NOT NULL,
+        costo_unitario_snapshot REAL,
+        fuente_costo_snapshot TEXT,
         id_operacion INTEGER,
         FOREIGN KEY (id_producto)
             REFERENCES productos(id_producto),
@@ -337,6 +339,19 @@ def actualizar_tabla_ventas():
             ALTER TABLE ventas
             ADD COLUMN id_operacion INTEGER
             REFERENCES ventas_operaciones(id_operacion)
+        """)
+
+
+    if "costo_unitario_snapshot" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE ventas
+            ADD COLUMN costo_unitario_snapshot REAL
+        """)
+
+    if "fuente_costo_snapshot" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE ventas
+            ADD COLUMN fuente_costo_snapshot TEXT
         """)
 
     conexion.commit()
