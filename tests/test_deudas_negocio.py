@@ -400,3 +400,37 @@ def test_deuda_acepta_importe_con_centavos_formato_argentino(
     assert reserva.status_code == 200
     assert reserva.json()["reservado"] == 100000
     assert reserva.json()["por_cubrir"] == 289547.18
+
+
+
+def test_pagar_deuda_alias_registra_pago(
+    base_prueba
+):
+    assert client.post(
+        "/comandos",
+        json={
+            "mensaje": "saldo inicial deuda naranja 300000"
+        }
+    ).status_code == 200
+
+    assert client.post(
+        "/comandos",
+        json={
+            "mensaje": "reservar deuda naranja 250000"
+        }
+    ).status_code == 200
+
+    respuesta = client.post(
+        "/comandos",
+        json={
+            "mensaje": "pagar deuda naranja 250000"
+        }
+    )
+
+    assert respuesta.status_code == 200
+
+    datos = respuesta.json()
+
+    assert datos["saldo"] == 50000
+    assert datos["reserva_aplicada"] == 250000
+    assert datos["reservado"] == 0
