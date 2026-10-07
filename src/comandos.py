@@ -1588,6 +1588,416 @@ def interpretar_necesidades_produccion(texto):
     }
 
 
+def interpretar_deudas_negocio(texto):
+    if texto in {
+        "deudas",
+        "deudas negocio",
+        "deudas del negocio",
+        "cuanto debemos en tarjetas",
+        "cuanto debemos de mercaderia",
+        "cuanto debemos por mercaderia",
+    }:
+        resultado = ejecutar_accion({
+            "accion": "consultar deudas negocio",
+            "datos": {},
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+        cuentas = datos["cuentas"]
+
+        if not cuentas:
+            return {
+                "ok": True,
+                "codigo": "COMANDO_DEUDAS_NEGOCIO",
+                "cuentas": [],
+                "total_ars": 0,
+                "respuesta": (
+                    "Todavía no hay deudas del negocio registradas."
+                ),
+            }
+
+        lineas = [
+            "*Deudas del negocio*",
+        ]
+
+        for cuenta in cuentas:
+            linea = (
+                f"- {cuenta['nombre']}: "
+                f"{formatear_pesos(cuenta['saldo'])}"
+            )
+
+            if cuenta.get(
+                "proximo_vencimiento"
+            ):
+                linea += (
+                    " | vence "
+                    f"{cuenta['proximo_vencimiento']}"
+                )
+
+            lineas.append(linea)
+
+        lineas.extend([
+            "",
+            (
+                "*Total pendiente ARS: "
+                f"{formatear_pesos(datos['total_ars'])}*"
+            ),
+        ])
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_DEUDAS_NEGOCIO",
+            "respuesta": "\n".join(lineas),
+        }
+
+    if texto in {
+        "que deuda vence primero",
+        "cual deuda vence primero",
+        "cual tarjeta vence primero",
+    }:
+        resultado = ejecutar_accion({
+            "accion": "consultar deuda vence primero",
+            "datos": {},
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+        cuenta = datos.get("cuenta")
+
+        if not cuenta:
+            return {
+                "ok": True,
+                "codigo": "COMANDO_SIN_VENCIMIENTOS_DEUDA",
+                "respuesta": (
+                    "No hay deudas pendientes con vencimiento configurado."
+                ),
+            }
+
+        return {
+            **cuenta,
+            "ok": True,
+            "codigo": "COMANDO_DEUDA_VENCE_PRIMERO",
+            "respuesta": (
+                "*Próximo vencimiento*\n"
+                f"{cuenta['nombre']}: "
+                f"{formatear_pesos(cuenta['saldo'])}\n"
+                f"Vence: {cuenta['proximo_vencimiento']}"
+            ),
+        }
+
+    coincidencia = re.match(
+        r"^(?:saldo inicial deuda|deuda inicial)\s+"
+        r"(.+?)\s+(\d[\d\.]*\s*(?:mil)?)$",
+        texto
+    )
+
+    if coincidencia:
+        cuenta = coincidencia.group(1).strip()
+        monto = normalizar_importe(
+            coincidencia.group(2)
+        )
+
+        resultado = ejecutar_accion({
+            "accion": "registrar saldo inicial deuda",
+            "datos": {
+                "cuenta": cuenta,
+                "monto": monto,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_SALDO_INICIAL_DEUDA",
+            "respuesta": (
+                "*Saldo inicial de deuda registrado*\n"
+                f"{datos['cuenta']}: "
+                f"{formatear_pesos(datos['saldo'])}"
+            ),
+        }
+
+    coincidencia = re.match(
+        r"^pago deuda\s+(.+?)\s+"
+        r"(\d[\d\.]*\s*(?:mil)?)$",
+        texto
+    )
+
+    if not coincidencia:
+        coincidencia_pago = re.match(
+            r"^pagamos\s+"
+            r"(\d[\d\.]*\s*(?:mil)?)\s+"
+            r"de\s+(.+)$",
+            texto
+        )
+
+        if coincidencia_pago:
+            monto = normalizar_importe(
+                coincidencia_pago.group(1)
+            )
+            cuenta = coincidencia_pago.group(2).strip()
+        else:
+            cuenta = None
+            monto = None
+    else:
+        cuenta = coincidencia.group(1).strip()
+        monto = normalizar_importe(
+            coincidencia.group(2)
+        )
+
+    if cuenta is not None:
+        resultado = ejecutar_accion({
+            "accion": "registrar pago deuda",
+            "datos": {
+                "cuenta": cuenta,
+                "monto": monto,
+                "afecta_caja": True,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_PAGO_DEUDA",
+            "respuesta": "\n".join([
+                "*Pago de deuda registrado*",
+                f"Cuenta: {datos['cuenta']}",
+                (
+                    "Pago: "
+                    f"{formatear_pesos(datos['monto'])}"
+                ),
+                (
+                    "Saldo pendiente: "
+                    f"{formatear_pesos(datos['saldo'])}"
+                ),
+                "El pago se descontó de la caja del negocio.",
+            ]),
+        }
+
+    coincidencia = re.match(
+        r"^compra deuda\s+(.+?)\s+"
+        r"(\d[\d\.]*\s*(?:mil)?)"
+        r"(?:\s+(.+))?$",
+        texto
+    )
+
+    if coincidencia:
+        cuenta = coincidencia.group(1).strip()
+        monto = normalizar_importe(
+            coincidencia.group(2)
+        )
+        descripcion = (
+            coincidencia.group(3).strip()
+            if coincidencia.group(3)
+            else None
+        )
+
+        resultado = ejecutar_accion({
+            "accion": "registrar compra deuda",
+            "datos": {
+                "cuenta": cuenta,
+                "monto": monto,
+                "descripcion": descripcion,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_COMPRA_DEUDA",
+            "respuesta": (
+                "*Compra financiada registrada*\n"
+                f"Cuenta: {datos['cuenta']}\n"
+                f"Compra: {formatear_pesos(datos['monto'])}\n"
+                f"Saldo pendiente: {formatear_pesos(datos['saldo'])}"
+            ),
+        }
+
+    coincidencia = re.match(
+        r"^ajustar deuda\s+(.+?)\s+"
+        r"(\d[\d\.]*\s*(?:mil)?)$",
+        texto
+    )
+
+    if coincidencia:
+        cuenta = coincidencia.group(1).strip()
+        saldo = normalizar_importe(
+            coincidencia.group(2)
+        )
+
+        resultado = ejecutar_accion({
+            "accion": "ajustar deuda negocio",
+            "datos": {
+                "cuenta": cuenta,
+                "saldo": saldo,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_DEUDA_AJUSTADA",
+            "respuesta": (
+                "*Deuda ajustada*\n"
+                f"{datos['cuenta']}: "
+                f"{formatear_pesos(datos['saldo_anterior'])} -> "
+                f"{formatear_pesos(datos['saldo'])}"
+            ),
+        }
+
+    coincidencia = re.match(
+        r"^vencimiento deuda\s+(.+?)\s+"
+        r"(\d{4}-\d{2}-\d{2})$",
+        texto
+    )
+
+    if coincidencia:
+        cuenta = coincidencia.group(1).strip()
+        fecha_vencimiento = coincidencia.group(2)
+
+        resultado = ejecutar_accion({
+            "accion": "configurar vencimiento deuda",
+            "datos": {
+                "cuenta": cuenta,
+                "fecha_vencimiento": fecha_vencimiento,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_VENCIMIENTO_DEUDA",
+            "respuesta": (
+                "*Vencimiento configurado*\n"
+                f"{datos['cuenta']}: "
+                f"{datos['proximo_vencimiento']}"
+            ),
+        }
+
+    coincidencia = re.match(
+        r"^historial deuda\s+(.+)$",
+        texto
+    )
+
+    if coincidencia:
+        cuenta = coincidencia.group(1).strip()
+
+        resultado = ejecutar_accion({
+            "accion": "historial deuda negocio",
+            "datos": {
+                "cuenta": cuenta,
+                "limite": 20,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+        lineas = [
+            f"*Historial deuda - {datos['cuenta']}*",
+        ]
+
+        for movimiento in datos["movimientos"]:
+            signo = (
+                "+"
+                if movimiento["importe"] >= 0
+                else "-"
+            )
+
+            lineas.append(
+                f"- {movimiento['fecha_hora']} | "
+                f"{movimiento['tipo']} | "
+                f"{signo}{formatear_pesos(abs(movimiento['importe']))}"
+            )
+
+        lineas.append(
+            "*Saldo actual: "
+            f"{formatear_pesos(datos['saldo'])}*"
+        )
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_HISTORIAL_DEUDA",
+            "respuesta": "\n".join(lineas),
+        }
+
+    coincidencia = re.match(
+        r"^(?:deuda|cuanto falta pagar de)\s+(.+)$",
+        texto
+    )
+
+    if coincidencia:
+        cuenta = coincidencia.group(1).strip()
+
+        resultado = ejecutar_accion({
+            "accion": "consultar deuda negocio",
+            "datos": {
+                "cuenta": cuenta,
+            },
+        })
+
+        if not resultado["ok"]:
+            return error_comando(resultado)
+
+        datos = resultado["datos"]
+        lineas = [
+            f"*Deuda - {datos['cuenta']}*",
+            (
+                "Saldo pendiente: "
+                f"{formatear_pesos(datos['saldo'])}"
+            ),
+        ]
+
+        if datos.get(
+            "proximo_vencimiento"
+        ):
+            lineas.append(
+                "Próximo vencimiento: "
+                f"{datos['proximo_vencimiento']}"
+            )
+
+        return {
+            **datos,
+            "ok": True,
+            "codigo": "COMANDO_DETALLE_DEUDA",
+            "respuesta": "\n".join(lineas),
+        }
+
+    return None
+
+
 def interpretar_adicionales(texto):
     if texto in {
         "adicionales",
@@ -2762,6 +3172,12 @@ def mensaje_ayuda():
         "- rentabilidad bebidas postres",
         "- adicionales",
         "- adicional huevo precio 1000 costo 300",
+        "- deudas negocio",
+        "- saldo inicial deuda naranja 100000",
+        "- deuda naranja",
+        "- historial deuda naranja",
+        "- pago deuda naranja 30000",
+        "- vencimiento deuda naranja 2026-10-20",
         "- anular ultima venta",
         "- anular operacion 14",
         "- stock",
@@ -2901,6 +3317,13 @@ def procesar_comando(
             ),
         }
 
+    deudas = interpretar_deudas_negocio(
+        texto
+    )
+
+    if deudas is not None:
+        return deudas
+
     adicionales = interpretar_adicionales(
         texto
     )
@@ -2990,6 +3413,9 @@ def procesar_comando(
         "adicionales",
         "ver adicionales",
         "catalogo adicionales",
+        "deudas",
+        "deudas negocio",
+        "deudas del negocio",
         "precios",
         "ver precios",
         "caja",
