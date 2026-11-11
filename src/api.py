@@ -70,6 +70,8 @@ from ventas import (
     anular_venta
 )
 
+from pos_api import router as pos_router
+
 
 # ============================================================
 # APLICACIÓN FASTAPI
@@ -79,6 +81,8 @@ app = FastAPI(
     title="Lo de Clau API",
     version="1.0.0"
 )
+
+app.include_router(pos_router)
 
 RUTA_POS = Path(__file__).resolve().parent.parent / "pos-web"
 
