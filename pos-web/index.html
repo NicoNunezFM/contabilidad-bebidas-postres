@@ -273,6 +273,35 @@ button:disabled{opacity:.55;cursor:default}
         ' productos disponibles. Catálogo visual en modo demo.';
 
         console.log('Productos recibidos:', datos.productos);
+
+
+        var panel = document.createElement('details');
+        panel.className = 'offer';
+
+        var titulo = document.createElement('summary');
+        titulo.textContent = 'Ver catálogo de SQLite (' +
+        datos.productos.length + ' productos)';
+
+        panel.appendChild(titulo);
+
+        datos.productos.forEach(function (producto) {
+        var fila = document.createElement('p');
+        fila.className = 'muted';
+        fila.style.padding = '6px 0';
+
+        var precio = typeof producto.precio_venta === 'number'
+            ? money(producto.precio_venta)
+            : 'Sin precio';
+
+        fila.textContent =
+            producto.nombre + ' · ' +
+            producto.categoria + ' · ' + precio;
+
+        panel.appendChild(fila);
+        });
+
+        el('apiStatus').insertAdjacentElement('afterend', panel);
+
     })
     .catch(function (error) {
         el('apiStatus').textContent =
