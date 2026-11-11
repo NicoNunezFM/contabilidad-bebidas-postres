@@ -49,6 +49,9 @@ button:disabled{opacity:.55;cursor:default}
 <nav class="tabs" id="tabs" aria-label="Categorías"></nav>
 <div class="catalog-head"><div><h2 id="categoryTitle"></h2><span id="productCount" class="product-count"></span></div><input id="search" type="search" placeholder="Buscar producto…" aria-label="Buscar en esta categoría"></div>
 <div id="cards" class="cards"></div>
+<p id="apiStatus" class="muted" role="status">
+  Comprobando conexión con Abadion...
+</p>
 <section class="offer"><h3>Ofrecé una bebida o un postre</h3><button data-category="Bebidas">Ver bebidas</button><button data-category="Postres">Ver postres</button></section>
 </main>
 <aside class="order" aria-label="Pedido">
@@ -247,7 +250,37 @@ button:disabled{opacity:.55;cursor:default}
     if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls[controls.length-1].focus(); }
     if (!event.shiftKey && document.activeElement === controls[controls.length-1]) { event.preventDefault(); controls[0].focus(); }
   });
-  menu(); order();
+   
+    menu();
+    order();
+
+    fetch('/productos')
+    .then(function (respuesta) {
+        if (!respuesta.ok) {
+        throw new Error('Error HTTP ' + respuesta.status);
+        }
+
+        return respuesta.json();
+    })
+    .then(function (datos) {
+        if (!datos.ok || !Array.isArray(datos.productos)) {
+        throw new Error('Respuesta de catálogo inválida');
+        }
+
+        el('apiStatus').textContent =
+        'Conectado a Abadion: ' +
+        datos.productos.length +
+        ' productos disponibles. Catálogo visual en modo demo.';
+
+        console.log('Productos recibidos:', datos.productos);
+    })
+    .catch(function (error) {
+        el('apiStatus').textContent =
+        'No se pudo conectar con el catálogo de Abadion.';
+
+        console.error(error);
+    });
+
 }());
 </script>
 </body>
