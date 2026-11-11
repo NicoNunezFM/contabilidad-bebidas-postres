@@ -1114,6 +1114,29 @@ def crear_tabla_importaciones_deuda():
     conexion.close()
 
 
+def crear_tabla_usuarios_pos():
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios_pos (
+                id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                rol TEXT NOT NULL
+                    CHECK (rol IN ('admin', 'ventas')),
+                password_hash TEXT NOT NULL,
+                activo INTEGER NOT NULL DEFAULT 1
+                    CHECK (activo IN (0, 1)),
+                fecha_creacion TEXT NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        conexion.commit()
+    finally:
+        conexion.close()
+
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -1140,6 +1163,7 @@ def inicializar_base_de_datos():
     crear_tabla_contextos_conversacion()
     crear_tablas_deudas_negocio()
     crear_tabla_importaciones_deuda()
+    crear_tabla_usuarios_pos()
 
 
 
