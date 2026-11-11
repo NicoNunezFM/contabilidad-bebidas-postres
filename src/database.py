@@ -1137,6 +1137,36 @@ def crear_tabla_usuarios_pos():
         conexion.close()
 
 
+def crear_tabla_sesiones_pos():
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS sesiones_pos (
+                id_sesion INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_usuario INTEGER NOT NULL,
+                token_hash TEXT NOT NULL UNIQUE,
+                creada_en TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expira_en TEXT NOT NULL,
+                revocada INTEGER NOT NULL DEFAULT 0
+                    CHECK (revocada IN (0, 1)),
+                FOREIGN KEY (id_usuario)
+                    REFERENCES usuarios_pos(id_usuario)
+            )
+        """)
+
+        conexion.execute("""
+            CREATE INDEX IF NOT EXISTS
+                idx_sesiones_pos_usuario
+            ON sesiones_pos (id_usuario, revocada)
+        """)
+
+        conexion.commit()
+    finally:
+        conexion.close()
+
+
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -1164,6 +1194,7 @@ def inicializar_base_de_datos():
     crear_tablas_deudas_negocio()
     crear_tabla_importaciones_deuda()
     crear_tabla_usuarios_pos()
+    crear_tabla_sesiones_pos()
 
 
 
