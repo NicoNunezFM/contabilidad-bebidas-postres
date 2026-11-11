@@ -8,6 +8,9 @@ from acciones import ejecutar_accion
 from ajustes_stock import registrar_inventario_fisico
 from backups import crear_backup_diario
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
 from caja import (
     obtener_estado_caja,
     obtener_caja_seccion,
@@ -75,6 +78,14 @@ from ventas import (
 app = FastAPI(
     title="Lo de Clau API",
     version="1.0.0"
+)
+
+RUTA_POS = Path(__file__).resolve().parent.parent / "pos-web"
+
+app.mount(
+    "/pos",
+    StaticFiles(directory=RUTA_POS, html=True),
+    name="pos"
 )
 
 
