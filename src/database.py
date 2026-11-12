@@ -1204,6 +1204,52 @@ def crear_tabla_historial_precios_pos():
         conexion.close()
 
 
+def crear_tablas_personalizaciones_pos():
+    conexion = obtener_conexion()
+
+    try:
+        # Ingredientes que un cliente puede quitar.
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS
+                pos_ingredientes_producto (
+                    id_producto INTEGER NOT NULL,
+                    ingrediente TEXT NOT NULL COLLATE NOCASE
+                        CHECK (LENGTH(TRIM(ingrediente)) > 0),
+
+                    PRIMARY KEY (id_producto, ingrediente),
+
+                    FOREIGN KEY (id_producto)
+                        REFERENCES productos(id_producto)
+                )
+        """)
+
+        # Extras que se pueden agregar a cada producto.
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS
+                pos_adicionales_producto (
+                    id_producto INTEGER NOT NULL,
+                    id_adicional_catalogo INTEGER NOT NULL,
+
+                    PRIMARY KEY (
+                        id_producto,
+                        id_adicional_catalogo
+                    ),
+
+                    FOREIGN KEY (id_producto)
+                        REFERENCES productos(id_producto),
+
+                    FOREIGN KEY (id_adicional_catalogo)
+                        REFERENCES adicionales_catalogo(
+                            id_adicional_catalogo
+                        )
+                )
+        """)
+
+        conexion.commit()
+
+    finally:
+        conexion.close()
+
 
 def inicializar_base_de_datos():
     crear_tabla_productos()
@@ -1236,6 +1282,7 @@ def inicializar_base_de_datos():
     crear_tabla_usuarios_pos()
     crear_tabla_sesiones_pos()
     crear_tabla_historial_precios_pos()
+    crear_tablas_personalizaciones_pos()
 
 
 

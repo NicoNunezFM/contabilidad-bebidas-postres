@@ -32,6 +32,11 @@ class PrecioNuevoEntrada(BaseModel):
     )
 
 
+class PersonalizacionesEntrada(BaseModel):
+    ingredientes: list[str] = Field(max_length=30)
+    ids_adicionales: list[int] = Field(max_length=30)
+
+
 
 def comprobar_origen(request: Request):
     origen = request.headers.get("origin")
@@ -241,6 +246,253 @@ def actualizar_precio_producto_pos(
             "producto": nombre,
             "precio_anterior": precio_anterior,
             "precio_nuevo": precio_nuevo,
+            "modificado_por": usuario["usuario"]
+        }
+
+    except Exception:
+        conexion.rollback()
+        raise
+
+    finally:
+        conexion.close()
+
+
+@router.get("/catalogo/adicionales")
+def consultar_adicionales_pos():
+    conexion = obtener_conexion()
+
+    try:
+        filas = conexion.execute("""
+            SELECT
+                id_adicional_catalogo,
+                nombre,
+                precio_venta
+            FROM adicionales_catalogo
+            WHERE activo = 1
+            ORDER BY nombre COLLATE NOCASE
+        """).fetchall()
+
+        adicionales = []
+
+        for fila in filas:
+            adicionales.append({
+                "id_adicional_catalogo": fila[0],
+                "nombre": fila[1],
+                "precio_venta": fila[2]
+            })
+
+        return {
+            "ok": True,
+            "cantidad": len(adicionales),
+            "adicionales": adicionales
+        }
+
+    finally:
+        conexion.close()
+
+
+@router.get("/catalogo/productos/{id_producto}/personalizaciones")
+def consultar_personalizaciones_pos(id_producto: int):
+    conexion = obtener_conexion()
+
+    try:
+        # Comprobar que el producto existe.
+        producto = conexion.execute(
+            """
+            SELECT nombre
+            FROM productos
+            WHERE id_producto = ?
+            """,
+            (id_producto,)
+        ).fetchone()
+
+        if producto is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Producto no encontrado."
+            )
+
+        # Ingredientes que se pueden quitar.
+        filas_ingredientes = conexion.execute(
+            """
+            SELECT ingrediente
+            FROM pos_ingredientes_producto
+            WHERE id_producto = ?
+            ORDER BY ingrediente COLLATE NOCASE
+            """,
+            (id_producto,)
+        ).fetchall()
+
+        ingredientes = [
+            fila[0] for fila in filas_ingredientes
+        ]
+
+        # Extras permitidos y activos.
+        filas_adicionales = conexion.execute(
+            """
+            SELECT
+                a.id_adicional_catalogo,
+                a.nombre,
+                a.precio_venta
+            FROM pos_adicionales_producto AS pa
+            JOIN adicionales_catalogo AS a
+              ON a.id_adicional_catalogo =
+                 pa.id_adicional_catalogo
+            WHERE pa.id_producto = ?
+              AND a.activo = 1
+            ORDER BY a.nombre COLLATE NOCASE
+            """,
+            (id_producto,)
+        ).fetchall()
+
+        adicionales = [
+            {
+                "id_adicional_catalogo": fila[0],
+                "nombre": fila[1],
+                "precio_venta": fila[2]
+            }
+            for fila in filas_adicionales
+        ]
+
+        return {
+            "ok": True,
+            "id_producto": id_producto,
+            "producto": producto[0],
+            "ingredientes": ingredientes,
+            "adicionales": adicionales
+        }
+
+    finally:
+        conexion.close()
+
+
+@router.put("/admin/productos/{id_producto}/personalizaciones")
+def configurar_personalizaciones_pos(
+    id_producto: int,
+    datos: PersonalizacionesEntrada,
+    request: Request,
+    usuario: dict = Depends(exigir_administrador_pos)
+):
+    comprobar_origen(request)
+
+    ingredientes = [
+        nombre.strip()
+        for nombre in datos.ingredientes
+    ]
+
+    # Validar ingredientes vacíos, largos o repetidos.
+    if any(
+        not nombre or len(nombre) > 60
+        for nombre in ingredientes
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Hay ingredientes inválidos."
+        )
+
+    if len({n.casefold() for n in ingredientes}) != len(ingredientes):
+        raise HTTPException(
+            status_code=422,
+            detail="Hay ingredientes repetidos."
+        )
+
+    ids = datos.ids_adicionales
+
+    if (
+        any(type(i) is not int or i <= 0 for i in ids)
+        or len(set(ids)) != len(ids)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Hay adicionales inválidos o repetidos."
+        )
+
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("BEGIN IMMEDIATE")
+
+        producto = conexion.execute(
+            """
+            SELECT nombre
+            FROM productos
+            WHERE id_producto = ?
+            """,
+            (id_producto,)
+        ).fetchone()
+
+        if producto is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Producto no encontrado."
+            )
+
+        # Solo aceptar extras existentes y activos.
+        for id_adicional in ids:
+            adicional = conexion.execute(
+                """
+                SELECT id_adicional_catalogo
+                FROM adicionales_catalogo
+                WHERE id_adicional_catalogo = ?
+                  AND activo = 1
+                """,
+                (id_adicional,)
+            ).fetchone()
+
+            if adicional is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Uno de los adicionales no está disponible."
+                )
+
+        # Reemplazar la configuración anterior del producto.
+        conexion.execute(
+            """
+            DELETE FROM pos_ingredientes_producto
+            WHERE id_producto = ?
+            """,
+            (id_producto,)
+        )
+
+        conexion.execute(
+            """
+            DELETE FROM pos_adicionales_producto
+            WHERE id_producto = ?
+            """,
+            (id_producto,)
+        )
+
+        conexion.executemany(
+            """
+            INSERT INTO pos_ingredientes_producto
+                (id_producto, ingrediente)
+            VALUES (?, ?)
+            """,
+            [
+                (id_producto, ingrediente)
+                for ingrediente in ingredientes
+            ]
+        )
+
+        conexion.executemany(
+            """
+            INSERT INTO pos_adicionales_producto
+                (id_producto, id_adicional_catalogo)
+            VALUES (?, ?)
+            """,
+            [
+                (id_producto, id_adicional)
+                for id_adicional in ids
+            ]
+        )
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "producto": producto[0],
+            "ingredientes": ingredientes,
+            "ids_adicionales": ids,
             "modificado_por": usuario["usuario"]
         }
 
