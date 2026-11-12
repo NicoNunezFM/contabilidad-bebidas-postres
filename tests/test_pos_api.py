@@ -70,3 +70,71 @@ def test_login_y_cierre_de_sesiones(base_prueba):
     # Cerrar ventas: ya no hay acceso.
     cliente.post("/pos-api/logout", headers=encabezados)
     assert cliente.get("/pos-api/yo").status_code == 401
+
+
+def test_permisos_administrador_pos(base_prueba):
+    conexion = obtener_conexion()
+
+    try:
+        for usuario, rol, clave in (
+            ("admin", "admin", "AdminPrueba123!"),
+            ("ventas", "ventas", "VentasPrueba123!"),
+        ):
+            conexion.execute(
+                """
+                INSERT INTO usuarios_pos (usuario, rol, password_hash)
+                VALUES (?, ?, ?)
+                """,
+                (usuario, rol, generar_hash(clave))
+            )
+
+        conexion.commit()
+    finally:
+        conexion.close()
+
+    cliente = TestClient(app)
+    origen = {"Origin": "http://testserver"}
+
+    # Sin iniciar sesión: acceso rechazado.
+    respuesta = cliente.get("/pos-api/admin/verificar")
+    assert respuesta.status_code == 401
+
+    # Iniciar sesión como ventas.
+    respuesta = cliente.post(
+        "/pos-api/login",
+        json={
+            "usuario": "ventas",
+            "contrasena": "VentasPrueba123!"
+        },
+        headers=origen
+    )
+    assert respuesta.status_code == 200
+
+    # Ventas no puede entrar a administración.
+    respuesta = cliente.get("/pos-api/admin/verificar")
+    assert respuesta.status_code == 403
+
+    # Iniciar sesión como administrador.
+    respuesta = cliente.post(
+        "/pos-api/login",
+        json={
+            "usuario": "admin",
+            "contrasena": "AdminPrueba123!"
+        },
+        headers=origen
+    )
+    assert respuesta.status_code == 200
+
+    # El administrador sí puede acceder.
+    respuesta = cliente.get("/pos-api/admin/verificar")
+    assert respuesta.status_code == 200
+    assert respuesta.json()["rol"] == "admin"
+
+    # Cerrar la sesión administrativa.
+    cliente.post("/pos-api/logout", headers=origen)
+
+    # La cuenta ventas sigue abierta,
+    # pero continúa sin permisos administrativos.
+    respuesta = cliente.get("/pos-api/admin/verificar")
+    assert respuesta.status_code == 403
+

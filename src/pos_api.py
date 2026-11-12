@@ -1,5 +1,7 @@
 
-from fastapi import APIRouter, HTTPException, Request, Response
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+
 from pydantic import BaseModel, Field
 
 from pos_auth import (
@@ -9,6 +11,7 @@ from pos_auth import (
     revocar_sesion_pos,
 )
 
+from database import obtener_conexion
 
 router = APIRouter(prefix="/pos-api", tags=["POS - Sesiones"])
 
@@ -21,6 +24,15 @@ class LoginEntrada(BaseModel):
     contrasena: str = Field(min_length=1, max_length=256)
 
 
+class PrecioNuevoEntrada(BaseModel):
+    precio_nuevo: float = Field(
+        gt=0,
+        le=100_000_000,
+        allow_inf_nan=False
+    )
+
+
+
 def comprobar_origen(request: Request):
     origen = request.headers.get("origin")
     esperado = f"{request.url.scheme}://{request.url.netloc}"
@@ -30,6 +42,32 @@ def comprobar_origen(request: Request):
             status_code=403,
             detail="Origen no permitido."
         )
+
+
+def exigir_administrador_pos(request: Request) -> dict:
+    token_admin = request.cookies.get(COOKIE_ADMIN)
+
+    if token_admin:
+        usuario = obtener_usuario_sesion_pos(token_admin)
+
+        if usuario is not None and usuario["rol"] == "admin":
+            return usuario
+
+    token_ventas = request.cookies.get(COOKIE_VENTAS)
+
+    if token_ventas:
+        usuario = obtener_usuario_sesion_pos(token_ventas)
+
+        if usuario is not None and usuario["rol"] == "ventas":
+            raise HTTPException(
+                status_code=403,
+                detail="No tenés permisos de administrador."
+            )
+
+    raise HTTPException(
+        status_code=401,
+        detail="Debés iniciar sesión como administrador."
+    )
 
 
 @router.post("/login")
@@ -114,3 +152,101 @@ def cerrar_sesion(request: Request, response: Response):
             return {"ok": True, "mensaje": "Sesión cerrada."}
 
     return {"ok": True, "mensaje": "No había una sesión abierta."}
+
+
+@router.get("/admin/verificar")
+def verificar_acceso_administrador(
+    usuario: dict = Depends(exigir_administrador_pos)
+):
+    return {
+        "ok": True,
+        "mensaje": "Acceso administrativo autorizado.",
+        "usuario": usuario["usuario"],
+        "rol": usuario["rol"]
+    }
+
+
+@router.patch("/admin/productos/{id_producto}/precio")
+def actualizar_precio_producto_pos(
+    id_producto: int,
+    datos: PrecioNuevoEntrada,
+    request: Request,
+    usuario: dict = Depends(exigir_administrador_pos)
+):
+    comprobar_origen(request)
+
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("BEGIN IMMEDIATE")
+
+        producto = conexion.execute(
+            """
+            SELECT nombre, precio_venta
+            FROM productos
+            WHERE id_producto = ?
+            """,
+            (id_producto,)
+        ).fetchone()
+
+        if producto is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Producto no encontrado."
+            )
+
+        nombre, precio_anterior = producto
+        precio_nuevo = datos.precio_nuevo
+
+        if precio_anterior == precio_nuevo:
+            conexion.rollback()
+            return {
+                "ok": True,
+                "actualizado": False,
+                "mensaje": "El precio ya tenía ese valor."
+            }
+
+        conexion.execute(
+            """
+            UPDATE productos
+            SET precio_venta = ?
+            WHERE id_producto = ?
+            """,
+            (precio_nuevo, id_producto)
+        )
+
+        conexion.execute(
+            """
+            INSERT INTO historial_precios_pos (
+                id_producto,
+                id_usuario,
+                precio_anterior,
+                precio_nuevo
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                id_producto,
+                usuario["id_usuario"],
+                precio_anterior,
+                precio_nuevo
+            )
+        )
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "actualizado": True,
+            "producto": nombre,
+            "precio_anterior": precio_anterior,
+            "precio_nuevo": precio_nuevo,
+            "modificado_por": usuario["usuario"]
+        }
+
+    except Exception:
+        conexion.rollback()
+        raise
+
+    finally:
+        conexion.close()
