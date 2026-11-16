@@ -4,6 +4,8 @@
 
 En el catálogo de SQLite, armá un pedido de prueba y elegí **Validar pedido de prueba**. El POS muestra el total calculado por el servidor. El registro de ventas está disponible únicamente en el catálogo ficticio, cuando el servidor confirma que el modo de simulación está habilitado.
 
+El POS consulta los productos en `GET /pos-api/catalogo/productos`. Fuera de la simulación, esa consulta requiere iniciar sesión. Para revisar la autenticación de la API contable y el bot, consultá [Auditoría e integración contable](auditoria-integracion-pos.md).
+
 `POST /pos-api/pedidos/validar` requiere sesión POS de ventas o administración y el encabezado `Origin` del servidor. Ejemplo de cuerpo con IDs ficticios:
 
 ```json
