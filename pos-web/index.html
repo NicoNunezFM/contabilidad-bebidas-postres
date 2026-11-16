@@ -105,6 +105,8 @@ button:disabled{opacity:.55;cursor:default}
 <div class="split"><span>Caja bebidas y postres</span><strong id="otherTotal"></strong></div>
 <div class="total order-total"><span>Total a cobrar</span><strong id="total"></strong></div>
 <h3>Método de pago</h3><div id="payments" class="payments"></div>
+<button id="validarPedido" type="button" class="wide" hidden>Validar pedido de prueba</button>
+<p id="estadoPedido" class="notice" role="status" hidden></p>
 <button id="checkout" class="primary wide">Simular cobro →</button><p id="notice" class="notice" role="status"></p>
 </aside>
 </div></div></div>
@@ -133,6 +135,7 @@ button:disabled{opacity:.55;cursor:default}
   var modoReal = false;
   var productosReales = [];
   var pedidoReal = [];
+  var revisionPedidoReal = 0;
   var solicitudPersonalizacionReal = 0;
   var categoriaReal = 'Todas';
   var method = '';
@@ -667,6 +670,11 @@ el('catalogMode').onclick = function () {
 
 
 function mostrarPedidoReal() {
+  revisionPedidoReal++;
+  el('validarPedido').hidden = false;
+  el('validarPedido').disabled = !pedidoReal.length;
+  el('estadoPedido').hidden = false;
+  el('estadoPedido').textContent = '';
   var contenedor = el('lines');
   contenedor.innerHTML = '';
 
@@ -839,6 +847,9 @@ function mostrarPedidoReal() {
     return;
   }
 
+  revisionPedidoReal++;
+  el('validarPedido').hidden = true;
+  el('estadoPedido').hidden = true;
   el('checkout').textContent = 'Simular cobro →';
 
     var sums = totals();
@@ -1712,6 +1723,46 @@ if (modoReal) {
       el('notice').textContent = '';
       el('tabs').querySelector('.active').focus();
     };
+  };
+  el('validarPedido').onclick = async function () {
+    var boton = el('validarPedido');
+    var estado = el('estadoPedido');
+    var revision = revisionPedidoReal;
+    var items = pedidoReal.map(function (item) {
+      return {
+        id_producto: item.id_producto,
+        cantidad: item.cantidad,
+        ingredientes_quitados: item.ingredientes_quitados,
+        ids_adicionales: item.adicionales.map(function (extra) {
+          return extra.id_adicional_catalogo;
+        })
+      };
+    });
+
+    boton.disabled = true;
+    estado.textContent = 'Validando precios y stock…';
+    try {
+      var respuesta = await fetch('/pos-api/pedidos/validar', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({items: items})
+      });
+      var datos = await respuesta.json();
+      if (revision !== revisionPedidoReal) return;
+      if (respuesta.ok) {
+        estado.textContent = 'Total validado por el servidor: ' + money(datos.total_centavos / 100) + '.';
+      } else if (respuesta.status === 401) {
+        estado.textContent = 'Iniciá sesión en el POS para validar el pedido.';
+      } else {
+        estado.textContent = (typeof datos.detail === 'string' ? datos.detail :
+          datos.detail && datos.detail.mensaje) || 'Revisá las líneas del pedido.';
+      }
+    } catch (error) {
+      if (revision === revisionPedidoReal) estado.textContent = 'No se pudo validar el pedido.';
+    } finally {
+      if (revision === revisionPedidoReal) boton.disabled = false;
+    }
   };
   el('checkout').onclick = function () {
     // El carrito real no puede ejecutar cobros, ni siquiera simulados.

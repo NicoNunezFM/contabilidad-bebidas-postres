@@ -12,6 +12,7 @@ from pos_auth import (
 )
 
 from database import obtener_conexion
+from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
 
 router = APIRouter(prefix="/pos-api", tags=["POS - Sesiones"])
 
@@ -125,8 +126,7 @@ def iniciar_sesion(
     }
 
 
-@router.get("/yo")
-def usuario_actual(request: Request):
+def exigir_usuario_pos(request: Request):
     for nombre_cookie, rol in (
         (COOKIE_ADMIN, "admin"),
         (COOKIE_VENTAS, "ventas"),
@@ -139,12 +139,28 @@ def usuario_actual(request: Request):
         usuario = obtener_usuario_sesion_pos(token)
 
         if usuario is not None and usuario["rol"] == rol:
-            return {"ok": True, "usuario": usuario}
+            return usuario
 
     raise HTTPException(
         status_code=401,
         detail="No hay una sesión válida."
     )
+
+
+@router.get("/yo")
+def usuario_actual(usuario: dict = Depends(exigir_usuario_pos)):
+    return {"ok": True, "usuario": usuario}
+
+
+@router.post("/pedidos/validar", dependencies=[Depends(comprobar_origen), Depends(exigir_usuario_pos)])
+def validar_pedido_pos(pedido: PedidoPos):
+    conexion = obtener_conexion()
+    try:
+        conexion.execute("PRAGMA query_only = ON")
+        conexion.execute("BEGIN")
+        return {"ok": True, **calcular_pedido_pos(conexion, pedido)}
+    finally:
+        conexion.close()
 
 
 @router.post("/logout")
@@ -320,47 +336,7 @@ def consultar_personalizaciones_pos(id_producto: int):
                 detail="Producto no encontrado."
             )
 
-        # Ingredientes que se pueden quitar.
-        filas_ingredientes = conexion.execute(
-            """
-            SELECT ingrediente
-            FROM pos_ingredientes_producto
-            WHERE id_producto = ?
-            ORDER BY ingrediente COLLATE NOCASE
-            """,
-            (id_producto,)
-        ).fetchall()
-
-        ingredientes = [
-            fila[0] for fila in filas_ingredientes
-        ]
-
-        # Extras permitidos y activos.
-        filas_adicionales = conexion.execute(
-            """
-            SELECT
-                a.id_adicional_catalogo,
-                a.nombre,
-                a.precio_venta
-            FROM pos_adicionales_producto AS pa
-            JOIN adicionales_catalogo AS a
-              ON a.id_adicional_catalogo =
-                 pa.id_adicional_catalogo
-            WHERE pa.id_producto = ?
-              AND a.activo = 1
-            ORDER BY a.nombre COLLATE NOCASE
-            """,
-            (id_producto,)
-        ).fetchall()
-
-        adicionales = [
-            {
-                "id_adicional_catalogo": fila[0],
-                "nombre": fila[1],
-                "precio_venta": fila[2]
-            }
-            for fila in filas_adicionales
-        ]
+        ingredientes, adicionales = consultar_opciones_producto(conexion, id_producto)
 
         return {
             "ok": True,
