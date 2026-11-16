@@ -305,19 +305,7 @@ def registrar_venta(
         }
 
     # Obtener datos comerciales del producto.
-    stock_actual = producto[7]
     precio_configurado = producto[8]
-    controla_stock = bool(producto[9])
-
-    if controla_stock and cantidad > stock_actual:
-        return {
-            "ok": False,
-            "codigo": "STOCK_INSUFICIENTE",
-            "mensaje": (
-                f"Stock insuficiente. "
-                f"Stock disponible: {stock_actual}"
-            )
-        }
 
     # Si no se informa un precio, usar el precio configurado del producto.
     if precio_unitario is None:
@@ -381,7 +369,26 @@ def registrar_venta(
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN IMMEDIATE")
         cursor = conexion.cursor()
+        estado_stock = cursor.execute(
+            "SELECT stock, controla_stock FROM productos WHERE id_producto = ?",
+            (id_producto,),
+        ).fetchone()
+        if estado_stock is None:
+            return {
+                "ok": False,
+                "codigo": "PRODUCTO_NO_ENCONTRADO",
+                "mensaje": "Producto no encontrado."
+            }
+        stock_actual, controla_stock = estado_stock
+        controla_stock = bool(controla_stock)
+        if controla_stock and cantidad > stock_actual:
+            return {
+                "ok": False,
+                "codigo": "STOCK_INSUFICIENTE",
+                "mensaje": f"Stock insuficiente. Stock disponible: {stock_actual}",
+            }
 
         # Toda venta se considera cobrada por defecto.
         cursor.execute(
@@ -539,6 +546,7 @@ def anular_venta(id_venta, motivo):
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN IMMEDIATE")
         cursor = conexion.cursor()
 
         cursor.execute(
