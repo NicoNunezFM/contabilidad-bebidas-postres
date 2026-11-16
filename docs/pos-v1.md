@@ -2,7 +2,7 @@
 
 ## 1. Validar un pedido
 
-En el catálogo de SQLite, armá un pedido de prueba y elegí **Validar pedido de prueba**. El POS muestra el total calculado por el servidor. El botón de cobro del catálogo SQLite sigue deshabilitado.
+En el catálogo de SQLite, armá un pedido de prueba y elegí **Validar pedido de prueba**. El POS muestra el total calculado por el servidor. El registro de ventas está disponible únicamente en el catálogo ficticio, cuando el servidor confirma que el modo de simulación está habilitado.
 
 `POST /pos-api/pedidos/validar` requiere sesión POS de ventas o administración y el encabezado `Origin` del servidor. Ejemplo de cuerpo con IDs ficticios:
 
@@ -54,11 +54,33 @@ Las líneas de bebidas y postres se imputan a `bebidas_postres`. Las demás se i
 
 `GET /pos-api/simulacion/cajas` requiere sesión de administración y muestra los saldos en centavos por caja y medio de pago. Las pruebas cubren pedidos mixtos, permisos y reversión de los movimientos ante un fallo de stock.
 
+`GET /pos-api/simulacion/cajas/movimientos?caja=comidas` exige el mismo rol. Admite también `caja=bebidas_postres`. Devuelve los movimientos del más reciente al más antiguo con venta, titular de la operación, fecha UTC, medio, tipo e importe con signo. Admite `limite` de 1 a 100 y devuelve `siguiente_antes_de` para pedir la siguiente página mediante `antes_de`.
+
 ## 4. Anulaciones, historial y permisos
 
 - `POST /pos-api/simulacion/ventas/{id_venta}/anulacion` recibe `{"motivo":"Error de prueba"}` y requiere sesión de administración y origen del servidor. Restaura el stock descontado al registrar la venta y agrega movimientos inversos con la caja y el medio originales. Guarda el motivo, el usuario y la fecha UTC. Repetir la anulación devuelve `409`.
 - `GET /pos-api/simulacion/ventas` muestra el historial más reciente primero. Una sesión de ventas ve sus propias operaciones y administración puede ver todas. Pasá `limite` de 1 a 100 y usá `siguiente_antes_de` como `antes_de` para obtener la página siguiente. Cada venta conserva los precios y personalizaciones del momento del registro.
-- Las rutas de simulación quedan deshabilitadas por defecto. Para probarlas con este esquema, prepará una base ficticia nueva con el script de esta revisión. El flujo web valida el pedido, mientras que registro simulado, cajas, historial y anulación se prueban mediante la API. La rama no integra procesamiento de pagos.
+- Las rutas de simulación quedan deshabilitadas por defecto. El POS comprueba la configuración y la marca de la base con `GET /pos-api/simulacion/estado` antes de mostrar los controles de simulación.
+
+## 5. Prueba manual en el POS web
+
+1. Prepará una base ficticia nueva y arrancá FastAPI con los comandos de la sección 2. Abrí `http://127.0.0.1:8000/pos/`. El aviso de simulación identifica el catálogo ficticio y el estado de los cobros reales. Podés volver al catálogo demo para probar la interfaz sin guardar operaciones.
+2. Iniciá sesión con `ventas`. Agregá una **Comida ficticia** y una **Bebida ficticia**. Elegí un medio de pago y validá el pedido. El total validado debe ser **$ 4.000,00** para los precios iniciales. Si editás una línea o la cantidad, volvé a validar.
+3. Elegí **Confirmar venta simulada**, revisá el importe y el medio, y luego elegí **Registrar venta simulada**. La pantalla debe mostrar el número de venta, el importe y el medio, y dejar el pedido vacío. En **Historial simulado** podés abrir el detalle de tus ventas. La cuenta de ventas carece de acceso a cajas y anulación.
+4. Cerrá sesión e ingresá como `admin`. En **Cajas simuladas**, verificá que la venta aparezca en ambas cajas con su parte del total: **$ 2.500,00** en Comidas y **$ 1.500,00** en Bebidas y postres. Los importes se imputan al medio elegido.
+5. En **Historial simulado**, abrí la venta, elegí **Anular venta simulada** y confirmá con un motivo. Comprobá que el detalle indique **Anulada** y muestre el motivo. Volvé a **Cajas simuladas** y verificá los importes inversos y los saldos en cero si era la única venta. El catálogo recupera el stock de las unidades descontadas.
+
+Cada confirmación genera un UUID y guarda el pedido, el total y el medio en la sesión de esa pestaña, asociados al usuario. Si falla la conexión cuando el servidor podría haber registrado la venta, usá **Reintentar confirmación** desde esa pestaña con la misma cuenta. También podés recargarla. El POS conserva el UUID y muestra el resultado de la venta original. Si el servidor rechaza el pedido por un cambio de precio, stock o personalización, el carrito queda disponible para revisar y volver a validar. La API comprueba la cuenta esperada en las confirmaciones enviadas desde el POS para evitar que un cambio de sesión en otra pestaña impute la operación a la cuenta equivocada.
+
+### Prueba automatizada en navegador
+
+Con Edge o Chrome instalado, configurá su ruta y ejecutá la prueba de navegador con `websocket-client` instalado. La prueba arranca un servidor local sobre una base ficticia temporal, pierde deliberadamente una respuesta de venta y comprueba el reintento, las cajas, los roles y la reversión.
+
+```powershell
+python -m pip install websocket-client
+$env:POS_TEST_BROWSER = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+python -m pytest -q tests/test_pos_web.py
+```
 
 ### Ejemplo local de venta ficticia
 

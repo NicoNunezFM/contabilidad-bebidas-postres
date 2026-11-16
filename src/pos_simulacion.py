@@ -120,7 +120,11 @@ def registrar_venta_simulada(entrada, usuario):
                 raise HTTPException(409, "La solicitud ya corresponde a otra venta.")
             return {"id_venta": id_venta, "anulada": bool(anulada), **json.loads(pedido_guardado)}
 
-        pedido = calcular_pedido_pos(conexion, entrada)
+        try:
+            pedido = calcular_pedido_pos(conexion, entrada)
+        except HTTPException as error:
+            error.headers = {**(error.headers or {}), "X-POS-Resultado": "PEDIDO_RECHAZADO"}
+            raise
         if pedido["total_centavos"] != entrada.total_esperado_centavos:
             raise HTTPException(409, {
                 "codigo": "TOTAL_MODIFICADO",
@@ -234,3 +238,30 @@ def consultar_cajas_simuladas():
         {"caja": caja, "medio_pago": medio, "saldo_centavos": saldo}
         for caja, medio, saldo in filas
     ]
+
+
+def consultar_movimientos_simulados(caja, antes_de, limite):
+    with transaccion_simulacion() as conexion:
+        filas = conexion.execute(
+            """
+            SELECT m.rowid, m.id_venta, m.medio_pago, m.tipo, m.importe_centavos,
+                   CASE m.tipo WHEN 'venta' THEN v.fecha ELSE a.fecha END AS fecha,
+                   CASE m.tipo WHEN 'venta' THEN v.id_usuario ELSE a.id_usuario END AS id_usuario
+            FROM pos_movimientos_simulados AS m
+            JOIN pos_ventas_simuladas AS v USING (id_venta)
+            LEFT JOIN pos_anulaciones_simuladas AS a USING (id_venta)
+            WHERE m.caja = :caja AND (:antes_de IS NULL OR m.rowid < :antes_de)
+            ORDER BY m.rowid DESC
+            LIMIT :limite
+            """, {"caja": caja, "antes_de": antes_de, "limite": limite + 1},
+        ).fetchall()
+
+    movimientos = [
+        {
+            "id_venta": id_venta, "medio_pago": medio, "tipo": tipo,
+            "importe_centavos": importe, "fecha": fecha, "id_usuario": id_usuario,
+        }
+        for _, id_venta, medio, tipo, importe, fecha, id_usuario in filas[:limite]
+    ]
+    siguiente = filas[limite - 1][0] if len(filas) > limite else None
+    return {"movimientos": movimientos, "siguiente_antes_de": siguiente}

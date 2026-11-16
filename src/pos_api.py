@@ -1,6 +1,8 @@
 
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
+from typing import Literal
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, Response
 
 from pydantic import BaseModel, Field
 
@@ -19,7 +21,9 @@ from pos_simulacion import (
     anular_venta_simulada,
     consultar_cajas_simuladas,
     consultar_historial_simulado,
+    consultar_movimientos_simulados,
     registrar_venta_simulada,
+    transaccion_simulacion,
 )
 
 router = APIRouter(prefix="/pos-api", tags=["POS - Sesiones"])
@@ -159,7 +163,7 @@ def exigir_usuario_pos(request: Request):
     )
 
 
-@router.get("/yo")
+@router.get("/yo", dependencies=[Depends(evitar_cache_pos)])
 def usuario_actual(usuario: dict = Depends(exigir_usuario_pos)):
     return {"ok": True, "usuario": usuario}
 
@@ -175,8 +179,27 @@ def validar_pedido_pos(pedido: PedidoPos):
         conexion.close()
 
 
+@router.get("/simulacion/estado", dependencies=[Depends(evitar_cache_pos)])
+def estado_simulacion_pos():
+    with transaccion_simulacion():
+        return {"ok": True, "simulacion": True}
+
+
+def comprobar_usuario_simulacion(id_esperado, usuario):
+    if id_esperado is not None and id_esperado != usuario["id_usuario"]:
+        raise HTTPException(409, {
+            "codigo": "SESION_CAMBIADA",
+            "mensaje": "La sesión cambió. Iniciá sesión con la cuenta que confirmó la operación.",
+        })
+
+
 @router.post("/simulacion/ventas", dependencies=[Depends(comprobar_origen)])
-def simular_venta_pos(venta: VentaSimuladaEntrada, usuario: dict = Depends(exigir_usuario_pos)):
+def simular_venta_pos(
+    venta: VentaSimuladaEntrada,
+    usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
     return {"ok": True, "simulacion": True, **registrar_venta_simulada(venta, usuario)}
 
 
@@ -194,13 +217,24 @@ def anular_venta_pos(
     anulacion: AnulacionSimuladaEntrada,
     id_venta: int = Path(gt=0, le=2**63 - 1),
     usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
 ):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
     return {"ok": True, "simulacion": True, **anular_venta_simulada(id_venta, anulacion.motivo, usuario)}
 
 
 @router.get("/simulacion/cajas", dependencies=[Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
 def consultar_cajas_pos():
     return {"ok": True, "simulacion": True, "saldos": consultar_cajas_simuladas()}
+
+
+@router.get("/simulacion/cajas/movimientos", dependencies=[Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
+def consultar_movimientos_pos(
+    caja: Literal["comidas", "bebidas_postres"],
+    antes_de: int | None = Query(default=None, gt=0, le=2**63 - 1),
+    limite: int = Query(default=25, ge=1, le=100),
+):
+    return {"ok": True, "simulacion": True, **consultar_movimientos_simulados(caja, antes_de, limite)}
 
 
 @router.post("/logout")
