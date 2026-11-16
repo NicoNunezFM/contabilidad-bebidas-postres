@@ -4,7 +4,7 @@
 
 En el catálogo de SQLite, armá un pedido de prueba y elegí **Validar pedido de prueba**. El POS muestra el total calculado por el servidor. El registro de ventas está disponible únicamente en el catálogo ficticio, cuando el servidor confirma que el modo de simulación está habilitado.
 
-El POS consulta los productos en `GET /pos-api/catalogo/productos`. Fuera de la simulación, esa consulta requiere iniciar sesión. Para revisar la autenticación de la API contable y el bot, consultá [Auditoría e integración contable](auditoria-integracion-pos.md).
+El POS consulta los productos en `GET /pos-api/catalogo/productos`. Fuera de la simulación, esa consulta requiere iniciar sesión. Para revisar la autenticación de la API contable y el bot, consultá [Auditoría e integración contable](auditoria-integracion-pos.md). El flujo de pagos combinados, fiados y copia de bases ficticias anteriores está en [Cobros y fiados de Lo de Clau](pos-cobros-fiados.md).
 
 `POST /pos-api/pedidos/validar` requiere sesión POS de ventas o administración y el encabezado `Origin` del servidor. Ejemplo de cuerpo con IDs ficticios:
 
@@ -42,7 +42,7 @@ $env:POS_V1_SIMULACION = '1'
 python -m uvicorn api:app --app-dir src --host 127.0.0.1
 ```
 
-`POST /pos-api/simulacion/ventas` recibe los `items` de la validación, un UUID `id_solicitud`, el `total_esperado_centavos` devuelto por el servidor y el `medio_pago`. Requiere sesión POS y origen del servidor. La misma solicitud por el mismo usuario devuelve la venta ya registrada con su estado de anulación actual, incluso si cambia el catálogo. Reusar el UUID con datos distintos devuelve `409`.
+`POST /pos-api/simulacion/ventas` recibe los `items` de la validación, un UUID `id_solicitud`, el `total_esperado_centavos` devuelto por el servidor y el `medio_pago` para el receptor predeterminado. Para elegir receptores, envía `pagos` en su lugar. Requiere sesión POS y origen del servidor. La misma solicitud por el mismo usuario devuelve la venta ya registrada con su estado vigente, incluso si cambia el catálogo. Reusar el UUID con datos distintos devuelve `409`.
 
 La venta se guarda en `pos_ventas_simuladas` y descuenta stock ficticio dentro de una transacción `BEGIN IMMEDIATE`. El servidor vuelve a calcular el pedido en esa misma transacción. Un error revierte el registro y el descuento. La API exige que la base tenga la marca SQLite de simulación y que `POS_V1_SIMULACION=1`. Con esa opción, FastAPI valida la base antes de arrancar y conserva el catálogo ficticio preparado por el script. El script solo crea archivos nuevos. Los registros están aislados de las ventas del bot y de la contabilidad existente.
 
@@ -50,17 +50,19 @@ Pruebas focalizadas: `python -m pytest -q tests/test_pos_simulacion.py`.
 
 ## 3. Cajas y medios de pago simulados
 
-Agregá `medio_pago` al cuerpo del registro de venta. Los valores admitidos son `efectivo`, `transferencia` y `mercado_pago`. Cada venta usa un solo medio para el pedido completo. Estos valores sirven para clasificar importes ficticios en SQLite.
+El ejemplo de esta sección usa el receptor predeterminado por producto. El cobro con receptor explícito registra el dinero donde se recibió y calcula la distribución pendiente por separado.
+
+Agregá `medio_pago` al cuerpo del registro de venta para usar un mismo medio en todo el pedido. Los valores admitidos son `efectivo`, `transferencia` y `mercado_pago`. Estos valores sirven para clasificar importes ficticios en SQLite.
 
 Las líneas de bebidas y postres se imputan a `bebidas_postres`. Las demás se imputan a `comidas`. Un pedido mixto genera un movimiento por cada caja involucrada. La venta, el descuento de stock y los movimientos se confirman juntos.
 
-`GET /pos-api/simulacion/cajas` requiere sesión de administración y muestra los saldos en centavos por caja y medio de pago. Las pruebas cubren pedidos mixtos, permisos y reversión de los movimientos ante un fallo de stock.
+`GET /pos-api/simulacion/cajas` requiere sesión de administración y muestra los saldos en centavos por receptor, los cobros netos por medio y los saldos pendientes por cobrar y distribuir. Las pruebas cubren pedidos mixtos, permisos y reversión de los movimientos ante un fallo de stock.
 
 `GET /pos-api/simulacion/cajas/movimientos?caja=comidas` exige el mismo rol. Admite también `caja=bebidas_postres`. Devuelve los movimientos del más reciente al más antiguo con venta, titular de la operación, fecha UTC, medio, tipo e importe con signo. Admite `limite` de 1 a 100 y devuelve `siguiente_antes_de` para pedir la siguiente página mediante `antes_de`.
 
 ## 4. Anulaciones, historial y permisos
 
-- `POST /pos-api/simulacion/ventas/{id_venta}/anulacion` recibe `{"motivo":"Error de prueba"}` y requiere sesión de administración y origen del servidor. Restaura el stock descontado al registrar la venta y agrega movimientos inversos con la caja y el medio originales. Guarda el motivo, el usuario y la fecha UTC. Repetir la anulación devuelve `409`.
+- `POST /pos-api/simulacion/ventas/{id_venta}/anulacion` recibe `{"motivo":"Error de prueba"}` y requiere sesión de administración y origen del servidor. Restaura el stock de las unidades pendientes de reversión y registra el reembolso por los receptores y medios originales. Guarda el motivo, el usuario y la fecha UTC. Si el cuerpo incluye `id_solicitud`, el mismo operador puede recuperar la confirmación. El cliente de ejemplo sin UUID recibe `409` al repetirla.
 - `GET /pos-api/simulacion/ventas` muestra el historial más reciente primero. Una sesión de ventas ve sus propias operaciones y administración puede ver todas. Pasá `limite` de 1 a 100 y usá `siguiente_antes_de` como `antes_de` para obtener la página siguiente. Cada venta conserva los precios y personalizaciones del momento del registro.
 - Las rutas de simulación quedan deshabilitadas por defecto. El POS comprueba la configuración y la marca de la base con `GET /pos-api/simulacion/estado` antes de mostrar los controles de simulación.
 
