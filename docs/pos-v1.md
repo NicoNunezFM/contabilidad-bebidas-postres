@@ -42,7 +42,7 @@ python -m uvicorn api:app --app-dir src --host 127.0.0.1
 
 `POST /pos-api/simulacion/ventas` recibe los `items` de la validación, un UUID `id_solicitud`, el `total_esperado_centavos` devuelto por el servidor y el `medio_pago`. Requiere sesión POS y origen del servidor. La misma solicitud por el mismo usuario devuelve la venta ya registrada con su estado de anulación actual, incluso si cambia el catálogo. Reusar el UUID con datos distintos devuelve `409`.
 
-La venta se guarda en `pos_ventas_simuladas` y descuenta stock ficticio dentro de una transacción `BEGIN IMMEDIATE`. El servidor vuelve a calcular el pedido en esa misma transacción. Un error revierte el registro y el descuento. La API exige que la base tenga la marca SQLite de simulación y que `POS_V1_SIMULACION=1`. El script solo crea archivos nuevos. Los registros están aislados de las ventas del bot y de la contabilidad existente.
+La venta se guarda en `pos_ventas_simuladas` y descuenta stock ficticio dentro de una transacción `BEGIN IMMEDIATE`. El servidor vuelve a calcular el pedido en esa misma transacción. Un error revierte el registro y el descuento. La API exige que la base tenga la marca SQLite de simulación y que `POS_V1_SIMULACION=1`. Con esa opción, FastAPI valida la base antes de arrancar y conserva el catálogo ficticio preparado por el script. El script solo crea archivos nuevos. Los registros están aislados de las ventas del bot y de la contabilidad existente.
 
 Pruebas focalizadas: `python -m pytest -q tests/test_pos_simulacion.py`.
 

@@ -3,7 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
+from fastapi.testclient import TestClient
 
+from api import app
 from database import obtener_conexion
 from pos_auth import crear_sesion_pos
 from pos_simulacion import crear_esquema_simulacion
@@ -208,3 +210,30 @@ def test_rechaza_version_anterior_del_esquema(venta_prueba):
         conexion.close()
     assert cliente.post(VENTAS, headers=ORIGEN, json=venta).status_code == 409
     assert _estado() == (10, 0, 0, 0)
+
+
+def test_arranque_simulado_rechaza_una_base_sin_marca_sin_escribir(base_prueba, monkeypatch):
+    monkeypatch.setenv("POS_V1_SIMULACION", "1")
+    antes = base_prueba.read_bytes()
+    with pytest.raises(RuntimeError, match="Simulación POS deshabilitada"):
+        with TestClient(app):
+            pytest.fail("La API arrancó con una base sin marca de simulación")
+    assert base_prueba.read_bytes() == antes
+    assert not (base_prueba.parent / "backups").exists()
+
+
+def test_arranque_simulado_conserva_el_catalogo_ficticio(producto_prueba, base_prueba, monkeypatch):
+    conexion = obtener_conexion()
+    try:
+        with conexion:
+            crear_esquema_simulacion(conexion)
+    finally:
+        conexion.close()
+
+    monkeypatch.setenv("POS_V1_SIMULACION", "1")
+    antes = base_prueba.read_bytes()
+    with TestClient(app) as cliente:
+        productos = cliente.get("/productos").json()["productos"]
+        assert [producto["id_producto"] for producto in productos] == [producto_prueba]
+    assert base_prueba.read_bytes() == antes
+    assert not (base_prueba.parent / "backups").exists()
