@@ -58,6 +58,11 @@ button:disabled{opacity:.55;cursor:default}
 @media(max-width:720px){.sidebar{flex-wrap:wrap;gap:6px}}
 .dialog label {display: block; margin: 10px 0 4px}
 .dialog input:not([type=checkbox]), .dialog textarea {display: block; width: 100%; padding: 8px; font: inherit}
+.dialog select {display:block;width:100%;min-height:44px;padding:8px;font:inherit}
+.dialog select:focus, .dialog textarea:focus {outline:3px solid #7454d7;outline-offset:2px}
+.filaPagoPos {min-width:0;border:1px solid #e4e0ef;border-radius:8px;margin:8px 0;padding:8px}
+.filaPagoPos button {margin-top:8px}
+#camposOperacionPos > p, #errorOperacionPos, #errorVentaPos {margin:8px 0}
 .dialog details, .dialog .actions {margin-top: 8px}
 .dialog summary {cursor: pointer}
 .dialog .row p {margin-top: 4px; overflow-wrap: anywhere}
@@ -118,7 +123,7 @@ button:disabled{opacity:.55;cursor:default}
 <div class="split"><span>Caja rotisería</span><strong id="foodTotal"></strong></div>
 <div class="split"><span>Caja bebidas y postres</span><strong id="otherTotal"></strong></div>
 <div class="total order-total"><span id="totalLabel">Total del pedido</span><strong id="total"></strong></div>
-<div id="paymentSection"><h3>Medio de pago simulado</h3><div id="payments" class="payments"></div></div>
+<div id="paymentSection"><h3>Cobro simulado</h3><div id="payments" class="payments"></div></div>
 <button id="validarPedido" type="button" class="wide" hidden>Validar pedido de prueba</button>
 <p id="estadoPedido" class="notice" role="status" hidden></p>
 <button id="checkout" class="primary wide">Simular cobro →</button><p id="notice" class="notice" role="status"></p>
@@ -1796,12 +1801,237 @@ if (modoReal) {
     void cargar();
   }
 
+  var modalidadesSimuladas = {...mediosSimulados, combinado: 'Pago combinado', fiado: 'Pendiente / Fiado'};
+  var tiposEventoPos = {venta: 'Venta', abono: 'Abono', anulacion: 'Anulación',
+    devolucion: 'Devolución', transferencia_interna: 'Transferencia interna'};
+
+  function nombreReceptorPos(receptor) {
+    var caja = receptor.startsWith('comidas_') ? 'comidas' : 'bebidas_postres';
+    var tipo = {efectivo: 'Caja de efectivo', banco: 'Cuenta bancaria', mercado_pago: 'Cuenta Mercado Pago'};
+    return nombresCajas[caja] + ' · ' + tipo[receptor.slice(caja.length + 1)];
+  }
+
+  function selectorPos(etiqueta, opciones) {
+    var label = nodoPos('label', etiqueta + ' ');
+    var select = nodoPos('select');
+    for (var [valor, nombre] of Object.entries(opciones)) select.add(new Option(nombre, valor));
+    label.append(select);
+    return {label, select};
+  }
+
+  function receptoresPos(medio) {
+    var receptores = {};
+    for (var caja of Object.keys(nombresCajas)) {
+      var tipos = medio === 'efectivo' ? ['efectivo'] : medio ? ['banco', 'mercado_pago']
+        : ['efectivo', 'banco', 'mercado_pago'];
+      for (var tipo of tipos) {
+        var receptor = caja + '_' + tipo;
+        receptores[receptor] = nombreReceptorPos(receptor);
+      }
+    }
+    return receptores;
+  }
+
+  function leerCentavosPos(valor) {
+    var partes = /^(\d+)(?:[,.](\d{1,2}))?$/.exec(valor.trim());
+    var centavos = partes ? Number(partes[1]) * 100 + Number((partes[2] || '').padEnd(2, '0')) : NaN;
+    if (!Number.isSafeInteger(centavos) || centavos <= 0) {
+      throw new Error('Ingresá un importe positivo con hasta dos decimales.');
+    }
+    return centavos;
+  }
+
+  function importeEntradaPos(etiqueta) {
+    var label = nodoPos('label', etiqueta + ' ');
+    var input = nodoPos('input');
+    input.inputMode = 'decimal';
+    input.maxLength = 18;
+    label.append(input);
+    return {label, input};
+  }
+
+  function editarPagosPos(contenedor, importeInicial, actualizar, filasIniciales = 1) {
+    var filas = nodoPos('div');
+    var agregar = nodoPos('button', 'Agregar pago');
+    agregar.type = 'button';
+    contenedor.append(filas, agregar);
+
+    function agregarFila(importe) {
+      if (filas.children.length >= 20) return;
+      var fila = nodoPos('fieldset');
+      fila.className = 'filaPagoPos';
+      fila.append(nodoPos('legend', 'Pago'));
+      var medio = selectorPos('Medio', mediosSimulados);
+      var receptor = selectorPos('Receptor', receptoresPos(medio.select.value));
+      medio.select.onchange = function () {
+        receptor.select.replaceChildren(...Object.entries(receptoresPos(medio.select.value))
+          .map(([valor, nombre]) => new Option(nombre, valor)));
+      };
+      var monto = importeEntradaPos('Importe en pesos');
+      monto.input.dataset.importePago = '';
+      if (importe) monto.input.value = (importe / 100).toFixed(2);
+      var referencia = nodoPos('label', 'Referencia del pago (opcional) ');
+      var texto = nodoPos('input');
+      texto.maxLength = 120;
+      texto.dataset.referenciaPago = '';
+      referencia.append(texto);
+      var quitar = nodoPos('button', 'Quitar pago');
+      quitar.type = 'button';
+      quitar.onclick = function () {
+        fila.remove();
+        agregar.disabled = false;
+        actualizar?.();
+        agregar.focus();
+      };
+      fila.append(medio.label, receptor.label, monto.label, referencia, quitar);
+      filas.append(fila);
+      agregar.disabled = filas.children.length === 20;
+      actualizar?.();
+    }
+
+    agregar.onclick = function () {
+      agregarFila();
+      filas.lastElementChild.querySelector('select').focus();
+    };
+    filas.addEventListener('input', () => actualizar?.());
+    for (var i = 0; i < filasIniciales; i++) agregarFila(i === 0 ? importeInicial : 0);
+    return function () {
+      return Array.from(filas.children, fila => {
+        var [medio, receptor] = fila.querySelectorAll('select');
+        return {medio_pago: medio.value, receptor: receptor.value,
+          importe_centavos: leerCentavosPos(fila.querySelector('[data-importe-pago]').value),
+          referencia: fila.querySelector('[data-referencia-pago]').value.trim() || null};
+      });
+    };
+  }
+
+  function claveOperacionPos(ruta, usuario) {
+    return 'abadion-pos-operacion:' + usuario.id_usuario + ':' + ruta;
+  }
+
+  function hayOperacionPos(ruta, usuario) {
+    try { return Boolean(sessionStorage.getItem(claveOperacionPos(ruta, usuario))); }
+    catch (error) { return false; }
+  }
+
+  function abrirOperacionPos(titulo, ruta, usuario, preparar, alCompletar) {
+    el('dialogBody').onchange = null;
+    show(titulo, '<div id="camposOperacionPos"></div><p id="errorOperacionPos" role="alert"></p>', 'Confirmar');
+    var campos = el('camposOperacionPos');
+    var errorEl = el('errorOperacionPos');
+    var boton = el('accept');
+    var clave = claveOperacionPos(ruta, usuario);
+    var datos;
+    try {
+      datos = JSON.parse(sessionStorage.getItem(clave));
+    } catch (error) {
+      errorEl.textContent = 'No se pudo recuperar la confirmación guardada.';
+      boton.disabled = true;
+      return;
+    }
+    var leer;
+    if (datos) campos.append(nodoPos('p', 'Hay una confirmación pendiente. Reintentá para consultar el resultado.'));
+    else leer = preparar(campos);
+    boton.onclick = async function () {
+      if (boton.disabled || sesionPos !== usuario) return;
+      boton.disabled = true;
+      try {
+        if (!datos) {
+          var nuevos = {...leer(), id_solicitud: crypto.randomUUID()};
+          sessionStorage.setItem(clave, JSON.stringify(nuevos));
+          datos = nuevos;
+        }
+        var resultado = await enviarPos(ruta, datos, usuario);
+        sessionStorage.removeItem(clave);
+        if (campos.isConnected && !overlay.hidden) alCompletar(resultado);
+      } catch (error) {
+        if (datos && [404, 409, 422].includes(error.status) && error.codigo !== 'SESION_CAMBIADA') {
+          sessionStorage.removeItem(clave);
+          datos = null;
+          if (!leer) {
+            campos.replaceChildren();
+            leer = preparar(campos);
+          }
+        }
+        errorEl.textContent = datos ? 'Confirmación pendiente. Usá el mismo botón para reintentar.' : error.message;
+      } finally {
+        boton.disabled = false;
+      }
+    };
+  }
+
+  function motivoOperacionPos(campos) {
+    var label = nodoPos('label', 'Motivo ');
+    var input = nodoPos('textarea');
+    input.maxLength = 300;
+    label.append(input);
+    campos.append(label);
+    return function () {
+      if (!input.value.trim()) throw new Error('Ingresá un motivo.');
+      return input.value.trim();
+    };
+  }
+
+  function abrirAbonoPos(venta, usuario) {
+    abrirOperacionPos('Abonar venta #' + venta.id_venta, '/simulacion/ventas/' + venta.id_venta + '/abonos',
+      usuario, function (campos) {
+        campos.append(nodoPos('p', 'Saldo pendiente ' + importePos(venta.saldo_pendiente_centavos)));
+        var leer = editarPagosPos(campos, venta.saldo_pendiente_centavos);
+        return function () {
+          var pagos = leer();
+          if (!pagos.length) throw new Error('Agregá al menos un pago.');
+          if (pagos.reduce((total, pago) => total + pago.importe_centavos, 0) > venta.saldo_pendiente_centavos) {
+            throw new Error('El abono supera el saldo pendiente.');
+          }
+          return {pagos};
+        };
+      }, () => mostrarHistorialPos('Abono registrado en la venta #' + venta.id_venta + '.'));
+  }
+
+  function abrirDevolucionPos(venta, usuario) {
+    abrirOperacionPos('Devolver productos · Venta #' + venta.id_venta, '/simulacion/ventas/' + venta.id_venta + '/devoluciones',
+      usuario, function (campos) {
+        var unidades = [];
+        venta.items.forEach(function (item, indice) {
+          var linea = indice + 1;
+          var maximo = item.cantidad - (venta.unidades_devueltas[linea] || 0);
+          if (!maximo) return;
+          var label = nodoPos('label', item.producto + ' · hasta ' + maximo + ' ');
+          var cantidad = nodoPos('input');
+          cantidad.type = 'number';
+          cantidad.min = 0;
+          cantidad.max = maximo;
+          cantidad.value = 0;
+          label.append(cantidad);
+          campos.append(label);
+          unidades.push({linea, maximo, cantidad});
+        });
+        var motivo = motivoOperacionPos(campos);
+        return function () {
+          var items = [];
+          for (var unidad of unidades) {
+            var cantidad = Number(unidad.cantidad.value);
+            if (!Number.isInteger(cantidad) || cantidad < 0 || cantidad > unidad.maximo) {
+              throw new Error('Revisá las cantidades a devolver.');
+            }
+            if (cantidad) items.push({linea: unidad.linea, cantidad});
+          }
+          if (!items.length) throw new Error('Ingresá las unidades a devolver.');
+          return {motivo: motivo(), items};
+        };
+      }, function () {
+        void refrescarStockPos();
+        mostrarHistorialPos('Devolución registrada en la venta #' + venta.id_venta + '.');
+      });
+  }
+
   function filaVentaPos(venta, usuario, anular) {
     var fila = nodoPos('article', undefined, 'row');
     var detalle = nodoPos('details');
     detalle.append(nodoPos('summary', 'Venta #' + venta.id_venta + ' · ' + importePos(venta.total_centavos)
-      + ' · ' + (venta.anulada ? 'Anulada' : 'Registrada')));
-    detalle.append(nodoPos('p', fechaPos(venta.fecha) + ' · ' + mediosSimulados[venta.medio_pago]
+      + ' · ' + ({anulada: 'Anulada', devuelta: 'Devuelta', pendiente: 'Pendiente / Fiado',
+        parcial: 'Fiado parcial', saldado: 'Saldada'}[venta.estado])));
+    detalle.append(nodoPos('p', fechaPos(venta.fecha) + ' · ' + (mediosSimulados[venta.medio_pago] || (venta.deudor ? 'Fiado' : 'Pago combinado'))
       + ' · Usuario #' + venta.id_usuario, 'muted'));
 
     var items = nodoPos('ul');
@@ -1817,14 +2047,46 @@ if (modoReal) {
       detalle.append(nodoPos('p', nombresCajas[caja] + ' · ' + importePos(importe)));
     });
 
+    if (venta.deudor) detalle.append(nodoPos('p', 'Cliente o deudor: ' + venta.deudor));
+    if (venta.importe_vigente_centavos !== venta.importe_original_centavos) {
+      detalle.append(nodoPos('p', 'Importe vigente ' + importePos(venta.importe_vigente_centavos)));
+    }
+    detalle.append(nodoPos('p', 'Cobrado ' + importePos(venta.cobrado_centavos)
+      + ' · Saldo pendiente ' + importePos(venta.saldo_pendiente_centavos)));
+    var eventos = nodoPos('ul');
+    venta.historial.forEach(function (evento) {
+      var movimiento = nodoPos('li', tiposEventoPos[evento.tipo] + ' · ' + fechaPos(evento.fecha)
+        + ' · Período ' + evento.periodo + ' · Usuario #' + evento.id_usuario);
+      if (evento.motivo) movimiento.append(nodoPos('p', evento.motivo));
+      evento.movimientos.forEach(function (pago) {
+        movimiento.append(nodoPos('p', mediosSimulados[pago.medio_pago] + ' · '
+          + nombreReceptorPos(pago.receptor) + ' · ' + importePos(pago.importe_centavos)
+          + (pago.referencia ? ' · ' + pago.referencia : '')));
+      });
+      eventos.append(movimiento);
+    });
+    detalle.append(eventos);
+    var ruta = '/simulacion/ventas/' + venta.id_venta;
+    if (venta.saldo_pendiente_centavos > 0 || hayOperacionPos(ruta + '/abonos', usuario)) {
+      var abono = nodoPos('button', 'Registrar abono');
+      abono.onclick = () => abrirAbonoPos(venta, usuario);
+      detalle.append(abono);
+    }
+
     if (venta.anulada) {
       detalle.append(nodoPos('p', 'Anulada el ' + fechaPos(venta.anulacion.fecha)
         + ' · Usuario #' + venta.anulacion.id_usuario));
       detalle.append(nodoPos('p', 'Motivo: ' + venta.anulacion.motivo));
-    } else if (usuario.rol === 'admin') {
+    } else if (usuario.rol === 'admin' && venta.estado !== 'devuelta') {
       var boton = nodoPos('button', 'Anular venta simulada');
       boton.onclick = () => anular(venta, usuario);
       detalle.append(boton);
+    }
+    if (usuario.rol === 'admin' && ((!venta.anulada && venta.estado !== 'devuelta')
+      || hayOperacionPos(ruta + '/devoluciones', usuario))) {
+      var devolucion = nodoPos('button', 'Devolver productos');
+      devolucion.onclick = () => abrirDevolucionPos(venta, usuario);
+      detalle.append(devolucion);
     }
     fila.append(detalle);
     return fila;
@@ -1862,6 +2124,7 @@ if (modoReal) {
       mostrarHistorialPos();
     };
     el('motivoAnulacion').focus();
+    var datos;
     formulario.onsubmit = async function (evento) {
       evento.preventDefault();
       if (boton.disabled || sesionPos !== usuario) return;
@@ -1872,7 +2135,8 @@ if (modoReal) {
       }
       boton.disabled = true;
       try {
-        await enviarPos('/simulacion/ventas/' + venta.id_venta + '/anulacion', {motivo}, usuario);
+        datos ||= {motivo, id_solicitud: crypto.randomUUID()};
+        await enviarPos('/simulacion/ventas/' + venta.id_venta + '/anulacion', datos, usuario);
         if (formulario.isConnected && !overlay.hidden) {
           mostrarHistorialPos('Se anuló la venta simulada #' + venta.id_venta + '.');
         }
@@ -1880,7 +2144,8 @@ if (modoReal) {
       } catch (error) {
         if (formulario.isConnected && !overlay.hidden) {
           el('errorAnulacionPos').textContent = error.status ? error.message
-            : 'No se pudo confirmar la anulación. Volvé al historial para consultar el estado de la venta.';
+            : 'Confirmación pendiente. Usá el mismo botón para reintentar o consultá el historial.';
+          if ([404, 409, 422].includes(error.status)) datos = null;
         }
       } finally {
         boton.disabled = false;
@@ -1889,7 +2154,28 @@ if (modoReal) {
   }
 
   el('historialSimulado').onclick = () => mostrarHistorialPos();
-  el('cajasSimuladas').onclick = async function () {
+  function abrirTransferenciaPos(usuario) {
+    abrirOperacionPos('Transferencia entre secciones', '/simulacion/cajas/transferencias', usuario, function (campos) {
+      var origen = selectorPos('Origen', receptoresPos());
+      var destino = selectorPos('Destino', receptoresPos());
+      var monto = importeEntradaPos('Importe en pesos');
+      campos.append(origen.label, destino.label, monto.label);
+      var motivo = motivoOperacionPos(campos);
+      return () => ({origen: origen.select.value, destino: destino.select.value,
+        importe_centavos: leerCentavosPos(monto.input.value), motivo: motivo()});
+    }, () => mostrarCajasPos('Transferencia registrada.'));
+  }
+
+  function abrirCierrePos(usuario, periodo) {
+    abrirOperacionPos('Cerrar período ' + periodo, '/simulacion/cierres', usuario, function (campos) {
+      campos.append(nodoPos('p', 'Se guardarán los saldos y las operaciones siguientes ingresarán en el próximo período.'));
+      var motivo = motivoOperacionPos(campos);
+      return () => ({motivo: motivo(), periodo});
+    }, resultado => mostrarCajasPos('Se cerró el período ' + resultado.periodo + '.'));
+  }
+
+  el('cajasSimuladas').onclick = () => mostrarCajasPos();
+  async function mostrarCajasPos(mensaje) {
     if (!simulacionActiva || !sesionAdmin) return;
     var cuerpo = abrirConsultaPos('Cajas simuladas');
     var estado = nodoPos('p', 'Cargando saldos…', 'muted');
@@ -1907,22 +2193,53 @@ if (modoReal) {
           var saldo = datos.saldos.find(fila => fila.caja === caja && fila.medio_pago === medio);
           saldos.append(nodoPos('li', etiqueta + ' · ' + importePos(saldo?.saldo_centavos ?? 0)));
         });
-        seccion.append(saldos, nodoPos('h3', 'Movimientos'));
+        var resumen = datos.secciones[caja];
+        seccion.append(nodoPos('p', 'Devengado ' + importePos(resumen.devengado_centavos)
+          + ' · Cobrado atribuido ' + importePos(resumen.cobrado_atribuido_centavos)
+          + ' · Por cobrar ' + importePos(resumen.por_cobrar_centavos)));
+        var distribucion = resumen.por_distribuir_centavos;
+        seccion.append(nodoPos('p', 'Cobros netos de clientes ' + importePos(resumen.recibido_neto_centavos)
+          + ' · Transferencias internas netas ' + importePos(resumen.transferencia_neta_centavos)));
+        seccion.append(nodoPos('p', 'Saldo en receptores ' + importePos(resumen.disponible_centavos)
+          + ' · ' + (distribucion < 0 ? 'Por enviar ' : 'Por recibir ') + importePos(Math.abs(distribucion))));
+        var cuentas = nodoPos('ul');
+        Object.entries(receptoresPos()).filter(([receptor]) => receptor.startsWith(caja + '_'))
+          .forEach(([receptor, etiqueta]) => {
+            var saldo = datos.receptores.find(fila => fila.receptor === receptor);
+            cuentas.append(nodoPos('li', etiqueta + ' · ' + importePos(saldo?.saldo_centavos ?? 0)));
+          });
+        var porMedio = nodoPos('details');
+        porMedio.append(nodoPos('summary', 'Cobros netos por medio'), saldos);
+        seccion.append(cuentas, porMedio, nodoPos('h3', 'Movimientos'));
         cuerpo.append(seccion);
         paginarPos(seccion, '/simulacion/cajas/movimientos?caja=' + caja, 'movimientos',
           function (movimiento) {
             var fila = nodoPos('article', undefined, 'row');
-            fila.append(nodoPos('strong', (movimiento.tipo === 'venta' ? 'Venta' : 'Anulación')
-              + ' #' + movimiento.id_venta + ' · ' + importePos(movimiento.importe_centavos)));
-            fila.append(nodoPos('p', fechaPos(movimiento.fecha) + ' · ' + mediosSimulados[movimiento.medio_pago]
-              + ' · Usuario #' + movimiento.id_usuario, 'muted'));
+            fila.append(nodoPos('strong', tiposEventoPos[movimiento.tipo] + ' #' + (movimiento.id_venta ?? movimiento.id_evento)
+              + ' · ' + importePos(movimiento.importe_centavos)));
+            fila.append(nodoPos('p', fechaPos(movimiento.fecha) + ' · ' + nombreReceptorPos(movimiento.receptor)
+              + (movimiento.medio_pago ? ' · ' + mediosSimulados[movimiento.medio_pago] : '')
+              + ' · Período ' + movimiento.periodo + ' · Usuario #' + movimiento.id_usuario, 'muted'));
+            if (movimiento.motivo) fila.append(nodoPos('p', movimiento.motivo));
             return fila;
           }, 'Todavía no hay movimientos.');
       });
+      var acciones = nodoPos('div', undefined, 'actions');
+      var transferir = nodoPos('button', 'Registrar transferencia interna');
+      transferir.onclick = () => abrirTransferenciaPos(sesionPos);
+      var cerrar = nodoPos('button', 'Cerrar período ' + datos.periodo_abierto);
+      cerrar.onclick = () => abrirCierrePos(sesionPos, datos.periodo_abierto);
+      acciones.append(transferir, cerrar);
+      cuerpo.append(acciones);
+      if (mensaje) {
+        var aviso = nodoPos('p', mensaje, 'notice');
+        aviso.setAttribute('role', 'status');
+        cuerpo.append(aviso);
+      }
     } catch (error) {
       estado.textContent = error.status ? error.message : 'No se pudieron cargar las cajas.';
     }
-  };
+  }
 
 
   function importePos(centavos) {
@@ -1937,7 +2254,7 @@ if (modoReal) {
     el('paymentSection').hidden = !simulacionActiva;
     el('payments').replaceChildren();
     if (simulacionActiva) {
-      Object.entries(mediosSimulados).forEach(function ([clave, etiqueta]) {
+      Object.entries(modalidadesSimuladas).forEach(function ([clave, etiqueta]) {
         var opcion = nodoPos('button', etiqueta);
         opcion.type = 'button';
         opcion.disabled = pendiente || !pedidoReal.length || !sesionPos;
@@ -2024,10 +2341,12 @@ if (modoReal) {
       medioSimulado = '';
       mostrarPedidoReal();
       el('notice').textContent = 'Venta simulada #' + venta.id_venta + (venta.anulada ? ' anulada' : ' registrada')
-        + ' · ' + importePos(venta.total_centavos) + ' · ' + mediosSimulados[venta.medio_pago] + '.';
+        + ' · ' + importePos(venta.total_centavos) + (venta.deudor
+          ? ' · Saldo pendiente ' + importePos(venta.saldo_pendiente_centavos)
+          : ' · ' + (mediosSimulados[venta.medio_pago] || 'Pago combinado')) + '.';
       void refrescarStockPos();
     } catch (error) {
-      if (['PEDIDO_RECHAZADO', 'TOTAL_MODIFICADO'].includes(error.codigo)) {
+      if (error.status === 422 || ['PEDIDO_RECHAZADO', 'TOTAL_MODIFICADO', 'PAGO_RECHAZADO'].includes(error.codigo)) {
         sessionStorage.removeItem(clavePendiente(usuario));
         ventaPendiente = null;
         mostrarPedidoReal();
@@ -2058,23 +2377,69 @@ if (modoReal) {
     show('Confirmar venta simulada', '<p id="resumenVentaPos" class="check"></p>' +
       '<p class="muted">Se actualizarán el stock y las cajas ficticias.</p>' +
       '<p id="errorVentaPos" role="alert"></p>', 'Registrar venta simulada');
-    el('resumenVentaPos').textContent = importePos(validacion.total) + ' · ' + mediosSimulados[medio];
+    el('resumenVentaPos').textContent = importePos(validacion.total) + ' · ' + modalidadesSimuladas[medio];
+    var errorVenta = el('errorVentaPos');
+    var campos = nodoPos('div');
+    errorVenta.before(campos);
+    var leerPagos;
+    var deudor;
+    var receptor;
+    if (medio === 'combinado' || medio === 'fiado') {
+      if (medio === 'fiado') {
+        var label = nodoPos('label', 'Cliente o identificador ');
+        deudor = nodoPos('input');
+        deudor.maxLength = 120;
+        label.append(deudor);
+        campos.append(label);
+      }
+      var resumen = nodoPos('p');
+      resumen.setAttribute('aria-live', 'polite');
+      campos.append(resumen);
+      function actualizarSaldo() {
+        try {
+          var pagos = leerPagos ? leerPagos() : [];
+          var cobrado = pagos.reduce((total, pago) => total + pago.importe_centavos, 0);
+          resumen.textContent = cobrado > validacion.total ? 'Los pagos superan el total.'
+            : 'Cobrado ' + importePos(cobrado) + ' · Saldo ' + importePos(validacion.total - cobrado);
+        } catch (error) {
+          resumen.textContent = 'Completá los importes para calcular el saldo.';
+        }
+      }
+      leerPagos = editarPagosPos(campos, 0, actualizarSaldo, medio === 'fiado' ? 0 : 2);
+      actualizarSaldo();
+    } else {
+      receptor = selectorPos('Receptor', {'': 'Distribuir según la sección de cada producto', ...receptoresPos(medio)});
+      campos.append(receptor.label);
+    }
     el('accept').onclick = function () {
       if (enviandoVenta || ventaPendiente || sesionPos !== usuario || validacionPos !== validacion) return;
       try {
+        var modalidad = {medio_pago: medio};
+        if (leerPagos) {
+          var pagos = leerPagos();
+          var cobrado = pagos.reduce((total, pago) => total + pago.importe_centavos, 0);
+          var fiado = medio === 'fiado';
+          if (cobrado > validacion.total || (fiado ? cobrado === validacion.total : cobrado !== validacion.total)) {
+            throw new Error(fiado ? 'El fiado debe dejar un saldo pendiente.' : 'Los pagos deben cubrir el total.');
+          }
+          if (fiado && !deudor.value.trim()) throw new Error('Ingresá el cliente o identificador.');
+          modalidad = {pagos, fiado, deudor: deudor?.value.trim() || null};
+        } else if (receptor.select.value) {
+          modalidad = {pagos: [{medio_pago: medio, receptor: receptor.select.value, importe_centavos: validacion.total}]};
+        }
         var pendiente = {
           pedido: pedidoReal,
           datos: {
             items: validacion.items,
             id_solicitud: crypto.randomUUID(),
             total_esperado_centavos: validacion.total,
-            medio_pago: medio
+            ...modalidad
           }
         };
         sessionStorage.setItem(clavePendiente(usuario), JSON.stringify(pendiente));
         ventaPendiente = pendiente;
       } catch (error) {
-        el('errorVentaPos').textContent = 'No se pudo guardar la confirmación en esta pestaña.';
+        errorVenta.textContent = error.message || 'No se pudo guardar la confirmación en esta pestaña.';
         return;
       }
       close();

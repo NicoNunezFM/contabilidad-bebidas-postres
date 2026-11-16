@@ -16,14 +16,19 @@ from pos_auth import (
 from database import obtener_conexion
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
 from productos import obtener_productos
+from pos_cobros import AbonoEntrada, CierreEntrada, DevolucionEntrada, TransferenciaEntrada
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
     VentaSimuladaEntrada,
-    anular_venta_simulada,
+    abonar_venta_simulada,
+    cerrar_periodo_simulado,
+    consultar_cierre_simulado,
     consultar_cajas_simuladas,
     consultar_historial_simulado,
     consultar_movimientos_simulados,
     registrar_venta_simulada,
+    revertir_venta_simulada,
+    transferir_simulado,
     transaccion_simulacion,
 )
 
@@ -186,6 +191,11 @@ def estado_simulacion_pos():
         return {"ok": True, "simulacion": True}
 
 
+def exigir_simulacion_activa():
+    with transaccion_simulacion():
+        pass
+
+
 def comprobar_usuario_simulacion(id_esperado, usuario):
     if id_esperado is not None and id_esperado != usuario["id_usuario"]:
         raise HTTPException(409, {
@@ -194,7 +204,7 @@ def comprobar_usuario_simulacion(id_esperado, usuario):
         })
 
 
-@router.post("/simulacion/ventas", dependencies=[Depends(comprobar_origen)])
+@router.post("/simulacion/ventas", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
 def simular_venta_pos(
     venta: VentaSimuladaEntrada,
     usuario: dict = Depends(exigir_usuario_pos),
@@ -204,7 +214,7 @@ def simular_venta_pos(
     return {"ok": True, "simulacion": True, **registrar_venta_simulada(venta, usuario)}
 
 
-@router.get("/simulacion/ventas", dependencies=[Depends(evitar_cache_pos)])
+@router.get("/simulacion/ventas", dependencies=[Depends(exigir_simulacion_activa), Depends(evitar_cache_pos)])
 def consultar_historial_pos(
     antes_de: int | None = Query(default=None, gt=0, le=2**63 - 1),
     limite: int = Query(default=25, ge=1, le=100),
@@ -213,7 +223,7 @@ def consultar_historial_pos(
     return {"ok": True, "simulacion": True, **consultar_historial_simulado(usuario, antes_de, limite)}
 
 
-@router.post("/simulacion/ventas/{id_venta}/anulacion", dependencies=[Depends(comprobar_origen)])
+@router.post("/simulacion/ventas/{id_venta}/anulacion", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
 def anular_venta_pos(
     anulacion: AnulacionSimuladaEntrada,
     id_venta: int = Path(gt=0, le=2**63 - 1),
@@ -221,15 +231,64 @@ def anular_venta_pos(
     x_pos_usuario: int | None = Header(default=None),
 ):
     comprobar_usuario_simulacion(x_pos_usuario, usuario)
-    return {"ok": True, "simulacion": True, **anular_venta_simulada(id_venta, anulacion.motivo, usuario)}
+    return {"ok": True, "simulacion": True, **revertir_venta_simulada(id_venta, anulacion, usuario, tipo="anulacion")}
 
 
-@router.get("/simulacion/cajas", dependencies=[Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
+@router.post("/simulacion/ventas/{id_venta}/abonos", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
+def abonar_venta_pos(
+    abono: AbonoEntrada,
+    id_venta: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return {"ok": True, "simulacion": True, **abonar_venta_simulada(id_venta, abono, usuario)}
+
+
+@router.post("/simulacion/ventas/{id_venta}/devoluciones", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
+def devolver_venta_pos(
+    devolucion: DevolucionEntrada,
+    id_venta: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return {"ok": True, "simulacion": True, **revertir_venta_simulada(id_venta, devolucion, usuario, tipo="devolucion")}
+
+
+@router.post("/simulacion/cajas/transferencias", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
+def transferir_pos(
+    transferencia: TransferenciaEntrada,
+    usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return {"ok": True, "simulacion": True, **transferir_simulado(transferencia, usuario)}
+
+
+@router.post("/simulacion/cierres", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
+def cerrar_periodo_pos(
+    cierre: CierreEntrada,
+    usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return {"ok": True, "simulacion": True, **cerrar_periodo_simulado(cierre, usuario)}
+
+
+@router.get("/simulacion/cierres/{periodo}", dependencies=[
+    Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos),
+])
+def consultar_cierre_pos(periodo: int = Path(gt=0, le=2**63 - 1)):
+    return {"ok": True, "simulacion": True, **consultar_cierre_simulado(periodo)}
+
+
+@router.get("/simulacion/cajas", dependencies=[Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
 def consultar_cajas_pos():
-    return {"ok": True, "simulacion": True, "saldos": consultar_cajas_simuladas()}
+    return {"ok": True, "simulacion": True, **consultar_cajas_simuladas()}
 
 
-@router.get("/simulacion/cajas/movimientos", dependencies=[Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
+@router.get("/simulacion/cajas/movimientos", dependencies=[Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
 def consultar_movimientos_pos(
     caja: Literal["comidas", "bebidas_postres"],
     antes_de: int | None = Query(default=None, gt=0, le=2**63 - 1),

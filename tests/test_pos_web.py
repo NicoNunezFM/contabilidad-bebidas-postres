@@ -97,7 +97,8 @@ def navegador_pos(base_prueba, monkeypatch, tmp_path):
             hilo.join(timeout=10)
 
 
-def test_pos_web_precio_reintento_historial_y_anulacion(navegador_pos):
+@pytest.fixture
+def controles_pos(navegador_pos):
     evaluar = navegador_pos
 
     def clic(selector):
@@ -124,6 +125,11 @@ def test_pos_web_precio_reintento_historial_y_anulacion(navegador_pos):
         texto("#adminAccess", f"Cerrar sesión ({usuario})")
         esperar(lambda: evaluar("document.querySelector('#overlay').hidden"))
 
+    return evaluar, clic, texto, iniciar_sesion
+
+
+def test_pos_web_precio_reintento_historial_y_anulacion(controles_pos):
+    evaluar, clic, texto, iniciar_sesion = controles_pos
     texto("#apiStatus", "Catálogo ficticio de simulación")
     assert evaluar("!document.querySelector('#simulationBanner').hidden")
     iniciar_sesion("ventas")
@@ -203,3 +209,126 @@ def test_pos_web_precio_reintento_historial_y_anulacion(navegador_pos):
     texto("#dialogBody section:nth-child(2)", "Transferencia · $ 0,00")
     with closing(obtener_conexion()) as db:
         assert db.execute("SELECT stock FROM productos ORDER BY id_producto").fetchall() == [(10,), (20,)]
+
+
+def test_pos_web_fiado_pago_combinado_y_abono_con_respuesta_perdida(controles_pos):
+    evaluar, clic, texto, iniciar_sesion = controles_pos
+
+    def pedido_mixto():
+        for indice in range(1, 3):
+            clic(f"#cardsReal .card:nth-child({indice}) button")
+            clic("#accept")
+        clic("#validarPedido")
+        texto("#estadoPedido", "4.000,00")
+
+    texto("#apiStatus", "Catálogo ficticio de simulación")
+    iniciar_sesion("ventas")
+    pedido_mixto()
+    clic("#payments button:nth-child(5)")
+    clic("#checkout")
+    clic("#accept")
+    texto("#errorVentaPos", "Ingresá el cliente")
+    evaluar("""
+        document.querySelector('#errorVentaPos').previousElementSibling.querySelector('input').value = 'Cliente Edge';
+    """)
+    evaluar("document.querySelector('#errorVentaPos').previousElementSibling.querySelector('button').click()")
+    evaluar("""
+        const pagoInicial = document.querySelector('.filaPagoPos');
+        pagoInicial.querySelector('select').value = 'transferencia';
+        pagoInicial.querySelector('select').dispatchEvent(new Event('change'));
+        pagoInicial.querySelectorAll('select')[1].value = 'bebidas_postres_mercado_pago';
+        pagoInicial.querySelector('[data-importe-pago]').value = '1200,25';
+        pagoInicial.querySelector('[data-importe-pago]').dispatchEvent(new Event('input', {bubbles:true}));
+    """)
+    texto('#dialogBody p[aria-live="polite"]', "2.799,75")
+    clic("#accept")
+    texto("#notice", "2.799,75")
+    clic("#historialSimulado")
+    clic("#dialogBody summary")
+    texto("#dialogBody details", "Cliente Edge")
+    texto("#dialogBody details", "Bebidas y postres · Cuenta Mercado Pago")
+    clic("#dialogBody details button")
+    evaluar("""
+        const abono = document.querySelector('.filaPagoPos');
+        abono.querySelector('select').value = 'mercado_pago';
+        abono.querySelector('select').dispatchEvent(new Event('change'));
+        abono.querySelectorAll('select')[1].value = 'comidas_banco';
+        const fetchAnterior = window.fetch;
+        window.fetch = async (...args) => {
+          const respuesta = await fetchAnterior(...args);
+          if (args[0].endsWith('/abonos') && args[1]?.method === 'POST') throw new TypeError('Respuesta perdida');
+          return respuesta;
+        };
+    """)
+    clic("#accept")
+    texto("#errorOperacionPos", "Confirmación pendiente")
+    evaluar("setTimeout(() => location.reload(), 0)")
+    texto("#apiStatus", "Catálogo ficticio de simulación")
+    clic("#historialSimulado")
+    clic("#dialogBody summary")
+    texto("#dialogBody summary", "Saldada")
+    clic("#dialogBody details button")
+    texto("#camposOperacionPos", "confirmación pendiente")
+    clic("#accept")
+    texto("#dialogBody", "Abono registrado")
+    clic("#accept")
+
+    pedido_mixto()
+    clic("#payments button:nth-child(4)")
+    clic("#checkout")
+    evaluar("""
+        const pagos = document.querySelectorAll('[data-importe-pago]');
+        pagos[0].value = '1250,05';
+        pagos[1].value = '2749,95';
+        const segundo = document.querySelectorAll('.filaPagoPos')[1];
+        const [medio, receptor] = segundo.querySelectorAll('select');
+        medio.value = 'transferencia';
+        medio.dispatchEvent(new Event('change'));
+        receptor.value = 'bebidas_postres_banco';
+    """)
+    clic("#accept")
+    texto("#notice", "Venta simulada #2 registrada")
+    with closing(obtener_conexion()) as db:
+        assert db.execute("""
+            SELECT receptor, medio_pago, importe_centavos
+            FROM pos_movimientos_simulados ORDER BY id_movimiento
+        """).fetchall() == [
+            ("bebidas_postres_mercado_pago", "transferencia", 120025),
+            ("comidas_banco", "mercado_pago", 279975),
+            ("comidas_efectivo", "efectivo", 125005),
+            ("bebidas_postres_banco", "transferencia", 274995),
+        ]
+
+    clic("#adminAccess")
+    texto("#adminAccess", "Iniciar sesión")
+    iniciar_sesion("admin")
+    clic("#cajasSimuladas")
+    texto("#dialogBody section:first-child", "Por recibir $ 950,20")
+    clic("#consultaPos > .actions button:first-child")
+    evaluar("""
+        const [origen, destino] = document.querySelectorAll('#camposOperacionPos select');
+        origen.value = 'bebidas_postres_banco';
+        destino.value = 'comidas_banco';
+        document.querySelector('#camposOperacionPos input').value = '950,20';
+        document.querySelector('#camposOperacionPos textarea').value = 'Distribución de prueba';
+    """)
+    clic("#accept")
+    texto("#dialogBody", "Transferencia registrada")
+    texto("#dialogBody section:first-child", "Por recibir $ 0,00")
+    clic("#consultaPos > .actions button:nth-child(2)")
+    evaluar("document.querySelector('#camposOperacionPos textarea').value = 'Cierre Edge'")
+    clic("#accept")
+    texto("#dialogBody", "Se cerró el período 1")
+    clic("#accept")
+
+    clic("#historialSimulado")
+    clic("#dialogBody summary")
+    clic("#dialogBody details button:nth-of-type(2)")
+    evaluar("""
+        document.querySelector('#camposOperacionPos input').value = 1;
+        document.querySelector('#camposOperacionPos textarea').value = 'Devolución Edge';
+    """)
+    clic("#accept")
+    texto("#dialogBody", "Devolución registrada en la venta #2")
+    clic("#dialogBody summary")
+    texto("#dialogBody details", "Período 2")
