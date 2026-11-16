@@ -9,6 +9,12 @@ const API_URL =
   process.env.API_URL ||
   "http://127.0.0.1:8000/comandos";
 
+const API_TOKEN = process.env.ABADION_BOT_TOKEN || "";
+if (!/^[A-Za-z0-9_-]{43,128}$/.test(API_TOKEN)) {
+  console.error("Configurá ABADION_BOT_TOKEN con la clave de la API para WhatsApp.");
+  process.exit(1);
+}
+
 const API_TIMEOUT_MS = Number(
   process.env.API_TIMEOUT_MS || 10000
 );
@@ -19,7 +25,7 @@ const ALLOW_GROUPS =
     .toLowerCase() === "true";
 
 const DEBUG_MESSAGES =
-  String(process.env.DEBUG_MESSAGES || "true")
+  String(process.env.DEBUG_MESSAGES || "false")
     .trim()
     .toLowerCase() === "true";
 
@@ -265,7 +271,9 @@ async function enviarComandoApi(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${API_TOKEN}`,
       },
+      redirect: "error",
       body: JSON.stringify({
         mensaje,
         id_mensaje: idMensaje,
@@ -304,6 +312,9 @@ function textoRespuestaApi(datos) {
     return "La API devolvió una respuesta inválida.";
   }
 
+  if (typeof datos.detail === "string") {
+    return datos.detail;
+  }
   return (
     datos.respuesta ||
     datos.mensaje ||
@@ -677,10 +688,6 @@ async function procesarMensajeEntrante(message, origenEvento) {
       );
       return;
     }
-
-    console.log(
-      `Mensaje autorizado de ${remitente.numero}: ${texto}`
-    );
 
     const { status, datos } =
       await enviarComandoApi(

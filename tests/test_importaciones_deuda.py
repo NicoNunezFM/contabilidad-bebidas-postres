@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from tests import cliente_contabilidad
 
 from api import app
 from database import obtener_conexion
@@ -7,7 +7,7 @@ from gmail_naranja import procesar_mensaje_naranja
 from importaciones_deuda import registrar_importacion_deuda
 
 
-client = TestClient(app)
+client = cliente_contabilidad(app)
 
 CUERPO = """
 TU COMPRA

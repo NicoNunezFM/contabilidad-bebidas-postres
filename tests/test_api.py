@@ -1,11 +1,11 @@
-from fastapi.testclient import TestClient
+from tests import cliente_contabilidad
 
 from api import app
 
 from fastapi.responses import JSONResponse
 
 
-client = TestClient(app)
+client = cliente_contabilidad(app)
 
 def responder_resultado(
     resultado,

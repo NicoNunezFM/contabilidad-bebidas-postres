@@ -1,11 +1,12 @@
 from datetime import datetime
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from acciones import ejecutar_accion
+from api_auth import exigir_comandos, exigir_integracion
 from ajustes_stock import registrar_inventario_fisico
 from backups import crear_backup_diario
 
@@ -85,6 +86,7 @@ app = FastAPI(
 )
 
 app.include_router(pos_router)
+contabilidad = APIRouter(dependencies=[Depends(exigir_integracion)])
 
 RUTA_POS = Path(__file__).resolve().parent.parent / "pos-web"
 
@@ -320,7 +322,7 @@ def inicio():
 # PRODUCTOS
 # ============================================================
 
-@app.get("/productos")
+@contabilidad.get("/productos")
 def listar_productos_api():
 
     productos = obtener_productos()
@@ -336,7 +338,7 @@ def listar_productos_api():
 # STOCK
 # ============================================================
 
-@app.get("/stock")
+@contabilidad.get("/stock")
 def consultar_stock_api():
 
     productos = obtener_productos()
@@ -362,7 +364,7 @@ def consultar_stock_api():
 # VENTAS
 # ============================================================
 
-@app.post("/ventas")
+@contabilidad.post("/ventas")
 def registrar_venta_api(
     venta: VentaEntrada
 ):
@@ -379,7 +381,7 @@ def registrar_venta_api(
     )
 
 
-@app.patch("/ventas/{id_venta}/anular")
+@contabilidad.patch("/ventas/{id_venta}/anular")
 def anular_venta_api(
     id_venta: int,
     anulacion: AnulacionEntrada
@@ -397,7 +399,7 @@ def anular_venta_api(
 # COMPRAS
 # ============================================================
 
-@app.post("/compras")
+@contabilidad.post("/compras")
 def registrar_compra_api(
     compra: CompraEntrada
 ):
@@ -414,7 +416,7 @@ def registrar_compra_api(
     )
 
 
-@app.patch("/compras/{id_compra}/anular")
+@contabilidad.patch("/compras/{id_compra}/anular")
 def anular_compra_api(
     id_compra: int,
     anulacion: AnulacionEntrada
@@ -432,7 +434,7 @@ def anular_compra_api(
 # GASTOS
 # ============================================================
 
-@app.post("/gastos")
+@contabilidad.post("/gastos")
 def registrar_gasto_api(
     gasto: GastoEntrada
 ):
@@ -451,7 +453,7 @@ def registrar_gasto_api(
     )
 
 
-@app.patch("/gastos/{id_gasto}/anular")
+@contabilidad.patch("/gastos/{id_gasto}/anular")
 def anular_gasto_api(
     id_gasto: int,
     anulacion: AnulacionEntrada
@@ -469,7 +471,7 @@ def anular_gasto_api(
 # INVENTARIO
 # ============================================================
 
-@app.post("/inventario")
+@contabilidad.post("/inventario")
 def registrar_inventario_api(
     inventario: InventarioEntrada
 ):
@@ -486,7 +488,7 @@ def registrar_inventario_api(
 # REPORTES
 # ============================================================
 
-@app.get("/reportes/hoy")
+@contabilidad.get("/reportes/hoy")
 def reporte_hoy_api():
 
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
@@ -497,13 +499,13 @@ def reporte_hoy_api():
     )
 
 
-@app.get("/reportes/semana")
+@contabilidad.get("/reportes/semana")
 def reporte_semana_api():
 
     return resumen_semana_actual()
 
 
-@app.get("/reportes/mes")
+@contabilidad.get("/reportes/mes")
 def reporte_mes_api():
 
     return resumen_mes_actual()
@@ -513,13 +515,13 @@ def reporte_mes_api():
 # CAJA
 # ============================================================
 
-@app.get("/caja")
+@contabilidad.get("/caja")
 def consultar_caja_api():
 
     return obtener_estado_caja()
 
 
-@app.get("/caja/secciones/{seccion}")
+@contabilidad.get("/caja/secciones/{seccion}")
 def consultar_caja_seccion_api(
     seccion: str
 ):
@@ -539,7 +541,7 @@ def consultar_caja_seccion_api(
         })
 
 
-@app.get("/recaudado/{categoria}")
+@contabilidad.get("/recaudado/{categoria}")
 def consultar_recaudado_categoria_api(
     categoria: str
 ):
@@ -562,7 +564,7 @@ def consultar_recaudado_categoria_api(
     }
 
 
-@app.post("/caja/aportes")
+@contabilidad.post("/caja/aportes")
 def registrar_aporte_api(
     movimiento: MovimientoCajaEntrada
 ):
@@ -578,7 +580,7 @@ def registrar_aporte_api(
     )
 
 
-@app.post("/caja/retiros")
+@contabilidad.post("/caja/retiros")
 def registrar_retiro_api(
     movimiento: MovimientoCajaEntrada
 ):
@@ -594,7 +596,7 @@ def registrar_retiro_api(
     )
 
 
-@app.patch("/caja/movimientos/{id_movimiento}/anular")
+@contabilidad.patch("/caja/movimientos/{id_movimiento}/anular")
 def anular_movimiento_caja_api(
     id_movimiento: int,
     anulacion: AnulacionEntrada
@@ -612,7 +614,7 @@ def anular_movimiento_caja_api(
 # DIEZMO
 # ============================================================
 
-@app.get("/diezmo/{anio}/{mes}")
+@contabilidad.get("/diezmo/{anio}/{mes}")
 def consultar_diezmo_api(
     anio: int,
     mes: int
@@ -624,7 +626,7 @@ def consultar_diezmo_api(
     )
 
 
-@app.post("/diezmo/reservas")
+@contabilidad.post("/diezmo/reservas")
 def registrar_reserva_diezmo_api(
     movimiento: DiezmoMovimientoEntrada
 ):
@@ -652,7 +654,7 @@ def registrar_reserva_diezmo_api(
     )
 
 
-@app.post("/diezmo/entregas")
+@contabilidad.post("/diezmo/entregas")
 def registrar_entrega_diezmo_api(
     movimiento: DiezmoMovimientoEntrada
 ):
@@ -684,7 +686,7 @@ def registrar_entrega_diezmo_api(
 # CIERRES SEMANALES
 # ============================================================
 
-@app.post("/cierres/semanales")
+@contabilidad.post("/cierres/semanales")
 def registrar_cierre_semanal_api(
     cierre: CierreSemanalEntrada
 ):
@@ -700,7 +702,7 @@ def registrar_cierre_semanal_api(
     )
 
 
-@app.get("/cierres/semanales")
+@contabilidad.get("/cierres/semanales")
 def obtener_cierres_semanales_api():
 
     return {
@@ -713,7 +715,7 @@ def obtener_cierres_semanales_api():
 # CIERRES MENSUALES
 # ============================================================
 
-@app.post("/cierres/mensuales")
+@contabilidad.post("/cierres/mensuales")
 def registrar_cierre_mensual_api(
     cierre: CierreMensualEntrada
 ):
@@ -729,7 +731,7 @@ def registrar_cierre_mensual_api(
     )
 
 
-@app.get("/cierres/mensuales")
+@contabilidad.get("/cierres/mensuales")
 def obtener_cierres_mensuales_api():
 
     return {
@@ -741,7 +743,7 @@ def obtener_cierres_mensuales_api():
 # COMANDOS PARA WHATSAPP / OTRAS INTERFACES
 # ============================================================
 
-@app.post("/comandos")
+@app.post("/comandos", dependencies=[Depends(exigir_comandos)])
 def procesar_comando_api(
     comando: ComandoEntrada
 ):
@@ -788,7 +790,7 @@ def procesar_comando_api(
 # ACCIONES ESTRUCTURADAS PARA IA / VOZ / INTEGRACIONES
 # ============================================================
 
-@app.post("/acciones")
+@contabilidad.post("/acciones")
 def ejecutar_accion_api(
     solicitud: AccionEntrada
 ):
@@ -799,3 +801,6 @@ def ejecutar_accion_api(
     })
 
     return responder_resultado(resultado)
+
+
+app.include_router(contabilidad)

@@ -338,6 +338,7 @@ def anular_compra(id_compra, motivo):
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN IMMEDIATE")
         cursor = conexion.cursor()
 
         cursor.execute("""

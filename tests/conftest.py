@@ -14,6 +14,15 @@ from database import (
     inicializar_base_de_datos,
     obtener_conexion,
 )
+from tests import TOKEN_BOT_FICTICIO, TOKEN_INTEGRACION_FICTICIO
+
+
+@pytest.fixture(autouse=True)
+def aislar_entorno(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEGOCIO_DB_PATH", str(tmp_path / "negocio_test.db"))
+    monkeypatch.delenv("POS_V1_SIMULACION", raising=False)
+    monkeypatch.setenv("ABADION_API_TOKEN", TOKEN_INTEGRACION_FICTICIO)
+    monkeypatch.setenv("ABADION_BOT_TOKEN", TOKEN_BOT_FICTICIO)
 
 
 @pytest.fixture
