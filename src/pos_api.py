@@ -32,6 +32,14 @@ class PrecioNuevoEntrada(BaseModel):
     )
 
 
+class PrecioAdicionalEntrada(BaseModel):
+    precio_nuevo: int = Field(
+        ge=0,
+        le=100_000_000,
+        strict=True
+    )
+
+
 class PersonalizacionesEntrada(BaseModel):
     ingredientes: list[str] = Field(max_length=30)
     ids_adicionales: list[int] = Field(max_length=30)
@@ -493,6 +501,95 @@ def configurar_personalizaciones_pos(
             "producto": producto[0],
             "ingredientes": ingredientes,
             "ids_adicionales": ids,
+            "modificado_por": usuario["usuario"]
+        }
+
+    except Exception:
+        conexion.rollback()
+        raise
+
+    finally:
+        conexion.close()
+
+
+@router.patch("/admin/adicionales/{id_adicional}/precio")
+def actualizar_precio_adicional_pos(
+    id_adicional: int,
+    datos: PrecioAdicionalEntrada,
+    request: Request,
+    usuario: dict = Depends(exigir_administrador_pos)
+):
+    comprobar_origen(request)
+
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("BEGIN IMMEDIATE")
+
+        adicional = conexion.execute(
+            """
+            SELECT nombre, precio_venta
+            FROM adicionales_catalogo
+            WHERE id_adicional_catalogo = ?
+              AND activo = 1
+            """,
+            (id_adicional,)
+        ).fetchone()
+
+        if adicional is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Adicional no encontrado o inactivo."
+            )
+
+        nombre, precio_anterior = adicional
+        precio_nuevo = datos.precio_nuevo
+
+        if precio_anterior == precio_nuevo:
+            conexion.rollback()
+
+            return {
+                "ok": True,
+                "actualizado": False,
+                "mensaje": "El precio no cambió."
+            }
+
+        conexion.execute(
+            """
+            UPDATE adicionales_catalogo
+            SET precio_venta = ?,
+                fecha_actualizacion = CURRENT_TIMESTAMP
+            WHERE id_adicional_catalogo = ?
+            """,
+            (precio_nuevo, id_adicional)
+        )
+
+        conexion.execute(
+            """
+            INSERT INTO historial_precios_adicionales_pos (
+                id_adicional_catalogo,
+                id_usuario,
+                precio_anterior,
+                precio_nuevo
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                id_adicional,
+                usuario["id_usuario"],
+                precio_anterior,
+                precio_nuevo
+            )
+        )
+
+        conexion.commit()
+
+        return {
+            "ok": True,
+            "actualizado": True,
+            "adicional": nombre,
+            "precio_anterior": precio_anterior,
+            "precio_nuevo": precio_nuevo,
             "modificado_por": usuario["usuario"]
         }
 

@@ -68,8 +68,10 @@ button:disabled{opacity:.55;cursor:default}
 
   <button id="adminPrices" type="button" hidden>
     Administrar precios
-</button>
-
+  </button>
+  <button id="adminExtras" type="button" hidden>
+    Administrar extras
+  </button>
   <button id="adminAccess" type="button" style="margin-top:8px">
   Acceso administrador
 </button>
@@ -130,6 +132,8 @@ button:disabled{opacity:.55;cursor:default}
   var cart = [];
   var modoReal = false;
   var productosReales = [];
+  var pedidoReal = [];
+  var solicitudPersonalizacionReal = 0;
   var categoriaReal = 'Todas';
   var method = '';
   var trigger;
@@ -221,6 +225,270 @@ function mostrarCategoriasReales() {
 }
   
 
+function personalizarProductoReal(producto, indicePedido) {
+  // Si nos pasan un índice, editamos una línea existente.
+  // Sin índice, agregamos una línea nueva al pedido de prueba.
+  var editandoReal = Number.isInteger(indicePedido);
+  var itemExistente = editandoReal ? pedidoReal[indicePedido] : null;
+
+  if (editandoReal && (
+    !itemExistente ||
+    Number(itemExistente.id_producto) !== Number(producto.id_producto)
+  )) {
+    alert('No se encontró el producto para editarlo.');
+    return;
+  }
+
+  var precioBase = producto.precio_venta;
+  var numeroSolicitud = ++solicitudPersonalizacionReal;
+
+  if (!Number.isFinite(precioBase) || precioBase <= 0) {
+    alert('Este producto no tiene un precio válido.');
+    return;
+  }
+
+  el('dialogBody').onchange = null;
+
+  show(
+    (editandoReal ? 'Editar: ' : 'Personalizar: ') + producto.nombre,
+    '<p id="estadoPersonalizacion" role="status">' +
+    'Cargando opciones...</p>' +
+    '<div id="opcionesReales"></div>' +
+    '<p id="totalPersonalizado"></p>',
+    editandoReal ? 'Guardar cambios' : 'Agregar al pedido de prueba'
+  );
+
+  el('accept').disabled = true;
+
+  fetch(
+    '/pos-api/catalogo/productos/' +
+    producto.id_producto + '/personalizaciones',
+    {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    }
+  )
+    .then(function (respuesta) {
+      if (!respuesta.ok) {
+        throw new Error('No se pudieron consultar las opciones');
+      }
+
+      return respuesta.json();
+    })
+    .then(function (datos) {
+      var contenedor = el('opcionesReales');
+
+      // Ignorar respuestas de una ventana cerrada o de una solicitud anterior.
+      if (!contenedor || overlay.hidden ||
+          numeroSolicitud !== solicitudPersonalizacionReal) return;
+
+      if (!Array.isArray(datos.ingredientes) ||
+          !Array.isArray(datos.adicionales)) {
+        throw new Error('Configuración inválida');
+      }
+
+      el('estadoPersonalizacion').textContent =
+        'Precio base: ' + money(precioBase);
+
+      if (editandoReal) {
+        var aclaracion = document.createElement('p');
+        aclaracion.className = 'muted';
+        aclaracion.textContent =
+          'Los cambios se aplicarán a las ' + itemExistente.cantidad +
+          ' unidades de esta línea. Los extras se calculan con los ' +
+          'precios que devuelve el catálogo al editar.';
+        contenedor.appendChild(aclaracion);
+      }
+
+      if (datos.ingredientes.length) {
+        var titulo = document.createElement('h3');
+        titulo.textContent = 'Quitar ingredientes';
+        contenedor.appendChild(titulo);
+      }
+
+      datos.ingredientes.forEach(function (ingrediente) {
+        var etiqueta = document.createElement('label');
+        etiqueta.className = 'check';
+
+        var casilla = document.createElement('input');
+        casilla.type = 'checkbox';
+        casilla.name = 'quitarReal';
+        casilla.value = ingrediente;
+        casilla.checked = Boolean(
+          itemExistente &&
+          itemExistente.ingredientes_quitados.includes(ingrediente)
+        );
+
+        etiqueta.appendChild(casilla);
+        etiqueta.appendChild(
+          document.createTextNode(' Sin ' + ingrediente)
+        );
+
+        contenedor.appendChild(etiqueta);
+      });
+
+      if (datos.adicionales.length) {
+        var tituloExtras = document.createElement('h3');
+        tituloExtras.textContent = 'Agregar extras';
+        contenedor.appendChild(tituloExtras);
+      }
+
+      var extrasPorId = new Map();
+
+      datos.adicionales.forEach(function (extra) {
+        var precioExtra = extra.precio_venta;
+
+        var valido = (
+          typeof precioExtra === 'number' &&
+          Number.isFinite(precioExtra) &&
+          precioExtra >= 0
+        );
+
+        var etiqueta = document.createElement('label');
+        etiqueta.className = 'check';
+
+        var casilla = document.createElement('input');
+        casilla.type = 'checkbox';
+        casilla.name = 'extraReal';
+        casilla.value = String(extra.id_adicional_catalogo);
+        casilla.disabled = !valido;
+        casilla.checked = valido && Boolean(
+          itemExistente && itemExistente.adicionales.some(function (guardado) {
+            return Number(guardado.id_adicional_catalogo) ===
+                   Number(extra.id_adicional_catalogo);
+          })
+        );
+
+        if (valido) {
+          extrasPorId.set(
+            extra.id_adicional_catalogo,
+            extra
+          );
+        }
+
+        etiqueta.appendChild(casilla);
+        etiqueta.appendChild(
+          document.createTextNode(
+            ' ' + extra.nombre + ' · ' +
+            (valido ? money(precioExtra) : 'Sin precio')
+          )
+        );
+
+        contenedor.appendChild(etiqueta);
+      });
+
+      if (itemExistente) {
+        var ingredientesDisponibles = new Set(datos.ingredientes);
+        var extrasDisponibles = new Set(
+          datos.adicionales.filter(function (extra) {
+            return typeof extra.precio_venta === 'number' &&
+              Number.isFinite(extra.precio_venta) && extra.precio_venta >= 0;
+          }).map(function (extra) {
+            return Number(extra.id_adicional_catalogo);
+          })
+        );
+        var opcionesNoDisponibles =
+          itemExistente.ingredientes_quitados.some(function (nombre) {
+            return !ingredientesDisponibles.has(nombre);
+          }) || itemExistente.adicionales.some(function (extra) {
+            return !extrasDisponibles.has(Number(extra.id_adicional_catalogo));
+          });
+
+        if (opcionesNoDisponibles) {
+          var advertencia = document.createElement('p');
+          advertencia.className = 'muted';
+          advertencia.setAttribute('role', 'status');
+          advertencia.textContent =
+            'Alguna opción anterior ya no está disponible. ' +
+            'Si guardás, se eliminará de esta línea.';
+          contenedor.appendChild(advertencia);
+        }
+      }
+
+      function seleccionados(nombre) {
+        return Array.from(
+          contenedor.querySelectorAll(
+            'input[name="' + nombre + '"]:checked'
+          )
+        );
+      }
+
+      function calcularTotal() {
+        var total = precioBase;
+
+        seleccionados('extraReal').forEach(function (casilla) {
+          var extra = extrasPorId.get(Number(casilla.value));
+
+          if (extra) {
+            total += extra.precio_venta;
+          }
+        });
+
+        el('totalPersonalizado').textContent =
+          'Total por unidad: ' + money(total);
+
+        return total;
+      }
+
+      el('dialogBody').onchange = calcularTotal;
+      calcularTotal();
+
+      el('accept').disabled = false;
+
+      el('accept').onclick = function () {
+        var quitados = seleccionados('quitarReal').map(
+          function (casilla) {
+            return casilla.value;
+          }
+        );
+
+        var adicionales = seleccionados('extraReal').map(
+          function (casilla) {
+            return extrasPorId.get(Number(casilla.value));
+          }
+        ).filter(Boolean);
+
+        var itemActualizado = {
+          id_producto: producto.id_producto,
+          nombre: producto.nombre,
+          // Mantener la cantidad existente si estamos editando.
+          cantidad: editandoReal ? itemExistente.cantidad : 1,
+          categoria: producto.categoria,
+          precio_base: precioBase,
+          ingredientes_quitados: quitados,
+          adicionales: adicionales.map(function (extra) {
+            return {
+              id_adicional_catalogo: extra.id_adicional_catalogo,
+              nombre: extra.nombre,
+              precio_venta: extra.precio_venta
+            };
+          }),
+          total: calcularTotal()
+        };
+
+        if (editandoReal) {
+          pedidoReal[indicePedido] = itemActualizado;
+        } else {
+          pedidoReal.push(itemActualizado);
+        }
+
+        close();
+        mostrarPedidoReal();
+      };
+    })
+    .catch(function (error) {
+      console.error(error);
+
+      if (!overlay.hidden &&
+          numeroSolicitud === solicitudPersonalizacionReal &&
+          el('estadoPersonalizacion')) {
+        el('estadoPersonalizacion').textContent =
+          'No se pudieron cargar las opciones.';
+      }
+    });
+}
+
+
 function mostrarCatalogoReal() {
   var filtro = searchable(
     (el('search').value || '').trim()
@@ -278,13 +546,29 @@ function mostrarCatalogoReal() {
 
     var aviso = document.createElement('p');
     aviso.className = 'muted';
-    aviso.textContent = 'Solo consulta';
+    
+    aviso.textContent = 'Pedido de prueba · Sin cobro real';
+
+    var botonAgregar = document.createElement('button');
+    botonAgregar.type = 'button';
+    botonAgregar.textContent = '+ Agregar';
+
+    botonAgregar.disabled = !(
+      typeof producto.precio_venta === 'number' &&
+      Number.isFinite(producto.precio_venta) &&
+      producto.precio_venta > 0
+    );
+
+    botonAgregar.onclick = function () {
+      personalizarProductoReal(producto);
+    };
+
 
     contenido.appendChild(nombre);
     contenido.appendChild(categoria);
     contenido.appendChild(precio);
     contenido.appendChild(aviso);
-
+    contenido.appendChild(botonAgregar);
     tarjeta.appendChild(contenido);
     contenedor.appendChild(tarjeta);
   });
@@ -325,6 +609,7 @@ el('catalogMode').onclick = function () {
       'Modo demo: los cobros son simulados.';
 
     menu();
+    order();
     return;
   }
 
@@ -362,10 +647,11 @@ el('catalogMode').onclick = function () {
       boton.textContent = 'Volver al catálogo demo';
 
       el('apiStatus').textContent =
-        'Catálogo real de SQLite. ' +
-        'Todavía no se pueden agregar estos productos al pedido.';
+        'Catálogo real de SQLite. Armá pedidos de prueba: ' +
+        'no se registran ventas ni se modifica el stock o la caja.';
 
       mostrarCatalogoReal();
+      order();
     })
     .catch(function (error) {
       el('apiStatus').textContent =
@@ -378,6 +664,166 @@ el('catalogMode').onclick = function () {
       boton.disabled = false;
     });
 };
+
+
+function mostrarPedidoReal() {
+  var contenedor = el('lines');
+  contenedor.innerHTML = '';
+
+  var totalRotiseria = 0;
+  var totalPostresBebidas = 0;
+
+  pedidoReal.forEach(function (item, indice) {
+    // Calcular el subtotal antes de acumularlo en su caja.
+    var cantidad = item.cantidad || 1;
+    var subtotalLinea = item.total * cantidad;
+
+    if (item.categoria === 'Bebidas' ||
+        item.categoria === 'Postres') {
+      totalPostresBebidas += subtotalLinea;
+    } else {
+      totalRotiseria += subtotalLinea;
+    }
+
+
+    var fila = document.createElement('div');
+    fila.className = 'row';
+
+    var encabezado = document.createElement('div');
+    encabezado.className = 'row-head';
+
+    var nombre = document.createElement('strong');
+    
+    nombre.textContent = item.nombre + ' × ' + cantidad;
+
+
+    var precio = document.createElement('strong');
+    
+    precio.textContent = money(subtotalLinea);
+
+
+    encabezado.appendChild(nombre);
+    encabezado.appendChild(precio);
+    fila.appendChild(encabezado);
+
+    var cambios = item.ingredientes_quitados.map(
+      function (ingrediente) {
+        return 'Sin ' + ingrediente.toLowerCase();
+      }
+    );
+
+    item.adicionales.forEach(function (extra) {
+      cambios.push('+ ' + extra.nombre);
+    });
+
+    if (cambios.length) {
+      var detalle = document.createElement('p');
+      detalle.className = 'muted';
+      detalle.textContent = cambios.join(' · ');
+      fila.appendChild(detalle);
+    }
+
+    var botonEditar = document.createElement('button');
+    botonEditar.type = 'button';
+    botonEditar.textContent = 'Editar';
+    botonEditar.setAttribute('aria-label',
+      'Editar ingredientes y extras de ' + item.nombre);
+    botonEditar.onclick = function () {
+      var producto = productosReales.find(function (actual) {
+        return Number(actual.id_producto) === Number(item.id_producto);
+      });
+
+      if (!producto) {
+        alert('El producto ya no figura en el catálogo cargado.');
+        return;
+      }
+      personalizarProductoReal(producto, indice);
+    };
+
+    var quitar = document.createElement('button');
+    quitar.type = 'button';
+    quitar.textContent = 'Quitar';
+
+    quitar.onclick = function () {
+      pedidoReal.splice(indice, 1);
+      mostrarPedidoReal();
+    };
+
+    var controlesCantidad = document.createElement('div');
+    controlesCantidad.style.display = 'flex';
+    controlesCantidad.style.gap = '8px';
+    controlesCantidad.style.marginTop = '8px';
+
+    var botonMenos = document.createElement('button');
+    botonMenos.type = 'button';
+    botonMenos.textContent = '− 1';
+    botonMenos.disabled = cantidad <= 1;
+
+    botonMenos.onclick = function () {
+      if (item.cantidad > 1) {
+        item.cantidad--;
+        mostrarPedidoReal();
+      }
+    };
+
+    var botonMas = document.createElement('button');
+    botonMas.type = 'button';
+    botonMas.textContent = '+ 1';
+    botonMas.disabled = cantidad >= 99;
+
+    botonMas.onclick = function () {
+      if (item.cantidad < 99) {
+        item.cantidad++;
+        mostrarPedidoReal();
+      }
+    };
+
+    controlesCantidad.appendChild(botonMenos);
+    controlesCantidad.appendChild(botonMas);
+
+    fila.appendChild(controlesCantidad);
+    fila.appendChild(botonEditar);
+    fila.appendChild(quitar);
+    contenedor.appendChild(fila);
+  });
+
+  if (!pedidoReal.length) {
+    var aviso = document.createElement('p');
+    aviso.className = 'muted empty';
+    aviso.textContent =
+      'Seleccioná un producto real para armar el pedido de prueba.';
+    contenedor.appendChild(aviso);
+  }
+
+  
+  var cantidadTotal = pedidoReal.reduce(
+    function (acumulado, item) {
+      return acumulado + (item.cantidad || 1);
+    },
+    0
+  );
+
+  el('count').textContent =
+    cantidadTotal + ' unidades';
+
+
+  el('foodTotal').textContent = money(totalRotiseria);
+  el('otherTotal').textContent = money(totalPostresBebidas);
+
+  el('total').textContent = money(
+    totalRotiseria + totalPostresBebidas
+  );
+
+  el('payments').innerHTML = '';
+
+  el('checkout').disabled = true;
+  el('checkout').textContent =
+    'Cobro deshabilitado (prueba)';
+
+  el('clearCart').disabled = !pedidoReal.length;
+}
+
+
   function totals() {
     var food = 0, other = 0;
     cart.forEach(function (item) {
@@ -387,6 +833,14 @@ el('catalogMode').onclick = function () {
     return {food:food,other:other,total:food+other};
   }
   function order() {
+
+  if (modoReal) {
+    mostrarPedidoReal();
+    return;
+  }
+
+  el('checkout').textContent = 'Simular cobro →';
+
     var sums = totals();
     el('count').textContent = cart.length + (cart.length === 1 ? ' unidad' : ' unidades');
     el('lines').innerHTML = cart.length ? cart.map(function (item,index) {
@@ -451,6 +905,7 @@ el('catalogMode').onclick = function () {
       : 'Acceso administrador';
 
     el('adminPrices').hidden = !sesionAdmin;
+    el('adminExtras').hidden = !sesionAdmin;
   }
 
 
@@ -996,6 +1451,220 @@ el('adminPrices').onclick = function () {
     });
 };
 
+el('adminExtras').onclick = function () {
+  if (!sesionAdmin) return;
+
+  el('dialogBody').onchange = null;
+
+  show(
+    'Administrar extras',
+    '<p id="estadoExtras" role="status">' +
+    'Cargando adicionales...</p>' +
+    '<div id="listaExtras"></div>',
+    'Cerrar'
+  );
+
+  el('accept').onclick = close;
+
+  // Verificar sesión y cargar catálogo.
+  fetch('/pos-api/admin/verificar', {
+    credentials: 'same-origin'
+  })
+    .then(function (respuesta) {
+      if (!respuesta.ok) {
+        throw new Error('Acceso administrativo rechazado');
+      }
+
+      return fetch('/pos-api/catalogo/adicionales', {
+        credentials: 'same-origin',
+        cache: 'no-store'
+      });
+    })
+    .then(function (respuesta) {
+      if (!respuesta.ok) {
+        throw new Error('Error HTTP ' + respuesta.status);
+      }
+
+      return respuesta.json();
+    })
+    .then(function (datos) {
+      var lista = el('listaExtras');
+      var estado = el('estadoExtras');
+
+      if (!lista || !estado) return;
+
+      if (!datos.ok || !Array.isArray(datos.adicionales)) {
+        throw new Error('Catálogo inválido');
+      }
+
+      estado.textContent =
+        datos.adicionales.length + ' extras disponibles';
+
+      lista.innerHTML = '';
+
+      datos.adicionales.forEach(function (extra) {
+        var fila = document.createElement('div');
+        fila.className = 'row';
+
+        var nombre = document.createElement('strong');
+        nombre.textContent = extra.nombre;
+
+        var precio = document.createElement('p');
+        precio.className = 'muted';
+
+        precio.textContent =
+          typeof extra.precio_venta === 'number'
+            ? money(extra.precio_venta)
+            : 'Sin precio configurado';
+
+        var botonEditar = document.createElement('button');
+        botonEditar.type = 'button';
+        botonEditar.textContent = 'Editar precio';
+
+        botonEditar.onclick = function () {
+          editarPrecioExtra(extra);
+        };
+
+        fila.appendChild(nombre);
+        fila.appendChild(precio);
+        fila.appendChild(botonEditar);
+
+        lista.appendChild(fila);
+      });
+    })
+    .catch(function (error) {
+      console.error(error);
+
+      if (el('estadoExtras')) {
+        el('estadoExtras').textContent =
+          'No se pudieron cargar los extras. ' +
+          'Revisá la conexión y tu sesión.';
+      }
+    });
+};
+
+
+function editarPrecioExtra(extra) {
+  if (!sesionAdmin) return;
+
+  el('dialogBody').onchange = null;
+
+  var precioActual =
+    typeof extra.precio_venta === 'number'
+      ? money(extra.precio_venta)
+      : 'Sin precio configurado';
+
+  show(
+    'Editar extra: ' + extra.nombre,
+    '<p id="precioActualExtra"></p>' +
+    '<label for="precioNuevoExtra">' +
+    'Nuevo precio ($)</label>' +
+    '<input id="precioNuevoExtra" type="number" ' +
+    'min="0" max="100000000" step="1" ' +
+    'inputmode="numeric" style="width:100%;margin-top:8px">' +
+    '<p id="errorExtra" role="alert"></p>',
+    'Guardar precio'
+  );
+
+  el('precioActualExtra').textContent =
+    'Precio actual: ' + precioActual;
+
+  var campo = el('precioNuevoExtra');
+
+  campo.value =
+    extra.precio_venta == null
+      ? ''
+      : extra.precio_venta;
+
+  campo.focus();
+
+  el('accept').onclick = function () {
+    var valor = Number(campo.value);
+
+    if (
+      !campo.value.trim() ||
+      !Number.isSafeInteger(valor) ||
+      valor < 0 ||
+      valor > 100000000
+    ) {
+      el('errorExtra').textContent =
+        'Ingresá un precio válido en pesos enteros.';
+      return;
+    }
+
+    if (valor === extra.precio_venta) {
+      el('errorExtra').textContent =
+        'El precio no cambió.';
+      return;
+    }
+
+    var confirmado = window.confirm(
+      '¿Confirmás cambiar el precio de ' +
+      extra.nombre + ' de ' + precioActual +
+      ' a ' + money(valor) + '?'
+    );
+
+    if (!confirmado) return;
+
+    var guardar = el('accept');
+    guardar.disabled = true;
+
+    fetch(
+      '/pos-api/admin/adicionales/' +
+      extra.id_adicional_catalogo + '/precio',
+      {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          precio_nuevo: valor
+        })
+      }
+    )
+      .then(function (respuesta) {
+        if (!respuesta.ok) {
+          throw new Error('Error HTTP ' + respuesta.status);
+        }
+
+        return respuesta.json();
+      })
+      .then(function (resultado) {
+        if (!resultado.ok) {
+          throw new Error('No se pudo actualizar el precio');
+        }
+
+        show(
+          'Precio actualizado',
+          '<p id="confirmacionExtra" role="status"></p>',
+          'Volver a extras'
+        );
+
+        el('confirmacionExtra').textContent =
+          extra.nombre + ': ' + money(valor) +
+          '. Precio guardado correctamente.';
+
+        el('accept').onclick = function () {
+          el('adminExtras').click();
+        };
+      })
+      .catch(function (error) {
+        console.error(error);
+
+        if (el('errorExtra')) {
+          el('errorExtra').textContent =
+            'No se pudo guardar el precio. ' +
+            'Revisá la conexión y los permisos.';
+        }
+
+        if (el('accept')) {
+          el('accept').disabled = false;
+        }
+      });
+  };
+}
+
   el('settings').onclick = function () {
     el('dialogBody').onchange = null;
     var body = '<p class="muted">Importes ficticios en pesos. Los cambios se aplican al pedido en pantalla y se reinician al recargar.</p><form id="prices">' +
@@ -1014,6 +1683,28 @@ el('adminPrices').onclick = function () {
     el('accept').onclick = function () { save(); };
   };
   el('clearCart').onclick = function () {
+
+
+if (modoReal) {
+  if (!pedidoReal.length) return;
+
+  el('dialogBody').onchange = null;
+
+  show(
+    'Limpiar pedido de prueba',
+    '<p>Se quitarán los productos del pedido real simulado.</p>',
+    'Limpiar pedido'
+  );
+
+  el('accept').onclick = function () {
+    pedidoReal = [];
+    close();
+    mostrarPedidoReal();
+  };
+
+  return;
+}
+
     el('dialogBody').onchange = null;
     show('Limpiar pedido','<p class="check">Se quitarán todos los productos de este pedido.</p>','Limpiar pedido');
     el('accept').onclick = function () {
@@ -1023,6 +1714,8 @@ el('adminPrices').onclick = function () {
     };
   };
   el('checkout').onclick = function () {
+    // El carrito real no puede ejecutar cobros, ni siquiera simulados.
+    if (modoReal) return;
     el('dialogBody').onchange = null;
     var sums = totals();
     show('Confirmar cobro de prueba','<p class="check">' + method + ' · ' + money(sums.total) + '</p><p class="muted">La simulación finaliza este pedido sin procesar un pago.</p>','Confirmar simulación');

@@ -1251,6 +1251,38 @@ def crear_tablas_personalizaciones_pos():
         conexion.close()
 
 
+def crear_tabla_historial_precios_adicionales_pos():
+    conexion = obtener_conexion()
+
+    try:
+        conexion.execute("""
+            CREATE TABLE IF NOT EXISTS
+                historial_precios_adicionales_pos (
+                    id_cambio INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id_adicional_catalogo INTEGER NOT NULL,
+                    id_usuario INTEGER NOT NULL,
+                    precio_anterior REAL,
+                    precio_nuevo REAL NOT NULL
+                        CHECK (precio_nuevo >= 0),
+                    fecha_hora TEXT NOT NULL
+                        DEFAULT CURRENT_TIMESTAMP,
+
+                    FOREIGN KEY (id_adicional_catalogo)
+                        REFERENCES adicionales_catalogo(
+                            id_adicional_catalogo
+                        ),
+
+                    FOREIGN KEY (id_usuario)
+                        REFERENCES usuarios_pos(id_usuario)
+                )
+        """)
+
+        conexion.commit()
+
+    finally:
+        conexion.close()
+
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -1283,6 +1315,7 @@ def inicializar_base_de_datos():
     crear_tabla_sesiones_pos()
     crear_tabla_historial_precios_pos()
     crear_tablas_personalizaciones_pos()
+    crear_tabla_historial_precios_adicionales_pos()
 
 
 
