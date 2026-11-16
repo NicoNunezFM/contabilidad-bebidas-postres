@@ -73,6 +73,7 @@ from ventas import (
 )
 
 from pos_api import router as pos_router
+from pos_puente import COMANDO_PUENTE_POS, exigir_copia_puente, respuesta_puente_bot
 from pos_simulacion import transaccion_simulacion
 
 
@@ -271,9 +272,12 @@ class AccionEntrada(BaseModel):
 
 @app.on_event("startup")
 def preparar_base_de_datos():
-    if os.getenv("POS_V1_SIMULACION") == "1":
+    puente = os.getenv("ABADION_PUENTE_FICTICIO") == "1"
+    if puente or os.getenv("POS_V1_SIMULACION") == "1":
         try:
-            with transaccion_simulacion():
+            with transaccion_simulacion() as conexion:
+                if puente:
+                    exigir_copia_puente(conexion)
                 return
         except HTTPException as error:
             raise RuntimeError(error.detail) from error
@@ -747,6 +751,9 @@ def obtener_cierres_mensuales_api():
 def procesar_comando_api(
     comando: ComandoEntrada
 ):
+
+    if comando.mensaje.strip().casefold() in (COMANDO_PUENTE_POS, "conciliación pos"):
+        return JSONResponse(respuesta_puente_bot(), headers={"Cache-Control": "no-store"})
 
     if comando.id_mensaje:
         reserva = iniciar_procesamiento(

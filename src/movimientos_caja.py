@@ -1,7 +1,7 @@
 from datetime import datetime
 import sqlite3
 
-from database import obtener_conexion
+from database import lectura_contable, obtener_conexion
 
 
 TIPOS_MOVIMIENTO = (
@@ -224,71 +224,22 @@ def obtener_movimientos_caja():
 # TOTAL DE APORTES
 # ============================================================
 
-def total_aportes():
-    """
-    Devuelve el total de aportes activos.
-    """
-
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
-
-    cursor.execute(
-        """
-        SELECT SUM(monto)
-        FROM movimientos_caja
-        WHERE tipo = 'Aporte'
-        AND anulado = 0
-        """
-    )
-
-    resultado = cursor.fetchone()
-
-    conexion.close()
-
-    total = resultado[0]
-
-    if total is None:
-        total = 0
-
-    return total
+def _total_movimientos_activos(tipo, conexion):
+    with lectura_contable(conexion) as db:
+        return db.execute("""
+            SELECT COALESCE(SUM(monto), 0)
+            FROM movimientos_caja
+            WHERE tipo = ? AND anulado = 0
+        """, (tipo,)).fetchone()[0]
 
 
-# ============================================================
-# TOTAL DE RETIROS
-# ============================================================
-
-def total_retiros():
-    """
-    Devuelve el total de retiros activos.
-    """
-
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
-
-    cursor.execute(
-        """
-        SELECT SUM(monto)
-        FROM movimientos_caja
-        WHERE tipo = 'Retiro'
-        AND anulado = 0
-        """
-    )
-
-    resultado = cursor.fetchone()
-
-    conexion.close()
-
-    total = resultado[0]
-
-    if total is None:
-        total = 0
-
-    return total
+def total_aportes(*, conexion=None):
+    return _total_movimientos_activos("Aporte", conexion)
 
 
-# ============================================================
-# TOTAL DE MOVIMIENTOS POR PERÍODO
-# ============================================================
+def total_retiros(*, conexion=None):
+    return _total_movimientos_activos("Retiro", conexion)
+
 
 def total_movimientos_por_periodo(
     tipo,

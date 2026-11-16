@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from database import obtener_conexion
+from database import lectura_contable, obtener_conexion
 
 
 def _nombre_limpio(nombre):
@@ -60,23 +60,13 @@ def _reserva_cuenta(cursor, id_cuenta):
     )
 
 
-def total_reservado_deudas():
-    conexion = obtener_conexion()
-
-    try:
-        fila = conexion.execute(
-            """
+def total_reservado_deudas(*, conexion=None):
+    with lectura_contable(conexion) as db:
+        total = db.execute("""
             SELECT COALESCE(SUM(importe), 0)
             FROM movimientos_reserva_deuda_negocio
-            """
-        ).fetchone()
-
-        return float(
-            fila[0] or 0
-        )
-
-    finally:
-        conexion.close()
+        """).fetchone()[0]
+        return float(total)
 
 
 def _crear_cuenta(

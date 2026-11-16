@@ -433,16 +433,19 @@ def consultar_historial_simulado(usuario, antes_de, limite):
     return {"ventas": ventas, "siguiente_antes_de": ventas[-1]["id_venta"] if len(filas) > limite else None}
 
 
-def consultar_cajas_simuladas(conexion=None):
+def consultar_cajas_simuladas(conexion=None, *, hasta_periodo=None):
     if conexion is None:
         with transaccion_simulacion() as lectura:
-            return consultar_cajas_simuladas(lectura)
+            return consultar_cajas_simuladas(lectura, hasta_periodo=hasta_periodo)
+    resumen = resumen_libro(conexion, hasta_periodo=hasta_periodo)
     filas = conexion.execute("""
         SELECT caja, medio_pago, SUM(importe_centavos) FROM pos_movimientos_simulados
-        WHERE medio_pago IS NOT NULL GROUP BY caja, medio_pago ORDER BY caja, medio_pago
-    """).fetchall()
+        JOIN pos_eventos_simulados USING (id_evento)
+        WHERE medio_pago IS NOT NULL AND periodo <= ?
+        GROUP BY caja, medio_pago ORDER BY caja, medio_pago
+    """, (resumen["periodo_abierto"],)).fetchall()
     return {
-        **resumen_libro(conexion),
+        **resumen,
         "saldos": [{"caja": caja, "medio_pago": medio, "saldo_centavos": saldo} for caja, medio, saldo in filas],
     }
 

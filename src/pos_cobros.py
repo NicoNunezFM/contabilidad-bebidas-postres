@@ -247,18 +247,22 @@ def estado_cuenta(conexion, venta, pedido, anulada=False):
     }
 
 
-def resumen_libro(conexion):
+def resumen_libro(conexion, *, hasta_periodo=None):
+    periodo = periodo_abierto(conexion) if hasta_periodo is None else hasta_periodo
     dev_comidas, dev_bebidas, cob_comidas, cob_bebidas = conexion.execute("""
         SELECT COALESCE(SUM(devengado_comidas), 0), COALESCE(SUM(devengado_bebidas), 0),
                COALESCE(SUM(cobrado_comidas), 0), COALESCE(SUM(cobrado_bebidas), 0)
         FROM pos_eventos_simulados
-    """).fetchone()
+        WHERE periodo <= ?
+    """, (periodo,)).fetchone()
     saldos = conexion.execute("""
         SELECT caja, receptor, SUM(importe_centavos),
                SUM(CASE WHEN medio_pago IS NOT NULL THEN importe_centavos ELSE 0 END)
         FROM pos_movimientos_simulados
+        JOIN pos_eventos_simulados USING (id_evento)
+        WHERE periodo <= ?
         GROUP BY caja, receptor ORDER BY caja, receptor
-    """).fetchall()
+    """, (periodo,)).fetchall()
     secciones = {}
     for caja, devengado, cobrado in zip(SECCIONES, (dev_comidas, dev_bebidas), (cob_comidas, cob_bebidas)):
         disponible = sum(saldo for seccion, _, saldo, _ in saldos if seccion == caja)
@@ -270,7 +274,7 @@ def resumen_libro(conexion):
             "por_distribuir_centavos": cobrado - disponible,
         }
     return {
-        "periodo_abierto": periodo_abierto(conexion),
+        "periodo_abierto": periodo,
         "secciones": secciones,
         "receptores": [
             {"caja": caja, "receptor": receptor, "saldo_centavos": saldo,
