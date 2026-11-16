@@ -14,6 +14,8 @@ from tests.test_pos_pedidos import ORIGEN, pedido_prueba
 
 VENTAS = "/pos-api/simulacion/ventas"
 CAJAS = "/pos-api/simulacion/cajas"
+MOVIMIENTOS = f"{CAJAS}/movimientos"
+ESTADO = "/pos-api/simulacion/estado"
 
 
 @pytest.fixture
@@ -68,6 +70,7 @@ def test_simulacion_deshabilitada_sin_marca(pedido_prueba, monkeypatch):
         "medio_pago": "efectivo", "items": [linea],
     })
     assert respuesta.status_code == 404
+    assert cliente.get(ESTADO).status_code == 404
 
 
 def test_simulacion_es_atomica_e_idempotente(venta_prueba):
@@ -78,6 +81,27 @@ def test_simulacion_es_atomica_e_idempotente(venta_prueba):
     assert cliente.post(VENTAS, headers=ORIGEN, json=venta).json() == respuesta.json()
     assert cliente.post(VENTAS, headers=ORIGEN, json={**venta, "total_esperado_centavos": 1}).status_code == 409
     assert _estado() == (8, 1, 0, 1)
+
+
+def test_estado_simulacion_y_reintentos_ligados_a_la_cuenta(venta_prueba):
+    cliente, venta = venta_prueba
+    estado = TestClient(app).get(ESTADO)
+    assert estado.json() == {"ok": True, "simulacion": True}
+    assert estado.headers["Cache-Control"] == "no-store"
+
+    id_ventas = cliente.get("/pos-api/yo").json()["usuario"]["id_usuario"]
+    headers = {**ORIGEN, "X-POS-Usuario": str(id_ventas)}
+    registrada = cliente.post(VENTAS, headers=headers, json=venta)
+    assert registrada.status_code == 200
+    _iniciar_sesion(cliente, "admin", "admin")
+    cambiada = cliente.post(VENTAS, headers=headers, json=venta)
+    assert cambiada.status_code == 409
+    assert cambiada.json()["detail"]["codigo"] == "SESION_CAMBIADA"
+    url = f'{VENTAS}/{registrada.json()["id_venta"]}/anulacion'
+    assert cliente.post(url, headers=headers, json={"motivo": "Prueba"}).status_code == 409
+    assert _estado() == (8, 1, 0, 1)
+    cliente.cookies.delete("abadion_pos_admin", path="/pos-api")
+    assert cliente.post(VENTAS, headers=headers, json=venta).json() == registrada.json()
 
 
 def test_revalida_total_y_revierte_si_falla_el_stock(venta_prueba):
@@ -144,6 +168,7 @@ def test_anulacion_auditada_restaura_stock_y_caja_una_vez(venta_prueba):
     assert respuesta.status_code == 200, respuesta.text
     assert cliente.post(url, headers=ORIGEN, json={"motivo": "Duplicada"}).status_code == 409
     assert _estado() == (10, 1, 0, 2)
+
     assert cliente.get(CAJAS).json()["saldos"][0]["saldo_centavos"] == 0
 
     historial = cliente.get(VENTAS).json()["ventas"][0]
@@ -157,6 +182,33 @@ def test_anulacion_auditada_restaura_stock_y_caja_una_vez(venta_prueba):
     assert reintento["id_venta"] == registrada["id_venta"]
     assert reintento["anulada"] is True
     assert _estado() == (10, 1, 0, 2)
+
+
+def test_movimientos_paginados_por_caja_y_auditados(venta_prueba):
+    cliente, venta = venta_prueba
+    params = {"caja": "bebidas_postres", "limite": 1}
+    assert TestClient(app).get(MOVIMIENTOS, params=params).status_code == 401
+    assert cliente.get(MOVIMIENTOS, params=params).status_code == 403
+    id_venta = cliente.post(VENTAS, headers=ORIGEN, json=venta).json()["id_venta"]
+    _iniciar_sesion(cliente, "admin", "admin")
+    assert cliente.post(
+        f"{VENTAS}/{id_venta}/anulacion", headers=ORIGEN, json={"motivo": "Prueba"}
+    ).status_code == 200
+    respuesta = cliente.get(MOVIMIENTOS, params=params)
+    assert respuesta.headers["Cache-Control"] == "no-store"
+    primera = respuesta.json()
+    anulacion, = primera["movimientos"]
+    segunda = cliente.get(MOVIMIENTOS, params={**params, "antes_de": primera["siguiente_antes_de"]}).json()
+    registro, = segunda["movimientos"]
+    assert anulacion["id_venta"] == registro["id_venta"] == id_venta
+    assert anulacion["id_usuario"] != registro["id_usuario"]
+    assert anulacion["fecha"] and registro["fecha"]
+    assert anulacion["tipo"] == "anulacion" and registro["tipo"] == "venta"
+    assert anulacion["medio_pago"] == registro["medio_pago"] == "efectivo"
+    assert anulacion["importe_centavos"] == -registro["importe_centavos"] == -23026
+    assert segunda["siguiente_antes_de"] is None
+    assert cliente.get(MOVIMIENTOS, params={"caja": "comidas"}).json()["movimientos"] == []
+    assert cliente.get(MOVIMIENTOS, params={"caja": "otra"}).status_code == 422
 
 
 def test_historial_limitado_por_usuario_y_paginado(venta_prueba):
