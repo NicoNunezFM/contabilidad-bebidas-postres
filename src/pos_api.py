@@ -1,6 +1,6 @@
 
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 
 from pydantic import BaseModel, Field
 
@@ -13,7 +13,14 @@ from pos_auth import (
 
 from database import obtener_conexion
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
-from pos_simulacion import VentaSimuladaEntrada, consultar_cajas_simuladas, registrar_venta_simulada
+from pos_simulacion import (
+    AnulacionSimuladaEntrada,
+    VentaSimuladaEntrada,
+    anular_venta_simulada,
+    consultar_cajas_simuladas,
+    consultar_historial_simulado,
+    registrar_venta_simulada,
+)
 
 router = APIRouter(prefix="/pos-api", tags=["POS - Sesiones"])
 
@@ -57,6 +64,10 @@ def comprobar_origen(request: Request):
             status_code=403,
             detail="Origen no permitido."
         )
+
+
+def evitar_cache_pos(response: Response):
+    response.headers["Cache-Control"] = "no-store"
 
 
 def exigir_administrador_pos(request: Request) -> dict:
@@ -169,7 +180,25 @@ def simular_venta_pos(venta: VentaSimuladaEntrada, usuario: dict = Depends(exigi
     return {"ok": True, "simulacion": True, **registrar_venta_simulada(venta, usuario)}
 
 
-@router.get("/simulacion/cajas", dependencies=[Depends(exigir_administrador_pos)])
+@router.get("/simulacion/ventas", dependencies=[Depends(evitar_cache_pos)])
+def consultar_historial_pos(
+    antes_de: int | None = Query(default=None, gt=0, le=2**63 - 1),
+    limite: int = Query(default=25, ge=1, le=100),
+    usuario: dict = Depends(exigir_usuario_pos),
+):
+    return {"ok": True, "simulacion": True, **consultar_historial_simulado(usuario, antes_de, limite)}
+
+
+@router.post("/simulacion/ventas/{id_venta}/anulacion", dependencies=[Depends(comprobar_origen)])
+def anular_venta_pos(
+    anulacion: AnulacionSimuladaEntrada,
+    id_venta: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_administrador_pos),
+):
+    return {"ok": True, "simulacion": True, **anular_venta_simulada(id_venta, anulacion.motivo, usuario)}
+
+
+@router.get("/simulacion/cajas", dependencies=[Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
 def consultar_cajas_pos():
     return {"ok": True, "simulacion": True, "saldos": consultar_cajas_simuladas()}
 

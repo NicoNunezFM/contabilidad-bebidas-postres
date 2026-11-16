@@ -1,4 +1,5 @@
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
@@ -31,16 +32,17 @@ def venta_prueba(pedido_prueba, monkeypatch):
     }
 
 
-def _iniciar_sesion_administrador(cliente):
+def _iniciar_sesion(cliente, usuario, rol):
     conexion = obtener_conexion()
     try:
         with conexion:
             id_usuario = conexion.execute(
-                "INSERT INTO usuarios_pos (usuario, rol, password_hash) VALUES ('admin', 'admin', 'prueba')"
+                "INSERT INTO usuarios_pos (usuario, rol, password_hash) VALUES (?, ?, 'prueba')",
+                (usuario, rol),
             ).lastrowid
     finally:
         conexion.close()
-    cliente.cookies.set("abadion_pos_admin", crear_sesion_pos(id_usuario), path="/pos-api")
+    cliente.cookies.set(f"abadion_pos_{rol}", crear_sesion_pos(id_usuario), path="/pos-api")
 
 
 def _estado():
@@ -119,9 +121,90 @@ def test_cajas_diferenciadas_y_medios_de_pago(venta_prueba):
     assert venta_mixta.json()["cajas_centavos"] == {"bebidas_postres": 23026, "comidas": 5025}
     efectivo = cliente.post(VENTAS, headers=ORIGEN, json={**venta, "id_solicitud": str(uuid4())})
     assert efectivo.status_code == 200
-    _iniciar_sesion_administrador(cliente)
+    _iniciar_sesion(cliente, "admin", "admin")
     assert cliente.get(CAJAS).json()["saldos"] == [
         {"caja": "bebidas_postres", "medio_pago": "efectivo", "saldo_centavos": 23026},
         {"caja": "bebidas_postres", "medio_pago": "transferencia", "saldo_centavos": 23026},
         {"caja": "comidas", "medio_pago": "transferencia", "saldo_centavos": 5025},
     ]
+
+
+def test_anulacion_auditada_restaura_stock_y_caja_una_vez(venta_prueba):
+    cliente, venta = venta_prueba
+    registrada = cliente.post(VENTAS, headers=ORIGEN, json=venta).json()
+    url = f'{VENTAS}/{registrada["id_venta"]}/anulacion'
+    assert cliente.post(url, headers=ORIGEN, json={"motivo": "Error de prueba"}).status_code == 403
+    _iniciar_sesion(cliente, "admin", "admin")
+    assert cliente.post(url, json={"motivo": "Error de prueba"}).status_code == 403
+    assert cliente.post(url, headers=ORIGEN, json={"motivo": "  "}).status_code == 422
+
+    respuesta = cliente.post(url, headers=ORIGEN, json={"motivo": "  Error de prueba  "})
+    assert respuesta.status_code == 200, respuesta.text
+    assert cliente.post(url, headers=ORIGEN, json={"motivo": "Duplicada"}).status_code == 409
+    assert _estado() == (10, 1, 0, 2)
+    assert cliente.get(CAJAS).json()["saldos"][0]["saldo_centavos"] == 0
+
+    historial = cliente.get(VENTAS).json()["ventas"][0]
+    assert historial["items"] == registrada["items"]
+    assert historial["anulada"] is True
+    assert historial["anulacion"]["motivo"] == "Error de prueba"
+    assert historial["anulacion"]["id_usuario"] != historial["id_usuario"]
+
+    cliente.cookies.delete("abadion_pos_admin", path="/pos-api")
+    reintento = cliente.post(VENTAS, headers=ORIGEN, json=venta).json()
+    assert reintento["id_venta"] == registrada["id_venta"]
+    assert reintento["anulada"] is True
+    assert _estado() == (10, 1, 0, 2)
+
+
+def test_historial_limitado_por_usuario_y_paginado(venta_prueba):
+    cliente, venta = venta_prueba
+    primera = cliente.post(VENTAS, headers=ORIGEN, json=venta).json()["id_venta"]
+    _iniciar_sesion(cliente, "otra_caja", "ventas")
+    assert cliente.get(VENTAS).json()["ventas"] == []
+    segunda = cliente.post(VENTAS, headers=ORIGEN, json=venta).json()["id_venta"]
+    assert [fila["id_venta"] for fila in cliente.get(VENTAS).json()["ventas"]] == [segunda]
+
+    _iniciar_sesion(cliente, "admin", "admin")
+    respuesta = cliente.get(VENTAS, params={"limite": 1})
+    assert respuesta.headers["Cache-Control"] == "no-store"
+    primera_pagina = respuesta.json()
+    assert primera_pagina["siguiente_antes_de"] == segunda
+    ultima_pagina = cliente.get(VENTAS, params={"limite": 1, "antes_de": segunda}).json()
+    assert [fila["id_venta"] for fila in ultima_pagina["ventas"]] == [primera]
+    assert ultima_pagina["siguiente_antes_de"] is None
+
+
+def test_ventas_concurrentes_no_superan_el_stock(venta_prueba):
+    cliente, venta = venta_prueba
+    venta["items"][0]["cantidad"] = 6
+    venta["total_esperado_centavos"] = 69078
+
+    def registrar(id_solicitud):
+        return cliente.post(VENTAS, headers=ORIGEN, json={**venta, "id_solicitud": str(id_solicitud)})
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        respuestas = list(executor.map(registrar, [uuid4(), uuid4()]))
+
+    assert sorted(respuesta.status_code for respuesta in respuestas) == [200, 409]
+    assert _estado() == (4, 1, 0, 1)
+
+
+def test_simulacion_deshabilitada_por_defecto(venta_prueba, monkeypatch):
+    cliente, venta = venta_prueba
+    monkeypatch.delenv("POS_V1_SIMULACION")
+    assert cliente.post(VENTAS, headers=ORIGEN, json=venta).status_code == 404
+    assert cliente.get(VENTAS).status_code == 404
+    assert _estado() == (10, 0, 0, 0)
+
+
+def test_rechaza_version_anterior_del_esquema(venta_prueba):
+    cliente, venta = venta_prueba
+    conexion = obtener_conexion()
+    try:
+        with conexion:
+            conexion.execute("PRAGMA user_version = 0")
+    finally:
+        conexion.close()
+    assert cliente.post(VENTAS, headers=ORIGEN, json=venta).status_code == 409
+    assert _estado() == (10, 0, 0, 0)

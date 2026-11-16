@@ -6,7 +6,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import HTTPException
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from caja import CATEGORIAS_CAJA_BEBIDAS_POSTRES
 from database import obtener_conexion, obtener_ruta_base
@@ -14,12 +14,19 @@ from pos_pedidos import PedidoPos, calcular_pedido_pos
 
 
 ID_SQLITE_SIMULACION = 0x41425031
+VERSION_ESQUEMA_SIMULACION = 3
 
 
 class VentaSimuladaEntrada(PedidoPos):
     id_solicitud: UUID
     total_esperado_centavos: int = Field(strict=True, gt=0, le=310_000_000_000_000_000)
     medio_pago: Literal["efectivo", "transferencia", "mercado_pago"]
+
+
+class AnulacionSimuladaEntrada(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    motivo: str = Field(min_length=1, max_length=300)
 
 
 def crear_esquema_simulacion(conexion):
@@ -48,7 +55,16 @@ def crear_esquema_simulacion(conexion):
             PRIMARY KEY (id_venta, caja, tipo)
         )
     """)
+    conexion.execute("""
+        CREATE TABLE pos_anulaciones_simuladas (
+            id_venta INTEGER PRIMARY KEY REFERENCES pos_ventas_simuladas (id_venta),
+            id_usuario INTEGER NOT NULL REFERENCES usuarios_pos (id_usuario),
+            motivo TEXT NOT NULL,
+            fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conexion.execute(f"PRAGMA application_id = {ID_SQLITE_SIMULACION}")
+    conexion.execute(f"PRAGMA user_version = {VERSION_ESQUEMA_SIMULACION}")
 
 
 @contextmanager
@@ -66,6 +82,8 @@ def transaccion_simulacion(*, escritura=False):
     try:
         if conexion.execute("PRAGMA application_id").fetchone()[0] != ID_SQLITE_SIMULACION:
             raise HTTPException(404, "Simulación POS deshabilitada.")
+        if conexion.execute("PRAGMA user_version").fetchone()[0] != VERSION_ESQUEMA_SIMULACION:
+            raise HTTPException(409, "Prepará una base nueva para esta versión de la simulación POS.")
         if not escritura:
             conexion.execute("PRAGMA query_only = ON")
         with conexion:
@@ -89,16 +107,18 @@ def registrar_venta_simulada(entrada, usuario):
     with transaccion_simulacion(escritura=True) as conexion:
         existente = conexion.execute(
             """
-            SELECT id_venta, solicitud, pedido FROM pos_ventas_simuladas
-            WHERE id_usuario = ? AND id_solicitud = ?
+            SELECT v.id_venta, v.solicitud, v.pedido, a.id_venta IS NOT NULL
+            FROM pos_ventas_simuladas AS v
+            LEFT JOIN pos_anulaciones_simuladas AS a USING (id_venta)
+            WHERE v.id_usuario = ? AND v.id_solicitud = ?
             """,
             clave,
         ).fetchone()
         if existente is not None:
-            id_venta, solicitud_guardada, pedido_guardado = existente
+            id_venta, solicitud_guardada, pedido_guardado, anulada = existente
             if solicitud_guardada != solicitud:
                 raise HTTPException(409, "La solicitud ya corresponde a otra venta.")
-            return {"id_venta": id_venta, **json.loads(pedido_guardado)}
+            return {"id_venta": id_venta, "anulada": bool(anulada), **json.loads(pedido_guardado)}
 
         pedido = calcular_pedido_pos(conexion, entrada)
         if pedido["total_centavos"] != entrada.total_esperado_centavos:
@@ -132,7 +152,74 @@ def registrar_venta_simulada(entrada, usuario):
             "UPDATE productos SET stock = stock - ? WHERE id_producto = ?",
             [(cantidad, id_producto) for id_producto, cantidad in cantidades_descontadas(pedido).items()],
         )
-        return {"id_venta": id_venta, **pedido}
+        return {"id_venta": id_venta, "anulada": False, **pedido}
+
+
+def anular_venta_simulada(id_venta, motivo, usuario):
+    with transaccion_simulacion(escritura=True) as conexion:
+        venta = conexion.execute(
+            """
+            SELECT v.pedido, a.id_venta IS NOT NULL
+            FROM pos_ventas_simuladas AS v
+            LEFT JOIN pos_anulaciones_simuladas AS a USING (id_venta)
+            WHERE v.id_venta = ?
+            """, (id_venta,),
+        ).fetchone()
+        if venta is None:
+            raise HTTPException(404, "Venta simulada no encontrada.")
+        pedido, anulada = venta
+        if anulada:
+            raise HTTPException(409, "La venta simulada ya está anulada.")
+
+        cantidades = cantidades_descontadas(json.loads(pedido))
+        cursor = conexion.executemany(
+            "UPDATE productos SET stock = stock + ? WHERE id_producto = ?",
+            [(cantidad, id_producto) for id_producto, cantidad in cantidades.items()],
+        )
+        if cursor.rowcount != len(cantidades):
+            raise HTTPException(409, "Falta un producto cuyo stock debe restaurarse.")
+
+        conexion.execute(
+            "INSERT INTO pos_anulaciones_simuladas (id_venta, id_usuario, motivo) VALUES (?, ?, ?)",
+            (id_venta, usuario["id_usuario"], motivo),
+        )
+        conexion.execute(
+            """
+            INSERT INTO pos_movimientos_simulados (id_venta, caja, medio_pago, tipo, importe_centavos)
+            SELECT id_venta, caja, medio_pago, 'anulacion', -importe_centavos
+            FROM pos_movimientos_simulados WHERE id_venta = ? AND tipo = 'venta'
+            """, (id_venta,),
+        )
+    return {"id_venta": id_venta, "anulada": True}
+
+
+def consultar_historial_simulado(usuario, antes_de, limite):
+    id_usuario = None if usuario["rol"] == "admin" else usuario["id_usuario"]
+    with transaccion_simulacion() as conexion:
+        filas = conexion.execute(
+            """
+            SELECT v.id_venta, v.fecha, v.id_usuario, v.pedido, a.id_usuario, a.fecha, a.motivo
+            FROM pos_ventas_simuladas AS v
+            LEFT JOIN pos_anulaciones_simuladas AS a USING (id_venta)
+            WHERE (:antes_de IS NULL OR v.id_venta < :antes_de)
+              AND (:id_usuario IS NULL OR v.id_usuario = :id_usuario)
+            ORDER BY v.id_venta DESC
+            LIMIT :limite
+            """, {"antes_de": antes_de, "id_usuario": id_usuario, "limite": limite + 1},
+        ).fetchall()
+
+    ventas = [
+        {
+            "id_venta": id_venta,
+            "fecha": fecha,
+            "id_usuario": autor,
+            "anulada": anulador is not None,
+            "anulacion": {"id_usuario": anulador, "fecha": fecha_anulacion, "motivo": motivo} if anulador else None,
+            **json.loads(pedido),
+        }
+        for id_venta, fecha, autor, pedido, anulador, fecha_anulacion, motivo in filas[:limite]
+    ]
+    return {"ventas": ventas, "siguiente_antes_de": ventas[-1]["id_venta"] if len(filas) > limite else None}
 
 
 def consultar_cajas_simuladas():
