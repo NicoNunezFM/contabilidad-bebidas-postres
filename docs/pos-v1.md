@@ -45,3 +45,11 @@ python -m uvicorn api:app --app-dir src --host 127.0.0.1
 La venta se guarda en `pos_ventas_simuladas` y descuenta stock ficticio dentro de una transacción `BEGIN IMMEDIATE`. El servidor vuelve a calcular el pedido en esa misma transacción. Un error revierte el registro y el descuento. La API exige que la base tenga la marca SQLite de simulación y que `POS_V1_SIMULACION=1`. El script solo crea archivos nuevos. Los registros están aislados de las ventas del bot y de la contabilidad existente.
 
 Pruebas focalizadas: `python -m pytest -q tests/test_pos_simulacion.py`.
+
+## 3. Cajas y medios de pago simulados
+
+Agregá `medio_pago` al cuerpo del registro de venta. Los valores admitidos son `efectivo`, `transferencia` y `mercado_pago`. Cada venta usa un solo medio para el pedido completo. Estos valores sirven para clasificar importes ficticios en SQLite.
+
+Las líneas de bebidas y postres se imputan a `bebidas_postres`; las demás, a `comidas`. Un pedido mixto genera un movimiento por cada caja involucrada. La venta, el descuento de stock y los movimientos se confirman juntos.
+
+`GET /pos-api/simulacion/cajas` requiere sesión de administración y muestra los saldos en centavos por caja y medio de pago. Las pruebas cubren pedidos mixtos, permisos y reversión de los movimientos ante un fallo de stock.

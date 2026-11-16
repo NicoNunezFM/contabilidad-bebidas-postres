@@ -13,7 +13,7 @@ from pos_auth import (
 
 from database import obtener_conexion
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
-from pos_simulacion import VentaSimuladaEntrada, registrar_venta_simulada
+from pos_simulacion import VentaSimuladaEntrada, consultar_cajas_simuladas, registrar_venta_simulada
 
 router = APIRouter(prefix="/pos-api", tags=["POS - Sesiones"])
 
@@ -167,6 +167,11 @@ def validar_pedido_pos(pedido: PedidoPos):
 @router.post("/simulacion/ventas", dependencies=[Depends(comprobar_origen)])
 def simular_venta_pos(venta: VentaSimuladaEntrada, usuario: dict = Depends(exigir_usuario_pos)):
     return {"ok": True, "simulacion": True, **registrar_venta_simulada(venta, usuario)}
+
+
+@router.get("/simulacion/cajas", dependencies=[Depends(exigir_administrador_pos)])
+def consultar_cajas_pos():
+    return {"ok": True, "simulacion": True, "saldos": consultar_cajas_simuladas()}
 
 
 @router.post("/logout")

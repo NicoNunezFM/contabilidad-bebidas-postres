@@ -2,11 +2,13 @@ import json
 import os
 from collections import Counter
 from contextlib import contextmanager
+from typing import Literal
 from uuid import UUID
 
 from fastapi import HTTPException
 from pydantic import Field
 
+from caja import CATEGORIAS_CAJA_BEBIDAS_POSTRES
 from database import obtener_conexion, obtener_ruta_base
 from pos_pedidos import PedidoPos, calcular_pedido_pos
 
@@ -17,6 +19,7 @@ ID_SQLITE_SIMULACION = 0x41425031
 class VentaSimuladaEntrada(PedidoPos):
     id_solicitud: UUID
     total_esperado_centavos: int = Field(strict=True, gt=0, le=310_000_000_000_000_000)
+    medio_pago: Literal["efectivo", "transferencia", "mercado_pago"]
 
 
 def crear_esquema_simulacion(conexion):
@@ -30,6 +33,19 @@ def crear_esquema_simulacion(conexion):
             fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             pedido TEXT NOT NULL,
             UNIQUE (id_usuario, id_solicitud)
+        )
+    """)
+    conexion.execute("""
+        CREATE TABLE pos_movimientos_simulados (
+            id_venta INTEGER NOT NULL REFERENCES pos_ventas_simuladas (id_venta),
+            caja TEXT NOT NULL CHECK (caja IN ('bebidas_postres', 'comidas')),
+            medio_pago TEXT NOT NULL CHECK (medio_pago IN ('efectivo', 'transferencia', 'mercado_pago')),
+            tipo TEXT NOT NULL CHECK (tipo IN ('venta', 'anulacion')),
+            importe_centavos INTEGER NOT NULL CHECK (
+                (tipo = 'venta' AND importe_centavos > 0) OR
+                (tipo = 'anulacion' AND importe_centavos < 0)
+            ),
+            PRIMARY KEY (id_venta, caja, tipo)
         )
     """)
     conexion.execute(f"PRAGMA application_id = {ID_SQLITE_SIMULACION}")
@@ -92,12 +108,42 @@ def registrar_venta_simulada(entrada, usuario):
                 "total_centavos": pedido["total_centavos"],
             })
 
+        subtotales = Counter()
+        for item in pedido["items"]:
+            categoria = item["categoria"].strip().lower()
+            caja = "bebidas_postres" if categoria in CATEGORIAS_CAJA_BEBIDAS_POSTRES else "comidas"
+            subtotales[caja] += item["subtotal_centavos"]
+        pedido["medio_pago"] = entrada.medio_pago
+        pedido["cajas_centavos"] = dict(subtotales)
+
         cursor = conexion.execute(
             "INSERT INTO pos_ventas_simuladas (id_usuario, id_solicitud, solicitud, pedido) VALUES (?, ?, ?, ?)",
             (*clave, solicitud, json.dumps(pedido, ensure_ascii=False)),
+        )
+        id_venta = cursor.lastrowid
+        conexion.executemany(
+            """
+            INSERT INTO pos_movimientos_simulados (id_venta, caja, medio_pago, tipo, importe_centavos)
+            VALUES (?, ?, ?, 'venta', ?)
+            """,
+            [(id_venta, caja, entrada.medio_pago, subtotal) for caja, subtotal in subtotales.items()],
         )
         conexion.executemany(
             "UPDATE productos SET stock = stock - ? WHERE id_producto = ?",
             [(cantidad, id_producto) for id_producto, cantidad in cantidades_descontadas(pedido).items()],
         )
-        return {"id_venta": cursor.lastrowid, **pedido}
+        return {"id_venta": id_venta, **pedido}
+
+
+def consultar_cajas_simuladas():
+    with transaccion_simulacion() as conexion:
+        filas = conexion.execute("""
+            SELECT caja, medio_pago, SUM(importe_centavos)
+            FROM pos_movimientos_simulados
+            GROUP BY caja, medio_pago
+            ORDER BY caja, medio_pago
+        """).fetchall()
+    return [
+        {"caja": caja, "medio_pago": medio, "saldo_centavos": saldo}
+        for caja, medio, saldo in filas
+    ]
