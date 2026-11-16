@@ -1,6 +1,7 @@
 from datetime import datetime
+import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -71,6 +72,7 @@ from ventas import (
 )
 
 from pos_api import router as pos_router
+from pos_simulacion import transaccion_simulacion
 
 
 # ============================================================
@@ -267,6 +269,13 @@ class AccionEntrada(BaseModel):
 
 @app.on_event("startup")
 def preparar_base_de_datos():
+    if os.getenv("POS_V1_SIMULACION") == "1":
+        try:
+            with transaccion_simulacion():
+                return
+        except HTTPException as error:
+            raise RuntimeError(error.detail) from error
+
     inicializar_base_de_datos()
     inicializar_costos_postres()
     resultado_catalogo = asegurar_productos_catalogo()

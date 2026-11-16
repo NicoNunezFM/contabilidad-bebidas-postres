@@ -1,6 +1,6 @@
 
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 
 from pydantic import BaseModel, Field
 
@@ -12,6 +12,15 @@ from pos_auth import (
 )
 
 from database import obtener_conexion
+from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
+from pos_simulacion import (
+    AnulacionSimuladaEntrada,
+    VentaSimuladaEntrada,
+    anular_venta_simulada,
+    consultar_cajas_simuladas,
+    consultar_historial_simulado,
+    registrar_venta_simulada,
+)
 
 router = APIRouter(prefix="/pos-api", tags=["POS - Sesiones"])
 
@@ -55,6 +64,10 @@ def comprobar_origen(request: Request):
             status_code=403,
             detail="Origen no permitido."
         )
+
+
+def evitar_cache_pos(response: Response):
+    response.headers["Cache-Control"] = "no-store"
 
 
 def exigir_administrador_pos(request: Request) -> dict:
@@ -125,8 +138,7 @@ def iniciar_sesion(
     }
 
 
-@router.get("/yo")
-def usuario_actual(request: Request):
+def exigir_usuario_pos(request: Request):
     for nombre_cookie, rol in (
         (COOKIE_ADMIN, "admin"),
         (COOKIE_VENTAS, "ventas"),
@@ -139,12 +151,56 @@ def usuario_actual(request: Request):
         usuario = obtener_usuario_sesion_pos(token)
 
         if usuario is not None and usuario["rol"] == rol:
-            return {"ok": True, "usuario": usuario}
+            return usuario
 
     raise HTTPException(
         status_code=401,
         detail="No hay una sesión válida."
     )
+
+
+@router.get("/yo")
+def usuario_actual(usuario: dict = Depends(exigir_usuario_pos)):
+    return {"ok": True, "usuario": usuario}
+
+
+@router.post("/pedidos/validar", dependencies=[Depends(comprobar_origen), Depends(exigir_usuario_pos)])
+def validar_pedido_pos(pedido: PedidoPos):
+    conexion = obtener_conexion()
+    try:
+        conexion.execute("PRAGMA query_only = ON")
+        conexion.execute("BEGIN")
+        return {"ok": True, **calcular_pedido_pos(conexion, pedido)}
+    finally:
+        conexion.close()
+
+
+@router.post("/simulacion/ventas", dependencies=[Depends(comprobar_origen)])
+def simular_venta_pos(venta: VentaSimuladaEntrada, usuario: dict = Depends(exigir_usuario_pos)):
+    return {"ok": True, "simulacion": True, **registrar_venta_simulada(venta, usuario)}
+
+
+@router.get("/simulacion/ventas", dependencies=[Depends(evitar_cache_pos)])
+def consultar_historial_pos(
+    antes_de: int | None = Query(default=None, gt=0, le=2**63 - 1),
+    limite: int = Query(default=25, ge=1, le=100),
+    usuario: dict = Depends(exigir_usuario_pos),
+):
+    return {"ok": True, "simulacion": True, **consultar_historial_simulado(usuario, antes_de, limite)}
+
+
+@router.post("/simulacion/ventas/{id_venta}/anulacion", dependencies=[Depends(comprobar_origen)])
+def anular_venta_pos(
+    anulacion: AnulacionSimuladaEntrada,
+    id_venta: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_administrador_pos),
+):
+    return {"ok": True, "simulacion": True, **anular_venta_simulada(id_venta, anulacion.motivo, usuario)}
+
+
+@router.get("/simulacion/cajas", dependencies=[Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
+def consultar_cajas_pos():
+    return {"ok": True, "simulacion": True, "saldos": consultar_cajas_simuladas()}
 
 
 @router.post("/logout")
@@ -320,47 +376,7 @@ def consultar_personalizaciones_pos(id_producto: int):
                 detail="Producto no encontrado."
             )
 
-        # Ingredientes que se pueden quitar.
-        filas_ingredientes = conexion.execute(
-            """
-            SELECT ingrediente
-            FROM pos_ingredientes_producto
-            WHERE id_producto = ?
-            ORDER BY ingrediente COLLATE NOCASE
-            """,
-            (id_producto,)
-        ).fetchall()
-
-        ingredientes = [
-            fila[0] for fila in filas_ingredientes
-        ]
-
-        # Extras permitidos y activos.
-        filas_adicionales = conexion.execute(
-            """
-            SELECT
-                a.id_adicional_catalogo,
-                a.nombre,
-                a.precio_venta
-            FROM pos_adicionales_producto AS pa
-            JOIN adicionales_catalogo AS a
-              ON a.id_adicional_catalogo =
-                 pa.id_adicional_catalogo
-            WHERE pa.id_producto = ?
-              AND a.activo = 1
-            ORDER BY a.nombre COLLATE NOCASE
-            """,
-            (id_producto,)
-        ).fetchall()
-
-        adicionales = [
-            {
-                "id_adicional_catalogo": fila[0],
-                "nombre": fila[1],
-                "precio_venta": fila[2]
-            }
-            for fila in filas_adicionales
-        ]
+        ingredientes, adicionales = consultar_opciones_producto(conexion, id_producto)
 
         return {
             "ok": True,
