@@ -17,6 +17,7 @@ from database import obtener_conexion
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
 from productos import obtener_productos
 from pos_cobros import AbonoEntrada, CierreEntrada, DevolucionEntrada, TransferenciaEntrada
+from pos_puente import consultar_puente_ficticio
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
     VentaSimuladaEntrada,
@@ -286,6 +287,13 @@ def consultar_cierre_pos(periodo: int = Path(gt=0, le=2**63 - 1)):
 @router.get("/simulacion/cajas", dependencies=[Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
 def consultar_cajas_pos():
     return {"ok": True, "simulacion": True, **consultar_cajas_simuladas()}
+
+
+@router.get("/simulacion/conciliacion", dependencies=[
+    Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos),
+])
+def conciliacion_pos():
+    return consultar_puente_ficticio()
 
 
 @router.get("/simulacion/cajas/movimientos", dependencies=[Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])

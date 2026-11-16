@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from contextlib import closing, nullcontext
 from pathlib import Path
 
 
@@ -27,6 +28,11 @@ def obtener_conexion():
     conexion.execute("PRAGMA foreign_keys = ON")
 
     return conexion
+
+def lectura_contable(conexion=None):
+    """Reutiliza el corte de lectura del llamador cuando lo proporciona."""
+    return closing(obtener_conexion()) if conexion is None else nullcontext(conexion)
+
 
 def crear_tabla_productos():
     conexion = obtener_conexion()

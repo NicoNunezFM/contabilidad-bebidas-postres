@@ -1,4 +1,4 @@
-from database import obtener_conexion
+from database import lectura_contable
 from deudas_negocio import total_reservado_deudas
 from movimientos_caja import total_aportes, total_retiros
 from diezmo import estado_general_diezmo
@@ -8,41 +8,40 @@ from diezmo import estado_general_diezmo
 # TOTAL DE VENTAS
 # ============================================================
 
-def ventas_caja():
+def ventas_caja(*, conexion=None):
     """
     Devuelve el total de ventas activas.
     Las ventas anuladas no participan del cálculo.
     """
 
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
+    with lectura_contable(conexion) as db:
+        cursor = db.cursor()
 
-    cursor.execute(
-        """
-        SELECT SUM(
-            cantidad * precio_unitario
-            + COALESCE(
-                (
-                    SELECT SUM(precio_total)
-                    FROM venta_adicionales
-                    WHERE venta_adicionales.id_venta = ventas.id_venta
-                ),
-                0
+        cursor.execute(
+            """
+            SELECT SUM(
+                cantidad * precio_unitario
+                + COALESCE(
+                    (
+                        SELECT SUM(precio_total)
+                        FROM venta_adicionales
+                        WHERE venta_adicionales.id_venta = ventas.id_venta
+                    ),
+                    0
+                )
             )
+            FROM ventas
+            WHERE anulada = 0
+            """
         )
-        FROM ventas
-        WHERE anulada = 0
-        """
-    )
 
-    resultado = cursor.fetchone()
+        resultado = cursor.fetchone()
 
-    ventas = resultado[0]
+        ventas = resultado[0]
 
-    if ventas is None:
-        ventas = 0
+        if ventas is None:
+            ventas = 0
 
-    conexion.close()
 
     return ventas
 
@@ -51,32 +50,31 @@ def ventas_caja():
 # TOTAL DE COMPRAS
 # ============================================================
 
-def compras_caja():
+def compras_caja(*, conexion=None):
     """
     Devuelve el total de compras activas.
     Las compras anuladas no participan del cálculo.
     """
 
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
+    with lectura_contable(conexion) as db:
+        cursor = db.cursor()
 
-    cursor.execute(
-        """
-        SELECT SUM(cantidad * precio_unitario)
-        FROM compras
-        WHERE anulada = 0
-          AND COALESCE(medio_pago, 'Caja') = 'Caja'
-        """
-    )
+        cursor.execute(
+            """
+            SELECT SUM(cantidad * precio_unitario)
+            FROM compras
+            WHERE anulada = 0
+              AND COALESCE(medio_pago, 'Caja') = 'Caja'
+            """
+        )
 
-    resultado = cursor.fetchone()
+        resultado = cursor.fetchone()
 
-    compras = resultado[0]
+        compras = resultado[0]
 
-    if compras is None:
-        compras = 0
+        if compras is None:
+            compras = 0
 
-    conexion.close()
 
     return compras
 
@@ -85,31 +83,30 @@ def compras_caja():
 # TOTAL DE GASTOS
 # ============================================================
 
-def gastos_caja():
+def gastos_caja(*, conexion=None):
     """
     Devuelve el total de gastos activos.
     Los gastos anulados no participan del cálculo.
     """
 
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
+    with lectura_contable(conexion) as db:
+        cursor = db.cursor()
 
-    cursor.execute(
-        """
-        SELECT SUM(valor_final)
-        FROM gastos
-        WHERE anulado = 0
-        """
-    )
+        cursor.execute(
+            """
+            SELECT SUM(valor_final)
+            FROM gastos
+            WHERE anulado = 0
+            """
+        )
 
-    resultado = cursor.fetchone()
+        resultado = cursor.fetchone()
 
-    gastos = resultado[0]
+        gastos = resultado[0]
 
-    if gastos is None:
-        gastos = 0
+        if gastos is None:
+            gastos = 0
 
-    conexion.close()
 
     return gastos
 
@@ -126,167 +123,166 @@ CATEGORIAS_CAJA_BEBIDAS_POSTRES = {
 
 def _ventas_por_categorias(
     categorias=None,
-    excluir_categorias=None
+    excluir_categorias=None,
+    *, conexion=None
 ):
     categorias = categorias or set()
     excluir_categorias = excluir_categorias or set()
 
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
+    with lectura_contable(conexion) as db:
+        cursor = db.cursor()
 
-    condiciones = [
-        "ventas.anulada = 0",
-    ]
-    parametros = []
+        condiciones = [
+            "ventas.anulada = 0",
+        ]
+        parametros = []
 
-    if categorias:
-        placeholders = ",".join(
-            "?"
-            for _ in categorias
-        )
-        condiciones.append(
-            f"LOWER(productos.categoria) IN ({placeholders})"
-        )
-        parametros.extend(
-            sorted(categorias)
-        )
-
-    if excluir_categorias:
-        placeholders = ",".join(
-            "?"
-            for _ in excluir_categorias
-        )
-        condiciones.append(
-            f"LOWER(productos.categoria) NOT IN ({placeholders})"
-        )
-        parametros.extend(
-            sorted(excluir_categorias)
-        )
-
-    cursor.execute(
-        f"""
-        SELECT SUM(
-            ventas.cantidad * ventas.precio_unitario
-            + COALESCE(
-                (
-                    SELECT SUM(precio_total)
-                    FROM venta_adicionales
-                    WHERE venta_adicionales.id_venta = ventas.id_venta
-                ),
-                0
+        if categorias:
+            placeholders = ",".join(
+                "?"
+                for _ in categorias
             )
-        )
-        FROM ventas
-        INNER JOIN productos
-            ON ventas.id_producto = productos.id_producto
-        WHERE {" AND ".join(condiciones)}
-        """,
-        parametros
-    )
+            condiciones.append(
+                f"LOWER(productos.categoria) IN ({placeholders})"
+            )
+            parametros.extend(
+                sorted(categorias)
+            )
 
-    total = cursor.fetchone()[0]
-    conexion.close()
+        if excluir_categorias:
+            placeholders = ",".join(
+                "?"
+                for _ in excluir_categorias
+            )
+            condiciones.append(
+                f"LOWER(productos.categoria) NOT IN ({placeholders})"
+            )
+            parametros.extend(
+                sorted(excluir_categorias)
+            )
+
+        cursor.execute(
+            f"""
+            SELECT SUM(
+                ventas.cantidad * ventas.precio_unitario
+                + COALESCE(
+                    (
+                        SELECT SUM(precio_total)
+                        FROM venta_adicionales
+                        WHERE venta_adicionales.id_venta = ventas.id_venta
+                    ),
+                    0
+                )
+            )
+            FROM ventas
+            INNER JOIN productos
+                ON ventas.id_producto = productos.id_producto
+            WHERE {" AND ".join(condiciones)}
+            """,
+            parametros
+        )
+
+        total = cursor.fetchone()[0]
 
     return total or 0
 
 
 def _compras_por_categorias(
     categorias=None,
-    excluir_categorias=None
+    excluir_categorias=None,
+    *, conexion=None
 ):
     categorias = categorias or set()
     excluir_categorias = excluir_categorias or set()
 
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
+    with lectura_contable(conexion) as db:
+        cursor = db.cursor()
 
-    condiciones = [
-        "compras.anulada = 0",
-        "COALESCE(compras.medio_pago, 'Caja') = 'Caja'",
-    ]
-    parametros = []
+        condiciones = [
+            "compras.anulada = 0",
+            "COALESCE(compras.medio_pago, 'Caja') = 'Caja'",
+        ]
+        parametros = []
 
-    if categorias:
-        placeholders = ",".join(
-            "?"
-            for _ in categorias
-        )
-        condiciones.append(
-            f"LOWER(productos.categoria) IN ({placeholders})"
-        )
-        parametros.extend(
-            sorted(categorias)
+        if categorias:
+            placeholders = ",".join(
+                "?"
+                for _ in categorias
+            )
+            condiciones.append(
+                f"LOWER(productos.categoria) IN ({placeholders})"
+            )
+            parametros.extend(
+                sorted(categorias)
+            )
+
+        if excluir_categorias:
+            placeholders = ",".join(
+                "?"
+                for _ in excluir_categorias
+            )
+            condiciones.append(
+                f"LOWER(productos.categoria) NOT IN ({placeholders})"
+            )
+            parametros.extend(
+                sorted(excluir_categorias)
+            )
+
+        cursor.execute(
+            f"""
+            SELECT SUM(
+                compras.cantidad * compras.precio_unitario
+            )
+            FROM compras
+            INNER JOIN productos
+                ON compras.id_producto = productos.id_producto
+            WHERE {" AND ".join(condiciones)}
+            """,
+            parametros
         )
 
-    if excluir_categorias:
-        placeholders = ",".join(
-            "?"
-            for _ in excluir_categorias
-        )
-        condiciones.append(
-            f"LOWER(productos.categoria) NOT IN ({placeholders})"
-        )
-        parametros.extend(
-            sorted(excluir_categorias)
-        )
-
-    cursor.execute(
-        f"""
-        SELECT SUM(
-            compras.cantidad * compras.precio_unitario
-        )
-        FROM compras
-        INNER JOIN productos
-            ON compras.id_producto = productos.id_producto
-        WHERE {" AND ".join(condiciones)}
-        """,
-        parametros
-    )
-
-    total = cursor.fetchone()[0]
-    conexion.close()
+        total = cursor.fetchone()[0]
 
     return total or 0
 
 
-def _gastos_por_seccion(seccion):
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
+def _gastos_por_seccion(seccion, *, conexion=None):
+    with lectura_contable(conexion) as db:
+        cursor = db.cursor()
 
-    cursor.execute(
-        """
-        SELECT SUM(valor_final)
-        FROM gastos
-        WHERE anulado = 0
-          AND seccion = ?
-        """,
-        (seccion,)
-    )
+        cursor.execute(
+            """
+            SELECT SUM(valor_final)
+            FROM gastos
+            WHERE anulado = 0
+              AND seccion = ?
+            """,
+            (seccion,)
+        )
 
-    total = cursor.fetchone()[0]
-    conexion.close()
+        total = cursor.fetchone()[0]
 
     return total or 0
 
 
-def recaudado_por_categoria(categoria):
+def recaudado_por_categoria(categoria, *, conexion=None):
     categoria_normalizada = str(
         categoria or ""
     ).strip().lower()
 
     if categoria_normalizada == "bebidas":
         return _ventas_por_categorias(
-            categorias={"bebidas"}
+            categorias={"bebidas"}, conexion=conexion
         )
 
     if categoria_normalizada == "postres":
         return _ventas_por_categorias(
-            categorias={"postres"}
+            categorias={"postres"}, conexion=conexion
         )
 
     if categoria_normalizada == "comidas":
         return _ventas_por_categorias(
-            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
+            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES, conexion=conexion
         )
 
     raise ValueError(
@@ -294,7 +290,7 @@ def recaudado_por_categoria(categoria):
     )
 
 
-def obtener_caja_seccion(seccion):
+def obtener_caja_seccion(seccion, *, conexion=None):
     seccion_normalizada = str(
         seccion or ""
     ).strip().lower()
@@ -305,10 +301,10 @@ def obtener_caja_seccion(seccion):
         "bebidas postres",
     }:
         ventas_bebidas = recaudado_por_categoria(
-            "bebidas"
+            "bebidas", conexion=conexion
         )
         ventas_postres = recaudado_por_categoria(
-            "postres"
+            "postres", conexion=conexion
         )
         ventas = (
             ventas_bebidas
@@ -316,10 +312,10 @@ def obtener_caja_seccion(seccion):
         )
 
         compras = _compras_por_categorias(
-            categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
+            categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES, conexion=conexion
         )
         gastos_seccion = _gastos_por_seccion(
-            "bebidas_postres"
+            "bebidas_postres", conexion=conexion
         )
 
         return {
@@ -344,14 +340,14 @@ def obtener_caja_seccion(seccion):
         "general comidas",
     }:
         ventas = recaudado_por_categoria(
-            "comidas"
+            "comidas", conexion=conexion
         )
 
         compras = _compras_por_categorias(
-            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES
+            excluir_categorias=CATEGORIAS_CAJA_BEBIDAS_POSTRES, conexion=conexion
         )
         gastos_seccion = _gastos_por_seccion(
-            "comidas"
+            "comidas", conexion=conexion
         )
 
         return {
@@ -378,7 +374,7 @@ def obtener_caja_seccion(seccion):
 # OBTENER ESTADO DE CAJA
 # ============================================================
 
-def obtener_estado_caja():
+def obtener_estado_caja(*, conexion=None):
     """
     Devuelve el estado general de caja como un diccionario.
 
@@ -390,12 +386,12 @@ def obtener_estado_caja():
     - IA
     """
 
-    compras = compras_caja()
-    ventas = ventas_caja()
-    gastos = gastos_caja()
+    compras = compras_caja(conexion=conexion)
+    ventas = ventas_caja(conexion=conexion)
+    gastos = gastos_caja(conexion=conexion)
 
-    aportes = total_aportes()
-    retiros = total_retiros()
+    aportes = total_aportes(conexion=conexion)
+    retiros = total_retiros(conexion=conexion)
 
     # Resultado propio del negocio.
     resultado_negocio = (
@@ -412,7 +408,7 @@ def obtener_estado_caja():
     )
 
     # Consultar estado global del diezmo.
-    estado_diezmo = estado_general_diezmo()
+    estado_diezmo = estado_general_diezmo(conexion=conexion)
 
     diezmo_reservado = estado_diezmo["reservado_en_caja"]
     diezmo_entregado = estado_diezmo["entregado_total"]
@@ -426,7 +422,7 @@ def obtener_estado_caja():
 
     # El diezmo reservado sigue físicamente en caja,
     # pero no debería considerarse disponible.
-    deuda_reservada = total_reservado_deudas()
+    deuda_reservada = total_reservado_deudas(conexion=conexion)
 
     saldo_disponible = (
         saldo_fisico

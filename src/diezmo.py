@@ -2,7 +2,7 @@ from datetime import datetime
 import sqlite3
 import calendar
 
-from database import obtener_conexion
+from database import lectura_contable, obtener_conexion
 from reportes import resumen_por_periodo
 
 
@@ -576,28 +576,14 @@ def estado_diezmo_mes(
 # ESTADO GENERAL DEL DIEZMO
 # ============================================================
 
-def estado_general_diezmo():
-
-    conexion = obtener_conexion()
-
-    try:
-
-        cursor = conexion.cursor()
-
-        cursor.execute("""
-            SELECT
-                tipo,
-                SUM(monto)
+def estado_general_diezmo(*, conexion=None):
+    with lectura_contable(conexion) as db:
+        resultados = db.execute("""
+            SELECT tipo, SUM(monto)
             FROM movimientos_diezmo
             WHERE anulado = 0
             GROUP BY tipo
-        """)
-
-        resultados = cursor.fetchall()
-
-    finally:
-
-        conexion.close()
+        """).fetchall()
 
     total_reservado = 0
     total_entregado = 0
