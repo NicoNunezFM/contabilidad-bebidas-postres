@@ -642,13 +642,13 @@ el('catalogMode').onclick = function () {
   // Cargar productos actuales desde SQLite.
   boton.disabled = true;
 
-  fetch('/productos', {
+  fetch('/pos-api/catalogo/productos', {
     cache: 'no-store',
     credentials: 'same-origin'
   })
     .then(function (respuesta) {
       if (!respuesta.ok) {
-        throw new Error('Error HTTP ' + respuesta.status);
+        throw Object.assign(new Error('Error HTTP ' + respuesta.status), {status: respuesta.status});
       }
 
       return respuesta.json();
@@ -682,8 +682,9 @@ el('catalogMode').onclick = function () {
     })
     .catch(function (error) {
       el('apiStatus').textContent =
-        'No se pudo cargar SQLite. ' +
-        'El catálogo demo sigue disponible.';
+        error.status === 401
+          ? 'Iniciá sesión para cargar el catálogo de SQLite.'
+          : 'No se pudo cargar SQLite. El catálogo demo sigue disponible.';
 
       console.error(error);
     })
@@ -1287,7 +1288,7 @@ el('adminPrices').onclick = function () {
         throw new Error('Acceso administrativo rechazado');
       }
 
-      return fetch('/productos', {
+      return fetch('/pos-api/catalogo/productos', {
         credentials: 'same-origin'
       });
     })
@@ -1996,7 +1997,7 @@ if (modoReal) {
 
   async function refrescarStockPos() {
     try {
-      var respuesta = await fetch('/productos', {cache: 'no-store', signal: AbortSignal.timeout(12000)});
+      var respuesta = await fetch('/pos-api/catalogo/productos', {cache: 'no-store', signal: AbortSignal.timeout(12000)});
       if (!respuesta.ok) throw new Error('Catálogo no disponible');
       var datos = await respuesta.json();
       if (!modoReal || !Array.isArray(datos.productos)) return;
@@ -2140,7 +2141,7 @@ if (modoReal) {
 
     iniciarPos().then(function () {
       if (simulacionActiva) return;
-      return fetch('/productos')
+      return fetch('/pos-api/catalogo/productos')
     .then(function (respuesta) {
         if (!respuesta.ok) {
         throw new Error('Error HTTP ' + respuesta.status);

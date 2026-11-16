@@ -285,7 +285,7 @@ def test_arranque_simulado_conserva_el_catalogo_ficticio(producto_prueba, base_p
     monkeypatch.setenv("POS_V1_SIMULACION", "1")
     antes = base_prueba.read_bytes()
     with TestClient(app) as cliente:
-        productos = cliente.get("/productos").json()["productos"]
+        productos = cliente.get("/pos-api/catalogo/productos").json()["productos"]
         assert [producto["id_producto"] for producto in productos] == [producto_prueba]
     assert base_prueba.read_bytes() == antes
     assert not (base_prueba.parent / "backups").exists()

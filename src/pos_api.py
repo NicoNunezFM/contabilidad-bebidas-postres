@@ -15,6 +15,7 @@ from pos_auth import (
 
 from database import obtener_conexion
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
+from productos import obtener_productos
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
     VentaSimuladaEntrada,
@@ -353,6 +354,18 @@ def actualizar_precio_producto_pos(
 
     finally:
         conexion.close()
+
+
+@router.get("/catalogo/productos", dependencies=[Depends(evitar_cache_pos)])
+def consultar_productos_pos(request: Request):
+    try:
+        with transaccion_simulacion():
+            pass
+    except HTTPException as error:
+        if error.status_code != 404:
+            raise
+        exigir_usuario_pos(request)
+    return {"ok": True, "productos": obtener_productos()}
 
 
 @router.get("/catalogo/adicionales")

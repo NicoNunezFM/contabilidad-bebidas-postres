@@ -1,9 +1,9 @@
-from fastapi.testclient import TestClient
+from tests import cliente_contabilidad
 
 from api import app
 
 
-client = TestClient(app)
+client = cliente_contabilidad(app)
 
 
 def test_comando_aporte_registra_movimiento_en_caja(

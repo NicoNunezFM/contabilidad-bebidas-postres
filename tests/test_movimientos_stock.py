@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+from tests import cliente_contabilidad
 
 from ajustes_stock import (
     obtener_ajustes_stock,
@@ -10,7 +10,7 @@ from api import app
 from database import obtener_conexion
 
 
-client = TestClient(app)
+client = cliente_contabilidad(app)
 
 
 def crear_producto_stock(

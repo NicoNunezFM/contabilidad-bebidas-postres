@@ -22,7 +22,10 @@ Desde esta carpeta:
 npm install
 ```
 
-Copiar `.env.example` a `.env` y completar `ALLOWED_NUMBERS`.
+Copiar `.env.example` a `.env` y completar `ALLOWED_NUMBERS` y `ABADION_BOT_TOKEN`.
+El proceso de FastAPI y el bot usan el mismo `ABADION_BOT_TOKEN` en su configuración privada. Generá un valor aleatorio con `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Provisioná los secretos por entorno y mantené el archivo `.env` fuera de Git.
+
+El bot envía la clave como `Authorization: Bearer` a `/comandos`. Para revisar esta rama usá FastAPI en loopback y una base ficticia. Las demás rutas contables usan una credencial independiente, `ABADION_API_TOKEN`. La API rechaza credenciales ausentes, inválidas o compartidas entre los dos servicios.
 
 Luego iniciar:
 
@@ -38,7 +41,7 @@ La sesión queda almacenada localmente mediante `LocalAuth`, por lo que normalme
 
 ## Seguridad inicial
 
-- Los números no incluidos en `ALLOWED_NUMBERS` son ignorados.
+- En chats privados se aplica `ALLOWED_NUMBERS`. En grupos se aplica `ALLOWED_GROUP_IDS`.
 - Los grupos están deshabilitados por defecto.
 - Los mensajes duplicados se ignoran mientras el proceso está encendido.
 - Los archivos de sesión y `.env` no deben subirse a Git.

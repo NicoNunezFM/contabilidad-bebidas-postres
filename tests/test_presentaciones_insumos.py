@@ -1,11 +1,11 @@
-from fastapi.testclient import TestClient
+from tests import cliente_contabilidad
 
 from api import app
 from costos_postres import inicializar_costos_postres
 from database import obtener_conexion
 
 
-client = TestClient(app)
+client = cliente_contabilidad(app)
 
 
 def test_compra_oreo_tres_paquetes_118g_convierte_a_354g(
