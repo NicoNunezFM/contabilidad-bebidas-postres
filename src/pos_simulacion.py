@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from caja import CATEGORIAS_CAJA_BEBIDAS_POSTRES
 from database import obtener_conexion, obtener_ruta_base
+from pos_caja_diaria import caja_diaria_activa
 from pos_cobros import (
     Medio, PagoPos, caja_receptora, crear_libro, estado_cuenta, iniciar_evento,
     pagos_reversibles, receptor_original, registrar_movimiento,
@@ -338,6 +339,9 @@ def transferir_simulado(entrada, usuario):
         origen, destino = caja_receptora(entrada.origen), caja_receptora(entrada.destino)
         if origen == destino:
             raise HTTPException(422, "Elegí receptores de secciones distintas.")
+        fisica = entrada.origen.endswith("_efectivo")
+        if fisica != entrada.destino.endswith("_efectivo") and caja_diaria_activa(conexion):
+            raise HTTPException(422, "Elegí dos cajas físicas o dos cuentas digitales.")
         resumen = resumen_libro(conexion)
         disponible = next((r["saldo_centavos"] for r in resumen["receptores"] if r["receptor"] == entrada.origen), 0)
         por_distribuir = resumen["secciones"][destino]["por_distribuir_centavos"]

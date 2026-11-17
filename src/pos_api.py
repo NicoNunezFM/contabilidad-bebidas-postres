@@ -1,5 +1,6 @@
 
 
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, Response
@@ -16,7 +17,14 @@ from pos_auth import (
 from database import obtener_conexion
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
 from productos import obtener_productos
-from pos_cobros import AbonoEntrada, CierreEntrada, DevolucionEntrada, TransferenciaEntrada
+from pos_caja_diaria import (
+    Caja, caja_diaria_activa, estado_cajas, exigir_caja_diaria,
+    historial_caja, historial_eventos, registrar_operacion,
+)
+from pos_cobros import (
+    AbonoEntrada, Centavos, CierreEntrada, DevolucionEntrada, ReversionEntrada,
+    SolicitudContable, TransferenciaEntrada,
+)
 from pos_puente import consultar_puente_ficticio
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
@@ -188,8 +196,11 @@ def validar_pedido_pos(pedido: PedidoPos):
 
 @router.get("/simulacion/estado", dependencies=[Depends(evitar_cache_pos)])
 def estado_simulacion_pos():
-    with transaccion_simulacion():
-        return {"ok": True, "simulacion": True}
+    with transaccion_simulacion() as db:
+        estado = {"ok": True, "simulacion": True}
+        if caja_diaria_activa(db):
+            estado["caja_diaria"] = True
+        return estado
 
 
 def exigir_simulacion_activa():
@@ -203,6 +214,107 @@ def comprobar_usuario_simulacion(id_esperado, usuario):
             "codigo": "SESION_CAMBIADA",
             "mensaje": "La sesión cambió. Iniciá sesión con la cuenta que confirmó la operación.",
         })
+
+
+class AperturaCajaEntrada(SolicitudContable):
+    fecha: date
+    inicial_centavos: int = Field(strict=True, ge=0, le=10**13)
+
+
+class JornadaCajaEntrada(SolicitudContable):
+    id_jornada: int = Field(strict=True, gt=0, le=2**63 - 1)
+
+
+class ArqueoCajaEntrada(JornadaCajaEntrada):
+    revision_efectivo: int = Field(strict=True, gt=0, le=2**63 - 1)
+    contado_centavos: int = Field(strict=True, ge=0, le=10**13)
+    motivo: str | None = Field(default=None, min_length=1, max_length=300)
+
+
+class CierreCajaEntrada(JornadaCajaEntrada):
+    id_arqueo: int = Field(strict=True, gt=0, le=2**63 - 1)
+
+
+class MovimientoCajaEntrada(JornadaCajaEntrada, ReversionEntrada):
+    tipo: Literal["gasto", "retiro", "aporte"]
+    importe_centavos: Centavos
+
+
+diario = APIRouter(prefix="/simulacion/caja-diaria", dependencies=[Depends(exigir_simulacion_activa)])
+
+
+@diario.get("", dependencies=[Depends(evitar_cache_pos)])
+def consultar_caja_diaria(usuario: dict = Depends(exigir_usuario_pos)):
+    with transaccion_simulacion() as db:
+        exigir_caja_diaria(db)
+        return estado_cajas(db)
+
+
+@diario.get("/{caja}/historial", dependencies=[Depends(evitar_cache_pos)])
+def consultar_historial_caja_diaria(
+    caja: Caja,
+    antes_de: int = Query(default=2**63 - 1, gt=0, le=2**63 - 1),
+    limite: int = Query(default=20, ge=1, le=50),
+    usuario: dict = Depends(exigir_usuario_pos),
+):
+    with transaccion_simulacion() as db:
+        exigir_caja_diaria(db)
+        return historial_caja(db, caja, antes_de, limite)
+
+
+@diario.get("/{caja}/historial/{id_jornada}", dependencies=[Depends(evitar_cache_pos)])
+def consultar_eventos_caja_diaria(
+    caja: Caja,
+    id_jornada: int = Path(gt=0, le=2**63 - 1),
+    antes_de: int = Query(default=2**63 - 1, gt=0, le=2**63 - 1),
+    limite: int = Query(default=20, ge=1, le=50),
+    usuario: dict = Depends(exigir_usuario_pos),
+):
+    with transaccion_simulacion() as db:
+        exigir_caja_diaria(db)
+        return historial_eventos(db, caja, id_jornada, antes_de, limite)
+
+
+def operar_caja_diaria(caja, tipo, datos, usuario, id_esperado):
+    comprobar_usuario_simulacion(id_esperado, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        exigir_caja_diaria(db)
+        return registrar_operacion(db, caja, tipo, datos, usuario)
+
+
+@diario.post("/{caja}/apertura", dependencies=[Depends(comprobar_origen)])
+def abrir_caja_diaria(
+    caja: Caja, datos: AperturaCajaEntrada, usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    return operar_caja_diaria(caja, "apertura", datos, usuario, x_pos_usuario)
+
+
+@diario.post("/{caja}/arqueo", dependencies=[Depends(comprobar_origen)])
+def arquear_caja_diaria(
+    caja: Caja, datos: ArqueoCajaEntrada, usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    return operar_caja_diaria(caja, "arqueo", datos, usuario, x_pos_usuario)
+
+
+@diario.post("/{caja}/cierre", dependencies=[Depends(comprobar_origen)])
+def cerrar_caja_diaria(
+    caja: Caja, datos: CierreCajaEntrada, usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    return operar_caja_diaria(caja, "cierre", datos, usuario, x_pos_usuario)
+
+
+@diario.post("/{caja}/movimientos", dependencies=[Depends(comprobar_origen)])
+def mover_caja_diaria(
+    caja: Caja, datos: MovimientoCajaEntrada, usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    return operar_caja_diaria(caja, datos.tipo, datos, usuario, x_pos_usuario)
+
+
+router.include_router(diario)
 
 
 @router.post("/simulacion/ventas", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])

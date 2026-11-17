@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pos_caja_diaria import vincular_movimiento_pos
 
 
 Seccion = Literal["comidas", "bebidas_postres"]
@@ -181,11 +182,12 @@ def terminar_evento(conexion, id_evento, resultado, *, antes=None, despues=None)
 
 
 def registrar_movimiento(conexion, evento, venta, receptor, medio, importe, *, referencia=None, revierte=None):
-    conexion.execute("""
+    cursor = conexion.execute("""
         INSERT INTO pos_movimientos_simulados
             (id_evento, id_venta, receptor, caja, medio_pago, importe_centavos, referencia, revierte)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (evento, venta, receptor, caja_receptora(receptor), medio, importe, referencia, revierte))
+    vincular_movimiento_pos(conexion, cursor.lastrowid, evento, receptor, importe)
 
 
 def registrar_pagos(conexion, evento, venta, pagos):

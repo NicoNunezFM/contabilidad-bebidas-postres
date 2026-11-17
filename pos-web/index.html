@@ -101,6 +101,7 @@ button:disabled{opacity:.55;cursor:default}
 <div class="operations">
   <button id="historialSimulado" type="button" hidden>Historial simulado</button>
   <button id="cajasSimuladas" type="button" hidden>Cajas simuladas</button>
+  <button id="cajaDiariaPos" type="button" hidden>Caja diaria</button>
 </div>
   <nav class="tabs" id="tabs" aria-label="Categorías"></nav>
 <div class="catalog-head"><div><h2 id="categoryTitle"></h2><span id="productCount" class="product-count"></span></div><input id="search" type="search" placeholder="Buscar producto…" aria-label="Buscar en esta categoría"></div>
@@ -158,6 +159,7 @@ button:disabled{opacity:.55;cursor:default}
   var pedidoReal = [];
   var revisionPedidoReal = 0;
   var simulacionActiva = false;
+  var cajaDiariaActiva = false;
   var sesionPos = null;
   var validacionPos = null;
   var medioSimulado = '';
@@ -982,6 +984,7 @@ function mostrarPedidoReal() {
     el('adminExtras').hidden = !sesionAdmin;
     el('historialSimulado').hidden = !simulacionActiva || !sesionPos;
     el('cajasSimuladas').hidden = !simulacionActiva || !sesionAdmin;
+    el('cajaDiariaPos').hidden = !cajaDiariaActiva || !sesionPos;
 
     if (usuarioAnterior && usuarioAnterior.id_usuario !== sesionPos?.id_usuario) {
       pedidoReal = [];
@@ -1832,11 +1835,12 @@ if (modoReal) {
     return receptores;
   }
 
-  function leerCentavosPos(valor) {
+  function leerCentavosPos(valor, permiteCero = false) {
     var partes = /^(\d+)(?:[,.](\d{1,2}))?$/.exec(valor.trim());
     var centavos = partes ? Number(partes[1]) * 100 + Number((partes[2] || '').padEnd(2, '0')) : NaN;
-    if (!Number.isSafeInteger(centavos) || centavos <= 0) {
-      throw new Error('Ingresá un importe positivo con hasta dos decimales.');
+    if (!Number.isSafeInteger(centavos) || (!permiteCero && centavos === 0)) {
+      throw new Error(permiteCero ? 'Ingresá un importe con hasta dos decimales.'
+        : 'Ingresá un importe positivo con hasta dos decimales.');
     }
     return centavos;
   }
@@ -1960,15 +1964,15 @@ if (modoReal) {
     };
   }
 
-  function motivoOperacionPos(campos) {
-    var label = nodoPos('label', 'Motivo ');
+  function motivoOperacionPos(campos, opcional = false) {
+    var label = nodoPos('label', opcional ? 'Motivo (obligatorio si hay diferencia) ' : 'Motivo ');
     var input = nodoPos('textarea');
     input.maxLength = 300;
     label.append(input);
     campos.append(label);
     return function () {
-      if (!input.value.trim()) throw new Error('Ingresá un motivo.');
-      return input.value.trim();
+      if (!opcional && !input.value.trim()) throw new Error('Ingresá un motivo.');
+      return input.value.trim() || null;
     };
   }
 
@@ -2154,16 +2158,18 @@ if (modoReal) {
   }
 
   el('historialSimulado').onclick = () => mostrarHistorialPos();
-  function abrirTransferenciaPos(usuario) {
+  function abrirTransferenciaPos(usuario, soloEfectivo = false) {
     abrirOperacionPos('Transferencia entre secciones', '/simulacion/cajas/transferencias', usuario, function (campos) {
-      var origen = selectorPos('Origen', receptoresPos());
-      var destino = selectorPos('Destino', receptoresPos());
+      var medio = soloEfectivo ? 'efectivo' : null;
+      var origen = selectorPos('Origen', receptoresPos(medio));
+      var destino = selectorPos('Destino', receptoresPos(medio));
+      if (soloEfectivo) destino.select.selectedIndex = 1;
       var monto = importeEntradaPos('Importe en pesos');
       campos.append(origen.label, destino.label, monto.label);
       var motivo = motivoOperacionPos(campos);
       return () => ({origen: origen.select.value, destino: destino.select.value,
         importe_centavos: leerCentavosPos(monto.input.value), motivo: motivo()});
-    }, () => mostrarCajasPos('Transferencia registrada.'));
+    }, () => (soloEfectivo ? mostrarCajaDiaria : mostrarCajasPos)('Transferencia registrada.'));
   }
 
   function abrirCierrePos(usuario, periodo) {
@@ -2175,6 +2181,164 @@ if (modoReal) {
   }
 
   el('cajasSimuladas').onclick = () => mostrarCajasPos();
+  el('cajaDiariaPos').onclick = () => mostrarCajaDiaria();
+
+  var rutaCajaDiaria = '/simulacion/caja-diaria';
+  var nombresCajaDiaria = {comidas: 'Rotisería / Comidas', bebidas_postres: 'Bebidas y Postres'};
+  var tiposCajaDiaria = {
+    apertura: 'Apertura', cobro: 'Cobros', reembolso: 'Reembolsos', transferencia: 'Transferencias netas',
+    gasto: 'Gastos en efectivo', retiro: 'Retiros', aporte: 'Aportes', arqueo: 'Arqueo', cierre: 'Cierre',
+  };
+
+  function botonCajaDiaria(texto, accion) {
+    var boton = nodoPos('button', texto);
+    boton.type = 'button';
+    boton.onclick = accion;
+    return boton;
+  }
+
+  function momentoCajaDiaria(evento) {
+    return new Date(evento.fecha_hora).toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'});
+  }
+
+  function importeCajaDiaria(campos, etiqueta) {
+    var importe = importeEntradaPos(etiqueta);
+    importe.input.id = 'importeCajaDiaria';
+    campos.append(importe.label);
+    return permiteCero => leerCentavosPos(importe.input.value, permiteCero);
+  }
+
+  function describirArqueo(arqueo) {
+    var valores = arqueo.resultado;
+    return 'Contado ' + importePos(valores.contado_centavos) + ' · Diferencia '
+      + importePos(valores.diferencia_centavos) + ' · ' + arqueo.usuario;
+  }
+
+  function resumenJornada(jornada) {
+    var cuerpo = nodoPos('div');
+    cuerpo.append(nodoPos('p', jornada.fecha + ' · ' + (jornada.cerrada ? 'Cerrada' : 'Abierta')));
+    cuerpo.append(nodoPos('p', 'Efectivo esperado ' + importePos(jornada.esperado_centavos)));
+    if (jornada.arqueo) {
+      cuerpo.append(nodoPos('p', describirArqueo(jornada.arqueo)));
+      if (jornada.arqueo.motivo) cuerpo.append(nodoPos('p', 'Motivo: ' + jornada.arqueo.motivo));
+      if (!jornada.arqueo_vigente) cuerpo.append(nodoPos('p', 'Hubo movimientos después del arqueo. Volvé a contar.'));
+    }
+    if (jornada.cierre) {
+      cuerpo.append(nodoPos('p', 'Cerró ' + jornada.cierre.usuario + ' · ' + momentoCajaDiaria(jornada.cierre)));
+    }
+    return cuerpo;
+  }
+
+  function mostrarHistorialCajaDiaria(caja, jornada) {
+    var ruta = rutaCajaDiaria + '/' + caja + '/historial';
+    var cuerpo = abrirConsultaPos(nombresCajaDiaria[caja] + ' · ' + (jornada ? 'Auditoría' : 'Historial'));
+    cuerpo.append(botonCajaDiaria('Volver', () => jornada ? mostrarHistorialCajaDiaria(caja) : mostrarCajaDiaria()));
+    if (jornada) {
+      paginarPos(cuerpo, ruta + '/' + jornada.id_jornada, 'eventos', function (evento) {
+        var fila = nodoPos('article', undefined, 'row');
+        fila.append(nodoPos('strong', tiposCajaDiaria[evento.tipo] + ' · ' + momentoCajaDiaria(evento)));
+        fila.append(nodoPos('p', evento.usuario + ' · ' + evento.rol
+          + (evento.importe_centavos === null ? '' : ' · ' + importePos(evento.importe_centavos))));
+        if (evento.tipo === 'arqueo') fila.append(nodoPos('p', describirArqueo(evento)));
+        if (evento.motivo) fila.append(nodoPos('p', evento.motivo));
+        return fila;
+      }, 'Todavía no hay eventos.');
+    } else {
+      paginarPos(cuerpo, ruta, 'jornadas', function (fila) {
+        var resumen = resumenJornada(fila);
+        resumen.append(botonCajaDiaria('Ver auditoría del ' + fila.fecha, () => mostrarHistorialCajaDiaria(caja, fila)));
+        return resumen;
+      }, 'Todavía no hay jornadas.');
+    }
+  }
+
+  function accionesJornada(seccion, caja, jornada, fecha, usuario) {
+    var nombre = nombresCajaDiaria[caja];
+    var id = jornada?.id_jornada;
+    var abierta = id && !jornada.cerrada;
+    var admin = usuario.rol === 'admin';
+    function accion(texto, endpoint, habilitada, preparar, mensaje) {
+      var ruta = rutaCajaDiaria + '/' + caja + '/' + endpoint;
+      var pendiente = hayOperacionPos(ruta, usuario);
+      if (habilitada || pendiente) seccion.append(botonCajaDiaria(pendiente ? 'Reintentar · ' + texto : texto, () => {
+        abrirOperacionPos(texto + ' · ' + nombre, ruta, usuario, habilitada ? preparar : campos => {
+          campos.append(botonCajaDiaria('Actualizar caja diaria', () => mostrarCajaDiaria()));
+          return () => { throw new Error('Actualizá el estado de la caja.'); };
+        }, () => mostrarCajaDiaria(mensaje));
+      }));
+    }
+    accion('Abrir caja', 'apertura', !jornada, campos => {
+      var importe = importeCajaDiaria(campos, 'Efectivo inicial en pesos');
+      return () => ({fecha, inicial_centavos: importe(true)});
+    }, 'Caja abierta.');
+    accion('Guardar arqueo', 'arqueo', abierta, campos => {
+      campos.append(nodoPos('p', 'Efectivo esperado ' + importePos(jornada.esperado_centavos)));
+      var importe = importeCajaDiaria(campos, 'Efectivo contado en pesos');
+      var motivo = motivoOperacionPos(campos, true);
+      return () => ({id_jornada: id, revision_efectivo: jornada.revision_efectivo,
+        contado_centavos: importe(true), motivo: motivo()});
+    }, 'Arqueo registrado.');
+    var requiereAdmin = jornada?.arqueo?.resultado.diferencia_centavos !== 0;
+    var listo = abierta && jornada.arqueo_vigente;
+    if (listo && requiereAdmin && !admin) {
+      seccion.append(nodoPos('p', 'Administración debe autorizar el cierre con diferencia.'));
+    }
+    accion('Cerrar caja', 'cierre', listo && (!requiereAdmin || admin), campos => {
+      campos.append(nodoPos('p', describirArqueo(jornada.arqueo)));
+      if (requiereAdmin) campos.append(nodoPos('p', 'Al confirmar autorizás el cierre con esta diferencia.'));
+      return () => ({id_jornada: id, id_arqueo: jornada.arqueo.id_evento});
+    }, 'Caja cerrada.');
+    accion('Registrar gasto, retiro o aporte', 'movimientos', abierta && jornada.fecha === fecha && admin, campos => {
+      var tipo = selectorPos('Movimiento', {gasto: 'Gasto pagado en efectivo', retiro: 'Retiro', aporte: 'Aporte'});
+      campos.append(tipo.label);
+      var importe = importeCajaDiaria(campos, 'Importe en pesos');
+      var motivo = motivoOperacionPos(campos);
+      return () => ({id_jornada: id, tipo: tipo.select.value, importe_centavos: importe(), motivo: motivo()});
+    }, 'Movimiento registrado.');
+  }
+
+  async function mostrarCajaDiaria(mensaje) {
+    var usuario = sesionPos;
+    if (!cajaDiariaActiva || !usuario) return;
+    var cuerpo = abrirConsultaPos('Caja diaria · Simulación');
+    var estado = nodoPos('p', 'Cargando cajas…');
+    estado.setAttribute('role', 'status');
+    cuerpo.append(estado);
+    try {
+      var datos = await consultarPos(rutaCajaDiaria);
+      if (!cuerpo.isConnected || overlay.hidden || sesionPos !== usuario) return;
+      estado.textContent = (mensaje ? mensaje + ' ' : '') + 'Fecha en Argentina ' + datos.fecha_local;
+      cuerpo.append(botonCajaDiaria('Actualizar', () => mostrarCajaDiaria()));
+      for (const [caja, nombre] of Object.entries(nombresCajaDiaria)) {
+        var jornada = datos.cajas[caja];
+        var seccion = nodoPos('section', undefined, 'row');
+        seccion.dataset.cajaDiaria = caja;
+        seccion.append(nodoPos('h3', nombre));
+        if (jornada) {
+          seccion.append(resumenJornada(jornada));
+          var movimientos = nodoPos('details');
+          var totales = nodoPos('ul');
+          for (var [tipo, importe] of Object.entries(jornada.movimientos_centavos)) {
+            totales.append(nodoPos('li', tiposCajaDiaria[tipo] + ' · ' + importePos(importe)));
+          }
+          movimientos.append(nodoPos('summary', 'Totales de efectivo'), totales);
+          seccion.append(movimientos);
+        } else {
+          seccion.append(nodoPos('p', 'Pendiente de apertura.'));
+        }
+        accionesJornada(seccion, caja, jornada, datos.fecha_local, usuario);
+        seccion.append(botonCajaDiaria('Ver historial', () => mostrarHistorialCajaDiaria(caja)));
+        cuerpo.append(seccion);
+      }
+      if (usuario.rol === 'admin') {
+        cuerpo.append(botonCajaDiaria('Distribuir efectivo entre cajas', () => abrirTransferenciaPos(usuario, true)));
+      }
+    } catch (error) {
+      estado.textContent = error.status ? error.message : 'No se pudo cargar la caja diaria.';
+      cuerpo.append(botonCajaDiaria('Reintentar', () => mostrarCajaDiaria()));
+    }
+  }
+
   async function mostrarCajasPos(mensaje) {
     if (!simulacionActiva || !sesionAdmin) return;
     var cuerpo = abrirConsultaPos('Cajas simuladas');
@@ -2495,9 +2659,12 @@ if (modoReal) {
 
     async function iniciarPos() {
       try {
-        simulacionActiva = (await consultarPos('/simulacion/estado')).simulacion === true;
+        var estadoSimulacion = await consultarPos('/simulacion/estado');
+        simulacionActiva = estadoSimulacion.simulacion === true;
+        cajaDiariaActiva = estadoSimulacion.caja_diaria === true;
       } catch (error) {
         simulacionActiva = false;
+        cajaDiariaActiva = false;
       }
       el('simulationBanner').hidden = !simulacionActiva;
       await actualizarSesionPos();
