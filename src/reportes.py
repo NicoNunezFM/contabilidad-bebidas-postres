@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
-from database import obtener_conexion
+from database import lectura_contable, obtener_conexion
+from pos_contabilidad import calcular_periodo, corte_contable, etapa_contable_activa, fecha_local
 from movimientos_caja import (
     total_aportes_por_periodo,
     total_retiros_por_periodo
@@ -182,7 +183,41 @@ def gastos_por_periodo(fecha_desde, fecha_hasta):
     
     return total
 
-def resumen_por_periodo(fecha_desde, fecha_hasta):
+def resumen_pos_periodo(fecha_desde, fecha_hasta, *, conexion=None):
+    with lectura_contable(conexion) as db:
+        if conexion is None:
+            db.execute("BEGIN")
+        if not etapa_contable_activa(db) or fecha_hasta < corte_contable(db)[0]:
+            return None
+        return calcular_periodo(db, fecha_desde, fecha_hasta)
+
+
+def resumen_por_periodo(fecha_desde, fecha_hasta, *, conexion=None):
+    informe = resumen_pos_periodo(fecha_desde, fecha_hasta, conexion=conexion)
+    if informe is not None:
+        def pesos(campo):
+            return informe[campo + "_centavos"] / 100
+
+        aportes = pesos("aportes_fisicos")
+        retiros = pesos("retiros_fisicos")
+        cobrado_fisico = sum(
+            fila["neto_centavos"] for fila in informe["cobros_por_receptor"]
+            if fila["medio_pago"] == "efectivo"
+        )
+        movimiento_fisico = (
+            cobrado_fisico - informe["gastos_con_receptor_centavos"]
+            + informe["aportes_fisicos_centavos"] - informe["retiros_fisicos_centavos"]
+        )
+        return {
+            "fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta,
+            "ventas": pesos("devengado"), "compras": pesos("compras"), "gastos": pesos("gastos"),
+            "resultado_negocio": pesos("resultado_devengado"),
+            "resultado_base_diezmo": pesos("resultado_base_diezmo"), "diezmo_estimado": pesos("diezmo"),
+            "aportes": aportes, "retiros": retiros,
+            "saldo_caja": movimiento_fisico / 100,
+            "contabilidad_centavos": informe,
+        }
+
 
     ventas = ventas_por_periodo(fecha_desde, fecha_hasta)
     compras = compras_por_periodo(fecha_desde, fecha_hasta)
@@ -219,7 +254,7 @@ def resumen_por_periodo(fecha_desde, fecha_hasta):
     }
 def resumen_semana_actual():
 
-    hoy = datetime.now()
+    hoy = datetime.fromisoformat(fecha_reporte_hoy())
 
     inicio_semana = hoy - timedelta(days=hoy.weekday())
 
@@ -230,7 +265,7 @@ def resumen_semana_actual():
 
 def resumen_mes_actual():
 
-    hoy = datetime.now()
+    hoy = datetime.fromisoformat(fecha_reporte_hoy())
 
     inicio_mes = hoy.replace(day=1)
 
@@ -238,3 +273,9 @@ def resumen_mes_actual():
     fecha_hasta = hoy.strftime("%Y-%m-%d")
 
     return resumen_por_periodo(fecha_desde, fecha_hasta)
+
+def fecha_reporte_hoy():
+    with lectura_contable() as db:
+        if etapa_contable_activa(db):
+            return fecha_local()
+    return datetime.now().date().isoformat()

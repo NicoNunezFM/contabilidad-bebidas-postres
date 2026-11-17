@@ -1,4 +1,3 @@
-from datetime import datetime
 import re
 import unicodedata
 
@@ -11,11 +10,7 @@ from ajustes_stock import (
     registrar_inventario_fisico,
     registrar_merma,
 )
-from caja import (
-    obtener_estado_caja,
-    obtener_caja_seccion,
-    recaudado_por_categoria,
-)
+from caja import recaudado_por_categoria
 from compras import registrar_compra
 from costos_postres import (
     estimar_costo_receta,
@@ -56,7 +51,9 @@ from rentabilidad import (
     rentabilidad_categoria,
     rentabilidad_producto,
 )
+from pos_puente import consultar_caja_operativa
 from reportes import (
+    fecha_reporte_hoy,
     resumen_mes_actual,
     resumen_por_periodo,
     resumen_semana_actual,
@@ -516,7 +513,7 @@ def accion_consultar_caja_seccion(datos):
     )
 
     try:
-        estado = obtener_caja_seccion(
+        estado = consultar_caja_operativa(
             seccion
         )
     except ValueError as error:
@@ -563,7 +560,7 @@ def accion_consultar_caja():
     return {
         "ok": True,
         "codigo": "ACCION_CAJA",
-        "datos": obtener_estado_caja(),
+        "datos": consultar_caja_operativa(),
     }
 
 
@@ -571,7 +568,7 @@ def accion_consultar_resumen(datos):
     periodo = normalizar_texto(datos.get("periodo"))
 
     if periodo == "hoy":
-        fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+        fecha_hoy = fecha_reporte_hoy()
 
         resumen = resumen_por_periodo(
             fecha_hoy,

@@ -2,6 +2,7 @@ from datetime import datetime
 import sqlite3
 
 from adicionales import resolver_adicional
+from pos_contabilidad import corte_contable
 from database import obtener_conexion
 from productos import listar_productos, buscar_producto_por_id
 from rentabilidad import costo_unitario_para_venta
@@ -370,6 +371,12 @@ def registrar_venta(
 
     try:
         conexion.execute("BEGIN IMMEDIATE")
+        if corte_contable(conexion):
+            return {
+                "ok": False,
+                "codigo": "VENTAS_SOLO_POS",
+                "mensaje": "Usá el POS para ventas y devoluciones. El historial legado queda archivado.",
+            }
         cursor = conexion.cursor()
         estado_stock = cursor.execute(
             "SELECT stock, controla_stock FROM productos WHERE id_producto = ?",
@@ -547,6 +554,12 @@ def anular_venta(id_venta, motivo):
 
     try:
         conexion.execute("BEGIN IMMEDIATE")
+        if corte_contable(conexion):
+            return {
+                "ok": False,
+                "codigo": "VENTAS_SOLO_POS",
+                "mensaje": "Usá el POS para ventas y devoluciones. El historial legado queda archivado.",
+            }
         cursor = conexion.cursor()
 
         cursor.execute(
@@ -924,6 +937,12 @@ def registrar_venta_multiple(
 
     try:
         conexion.execute("BEGIN IMMEDIATE")
+        if corte_contable(conexion):
+            return {
+                "ok": False,
+                "codigo": "VENTAS_SOLO_POS",
+                "mensaje": "Usá el POS para ventas y devoluciones. El historial legado queda archivado.",
+            }
         cursor = conexion.cursor()
 
         items_validados = []
@@ -1253,6 +1272,12 @@ def anular_operacion_venta(
         _asegurar_campos_operacion_venta(conexion)
 
         conexion.execute("BEGIN IMMEDIATE")
+        if corte_contable(conexion):
+            return {
+                "ok": False,
+                "codigo": "VENTAS_SOLO_POS",
+                "mensaje": "Usá el POS para ventas y devoluciones. El historial legado queda archivado.",
+            }
         cursor = conexion.cursor()
 
         cursor.execute(
