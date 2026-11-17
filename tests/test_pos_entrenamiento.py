@@ -159,9 +159,11 @@ def test_actualizar_catalogo_conserva_una_instalacion_anterior(tmp_path):
         return {"id_producto": productos[nombre]["id_producto"], "cantidad": cantidad}
 
     for producto in ("Pollo con papas simple", "Pollo con papas doble", "Big Mac simple", "Big Mac doble",
-                     "Cheddar y huevo simple", "Cheddar y huevo doble", "Mozzarella", "Jamón y morrones"):
+                     "Cheddar y huevo simple", "Cheddar y huevo doble"):
         assert cliente.post(validar, json={"items": [item(producto)]}).status_code == 409
-    assert productos["Mozzarella"]["precio_venta"] is None
+    assert productos["Mozzarella"]["precio_venta"] == 10000
+    assert productos["Jamón y morrones"]["precio_venta"] == 12000
+    assert cliente.post(validar, json={"items": [item("Mozzarella"), item("Jamón y morrones")]}).json()["total_centavos"] == 2200000
     assert productos["Big Mac doble"]["precio_venta"] == 9000
     assert productos["Big Mac doble"]["estado_entrenamiento"] == "sin_stock"
     assert cliente.post(validar, json={"items": [{"id_producto": lima["id_producto"], "cantidad": 1}]}).status_code == 409
