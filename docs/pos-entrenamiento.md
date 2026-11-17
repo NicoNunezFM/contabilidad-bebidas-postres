@@ -81,7 +81,7 @@ Para ajustar el menú de práctica, abrí el JSON con el Bloc de notas y guardal
 - Conservá `Bebidas` y `Postres` para los productos que pertenecen a esa caja. `controla_stock` indica si el POS debe descontar unidades. Usá cantidades ficticias en `stock_inicial`.
 - Cargá los adicionales y su precio en `adicionales`. En cada producto, poné los nombres exactos de los adicionales habilitados. Para un producto sin extras, usá `[]`.
 - Los postres chicos de $3.000 marcados con `promo_postres_chicos: true` reciben $500 de descuento por unidad de cada par aplicado. Con `combinar_sabores_promo: false`, se agrupan por sabor. Cambialo a `true` si Lo de Clau confirma que se pueden combinar.
-- Las dos pizzas se publican con `precio_centavos: null`. Cuando se confirme un importe, ingresalo en centavos y aplicá el JSON para conservarlo en futuras actualizaciones.
+- Las pizzas tienen precios confirmados para entrenamiento: **Mozzarella $10.000** (`precio_centavos: 1000000`) y **Jamón y morrones / especial $12.000** (`precio_centavos: 1200000`). El stock sigue siendo exclusivamente de práctica. Para aplicar estos precios en una instalación existente, detené `servir`, seguí el bloque «Actualizar una instalación existente en Windows» (que respalda el JSON local) y usá `actualizar-catalogo`; esto conserva pedidos, ventas, fiados, arqueos y demás operaciones anteriores. No uses `reiniciar` para actualizar precios, porque elimina las operaciones de práctica.
 
 Detené el servidor con **Ctrl+C** y ejecutá el comando desde la carpeta de código de entrenamiento.
 
