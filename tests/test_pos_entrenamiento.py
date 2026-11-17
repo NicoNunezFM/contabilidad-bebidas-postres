@@ -13,7 +13,9 @@ from pos_caja_diaria import ahora_local
 from pos_entrenamiento_db import ARCHIVO_BASE, bloquear_entrenamiento, carpeta_local
 from pos_entrenamiento_web import AVISO, crear_app_entrenamiento
 from pos_simulacion import crear_esquema_simulacion
-from scripts.abadion_entrenamiento import ARCHIVO_CATALOGO, CONFIRMACION, USUARIOS, preparar_base
+from scripts.abadion_entrenamiento import (
+    ARCHIVO_CATALOGO, CONFIRMACION, PLANTILLA_CATALOGO, USUARIOS, actualizar_catalogo, preparar_base,
+)
 
 
 ORIGEN = "http://127.0.0.1:8060"
@@ -99,6 +101,115 @@ def test_reinicio_exige_confirmacion_marcador_y_cierre_del_servidor(tmp_path):
     with pytest.raises(ValueError, match="marcador"):
         preparar_base(tmp_path, confirmacion=CONFIRMACION)
     assert destino.read_bytes() == contenido
+
+
+def test_actualizar_catalogo_conserva_una_instalacion_anterior(tmp_path):
+    json_local = tmp_path / ARCHIVO_CATALOGO
+    legado = {
+        "aviso": "Catálogo anterior",
+        "productos": [
+            {"nombre": nombre, "categoria": categoria, "precio_centavos": precio,
+             "controla_stock": True, "stock_inicial": 7}
+            for nombre, categoria, precio in (
+                ("Chocotorta", "Postres", 450000), ("Manaos Lima 2.25l", "Bebidas", 200000),
+            )
+        ],
+        "adicionales": [],
+    }
+    json_local.write_text(json.dumps(legado), encoding="utf-8")
+    destino = preparar_base(tmp_path)
+    with closing(sqlite3.connect(destino)) as db, db:
+        db.execute("DROP TABLE pos_catalogo_entrenamiento")
+    cliente = TestClient(crear_app_entrenamiento(tmp_path), base_url=ORIGEN, headers={"Origin": ORIGEN})
+    simulacion = "/pos-api/simulacion"
+    ventas = f"{simulacion}/ventas"
+    catalogo = "/pos-api/catalogo/productos"
+    validar = "/pos-api/pedidos/validar"
+    usuario, _, clave = USUARIOS[0]
+    assert cliente.post("/pos-api/login", json={"usuario": usuario, "contrasena": clave}).status_code == 200
+    apertura = cliente.post(f"{simulacion}/caja-diaria/bebidas_postres/apertura", json={
+        "id_solicitud": str(uuid4()), "fecha": ahora_local()[:10], "inicial_centavos": 10000,
+    })
+    assert apertura.status_code == 200, apertura.text
+    grande, lima = cliente.get(catalogo).json()["productos"]
+    pedido = {
+        "id_solicitud": str(uuid4()),
+        "items": [{"id_producto": grande["id_producto"], "cantidad": 1}],
+        "total_esperado_centavos": 450000,
+        "pagos": [{"receptor": "bebidas_postres_efectivo", "medio_pago": "efectivo", "importe_centavos": 450000}],
+    }
+    anterior = cliente.post(ventas, json=pedido)
+    assert anterior.status_code == 200, anterior.text
+
+    nuevo = PLANTILLA_CATALOGO.read_text(encoding="utf-8")
+    json_local.write_text(nuevo, encoding="utf-8")
+    with bloquear_entrenamiento(tmp_path), pytest.raises(ValueError, match="está en uso"):
+        actualizar_catalogo(tmp_path)
+    actualizar_catalogo(tmp_path)
+    actualizar_catalogo(tmp_path)
+    productos = {p["nombre"]: p for p in cliente.get(catalogo).json()["productos"]}
+    assert len(productos) == 40
+    assert "Manaos Lima 2.25l" not in productos
+    assert productos["Chocotorta grande"]["id_producto"] == grande["id_producto"]
+    assert productos["Chocotorta grande"]["stock"] == 6
+    assert cliente.get("/pos-api/yo").status_code == 200
+    assert cliente.post(ventas, json=pedido).json() == anterior.json()
+
+    def item(nombre, cantidad=1):
+        return {"id_producto": productos[nombre]["id_producto"], "cantidad": cantidad}
+
+    for producto in ("Pollo con papas simple", "Pollo con papas doble", "Big Mac simple", "Big Mac doble",
+                     "Cheddar y huevo simple", "Cheddar y huevo doble", "Mozzarella", "Jamón y morrones"):
+        assert cliente.post(validar, json={"items": [item(producto)]}).status_code == 409
+    assert productos["Mozzarella"]["precio_venta"] is None
+    assert productos["Big Mac doble"]["precio_venta"] == 9000
+    assert productos["Big Mac doble"]["estado_entrenamiento"] == "sin_stock"
+    assert cliente.post(validar, json={"items": [{"id_producto": lima["id_producto"], "cantidad": 1}]}).status_code == 409
+    assert cliente.patch(f'/pos-api/admin/productos/{grande["id_producto"]}/precio',
+                         json={"precio_nuevo": 3000}).status_code == 403
+
+    sabores = {"items": [item("Chocotorta chica"), item("Oreo chico")]}
+    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 600000
+    items = [item("Oreo chico", 3), item("Clásica doble")]
+    cotizacion = cliente.post(validar, json={"items": items}).json()
+    assert cotizacion["descuento_centavos"] == 100000
+    assert cotizacion["total_centavos"] == 1700000
+    assert [(p["cantidad"], p["precio_unitario_centavos"]) for p in cotizacion["items"]] == [
+        (2, 250000), (1, 300000), (1, 900000),
+    ]
+    apertura = cliente.post(f"{simulacion}/caja-diaria/comidas/apertura", json={
+        "id_solicitud": str(uuid4()), "fecha": ahora_local()[:10], "inicial_centavos": 10000,
+    })
+    assert apertura.status_code == 200, apertura.text
+    venta = cliente.post(ventas, json={
+        "id_solicitud": str(uuid4()), "items": items,
+        "total_esperado_centavos": 1700000, "medio_pago": "efectivo",
+    })
+    assert venta.status_code == 200, venta.text
+    assert venta.json()["cajas_centavos"] == {"bebidas_postres": 800000, "comidas": 900000}
+    usuario, _, clave = USUARIOS[1]
+    assert cliente.post("/pos-api/login", json={"usuario": usuario, "contrasena": clave}).status_code == 200
+    devolucion = cliente.post(f'{ventas}/{venta.json()["id_venta"]}/devoluciones', json={
+        "id_solicitud": str(uuid4()), "motivo": "Prueba de promoción",
+        "items": [{"linea": 1, "cantidad": 1}],
+    })
+    assert devolucion.status_code == 200, devolucion.text
+    assert devolucion.json()["reembolsado_centavos"] == 250000
+
+    configuracion = json.loads(nuevo)
+    configuracion["combinar_sabores_promo"] = True
+    pizza = next(p for p in configuracion["productos"] if p["nombre"] == "Mozzarella")
+    pizza["precio_centavos"] = 0
+    json_local.write_text(json.dumps(configuracion), encoding="utf-8")
+    with pytest.raises(ValueError, match="precio_centavos"):
+        actualizar_catalogo(tmp_path)
+    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 600000
+
+    pizza["precio_centavos"] = 123400  # Importe ficticio para probar la activación por JSON.
+    json_local.write_text(json.dumps(configuracion), encoding="utf-8")
+    actualizar_catalogo(tmp_path)
+    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 500000
+    assert cliente.post(validar, json={"items": [item("Mozzarella")]}).json()["total_centavos"] == 123400
 
 
 def test_rechaza_alias_de_otra_base(tmp_path):

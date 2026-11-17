@@ -154,6 +154,17 @@ def test_pos_web_aviso_de_entrenamiento_visible_al_ingresar(controles_pos):
     evaluar, clic, texto, _ = controles_pos
     texto("#entrenamientoAviso", AVISO)
     texto("#cardsReal", "Manaos")
+    assert evaluar("""
+        (() => {
+            const tarjetas = [...document.querySelectorAll('#cardsReal article')];
+            const tarjeta = nombre => tarjetas.find(t => t.querySelector('h3').textContent === nombre);
+            const agotada = tarjeta('Big Mac doble');
+            const pizza = tarjeta('Mozzarella');
+            return agotada.textContent.includes('SIN STOCK') && agotada.querySelector('button').disabled
+                && pizza.textContent.includes('Precio pendiente') && pizza.querySelector('button').disabled
+                && !tarjeta('Clásica doble').querySelector('button').disabled;
+        })()
+    """)
     clic("#adminAccess")
     assert evaluar("""
         (() => {

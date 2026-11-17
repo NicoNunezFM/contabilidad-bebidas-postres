@@ -43,17 +43,58 @@ En el equipo donde corre el servidor, abrí [Abadion Entrenamiento](http://127.0
 3. Abrí **Historial simulado**, registrá un abono y revisá el saldo. Probá una devolución con la cuenta de administración.
 4. Guardá un arqueo en **Caja diaria** y cerrá la caja. Repetí con la otra caja. Si hay una diferencia, probá ingresar un motivo y autorizar el cierre con administración.
 
-## Editar el catálogo y volver a empezar
+## Actualizar una instalación existente en Windows
 
-El primer arranque genera `%LOCALAPPDATA%\Abadion\Entrenamiento\catalogo-entrenamiento.json`. La fuente de nombres, categorías y precios de referencia es [el catálogo del repositorio](../src/catalogo.py). Confirmá qué productos siguen en el menú y cuáles son los precios vigentes. El «Extra de práctica (ejemplo)» y su precio son ficticios.
+Detené el servidor con **Ctrl+C**. Este bloque descarga el código de entrenamiento, guarda una copia del JSON local y aplica la lista nueva sobre la base de práctica. Conserva los pedidos, cobros, fiados, cajas, sesiones y el stock de práctica de los productos existentes. Los precios editados desde el POS se reemplazan por los del JSON.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$Codigo = Join-Path $env:LOCALAPPDATA 'Abadion\codigo-entrenamiento'
+$Catalogo = Join-Path $env:LOCALAPPDATA 'Abadion\Entrenamiento\catalogo-entrenamiento.json'
+Set-Location -LiteralPath $Codigo
+if (git status --porcelain --untracked-files=no) { throw 'Hay cambios locales en el código. Revisalos antes de actualizar.' }
+if ($LASTEXITCODE -ne 0) { throw 'No se pudo revisar el código local.' }
+git fetch origin refs/heads/feature/abadion-entrenamiento
+if ($LASTEXITCODE -ne 0) { throw 'No se pudo descargar el código de entrenamiento.' }
+git merge-base --is-ancestor HEAD FETCH_HEAD
+if ($LASTEXITCODE -ne 0) { throw 'La descarga no incluye la versión de código instalada.' }
+git switch --detach FETCH_HEAD
+if ($LASTEXITCODE -ne 0) { throw 'No se pudo actualizar el código de entrenamiento.' }
+$Respaldo = "$Catalogo.$(Get-Date -Format yyyyMMdd-HHmmss-fff).bak"
+Copy-Item -LiteralPath $Catalogo -Destination $Respaldo
+Copy-Item -LiteralPath '.\scripts\catalogo-entrenamiento.json' -Destination $Catalogo
+.\.venv\Scripts\python.exe scripts/abadion_entrenamiento.py actualizar-catalogo
+if ($LASTEXITCODE -ne 0) {
+    Copy-Item -LiteralPath $Respaldo -Destination $Catalogo
+    throw 'Falló la aplicación del catálogo. Se restauró el JSON anterior.'
+}
+.\.venv\Scripts\python.exe scripts/abadion_entrenamiento.py servir
+```
+
+Si querés incorporar ajustes del JSON anterior, compará la copia de respaldo con [la lista nueva](../scripts/catalogo-entrenamiento.json), guardá tus ajustes en el JSON local y aplicalo manualmente como se indica abajo.
+
+## Editar y aplicar el catálogo local
 
 Para ajustar el menú de práctica, abrí el JSON con el Bloc de notas y guardalo en UTF-8.
 
-- En `productos`, editá nombre, categoría y precio. `precio_centavos` es un entero. Por ejemplo, `650000` equivale a $6.500.
+- En `productos`, editá nombre, categoría y precio. `precio_centavos` es un entero. Por ejemplo, `750000` equivale a $7.500. Usá `null` para precios pendientes. `sin_stock: true` deja el producto visible y bloquea la venta.
 - Conservá `Bebidas` y `Postres` para los productos que pertenecen a esa caja. `controla_stock` indica si el POS debe descontar unidades. Usá cantidades ficticias en `stock_inicial`.
 - Cargá los adicionales y su precio en `adicionales`. En cada producto, poné los nombres exactos de los adicionales habilitados. Para un producto sin extras, usá `[]`.
+- Los postres chicos de $3.000 marcados con `promo_postres_chicos: true` reciben $500 de descuento por unidad de cada par aplicado. Con `combinar_sabores_promo: false`, se agrupan por sabor. Cambialo a `true` si Lo de Clau confirma que se pueden combinar.
+- Las dos pizzas se publican con `precio_centavos: null`. Cuando se confirme un importe, ingresalo en centavos y aplicá el JSON para conservarlo en futuras actualizaciones.
 
-Para aplicar el JSON y borrar las prácticas, cerrá las pestañas del POS y detené el servidor con **Ctrl+C**. En la misma carpeta de código, ejecutá:
+Detené el servidor con **Ctrl+C** y ejecutá el comando desde la carpeta de código de entrenamiento.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/abadion_entrenamiento.py actualizar-catalogo
+.\.venv\Scripts\python.exe scripts/abadion_entrenamiento.py servir
+```
+
+El comando verifica la identidad de la base y valida el JSON antes de aplicar el catálogo en una transacción. Los productos que retires de la lista quedan fuera del menú y conservan su ID en la base. El stock inicial solo se aplica a los productos nuevos.
+
+## Borrar las prácticas y volver a empezar
+
+Para empezar de cero, detené el servidor con **Ctrl+C**. Guardá una copia de `abadion-entrenamiento.db` si querés conservar las operaciones de práctica. En la carpeta de código, ejecutá el reinicio y confirmá solo si querés borrar esas operaciones.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/abadion_entrenamiento.py reiniciar

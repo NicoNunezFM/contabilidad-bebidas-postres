@@ -4,11 +4,23 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-from pos_simulacion import ID_SQLITE_SIMULACION, VERSION_ESQUEMA_SIMULACION
-
-
 ARCHIVO_BASE = "abadion-entrenamiento.db"
 IDENTIDAD = "abadion-entrenamiento-lo-de-clau-v1"
+DESCUENTO_POSTRE_CENTAVOS = 50_000
+
+
+def consultar_catalogo_entrenamiento(db):
+    # Las bases instaladas antes de la actualización todavía pueden abrirse.
+    if not db.execute("""
+        SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'pos_catalogo_entrenamiento'
+    """).fetchone():
+        return {}
+    return {
+        id_producto: (estado, grupo)
+        for id_producto, estado, grupo in db.execute(
+            "SELECT id_producto, estado, grupo_promo FROM pos_catalogo_entrenamiento"
+        )
+    }
 
 
 def carpeta_local():
@@ -36,6 +48,8 @@ def comprobar_archivo(ruta):
 
 
 def abrir_base_entrenamiento(ruta, *, solo_lectura=False):
+    from pos_simulacion import ID_SQLITE_SIMULACION, VERSION_ESQUEMA_SIMULACION
+
     if ruta.name != ARCHIVO_BASE:
         raise ValueError(f"Se requiere el archivo {ARCHIVO_BASE}.")
     comprobar_archivo(ruta)

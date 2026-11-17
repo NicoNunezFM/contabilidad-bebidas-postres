@@ -1,5 +1,6 @@
 
 
+from contextlib import closing
 from datetime import date
 from typing import Literal
 
@@ -14,7 +15,8 @@ from pos_auth import (
     revocar_sesion_pos,
 )
 
-from database import obtener_conexion
+from database import RUTA_ENTRENAMIENTO, obtener_conexion
+from pos_entrenamiento_db import consultar_catalogo_entrenamiento
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
 from productos import obtener_productos
 from pos_caja_diaria import (
@@ -547,7 +549,17 @@ def consultar_productos_pos(request: Request):
         if error.status_code != 404:
             raise
         exigir_usuario_pos(request)
-    return {"ok": True, "productos": obtener_productos()}
+    productos = obtener_productos()
+    if RUTA_ENTRENAMIENTO.get() is not None:
+        with closing(obtener_conexion()) as db:
+            opciones = consultar_catalogo_entrenamiento(db)
+        productos = [
+            dict(producto, estado_entrenamiento=estado, promo_postres_chicos=grupo is not None)
+            for producto in productos
+            for estado, grupo in [opciones.get(producto["id_producto"], ("disponible", None))]
+            if estado != "fuera_menu"
+        ]
+    return {"ok": True, "productos": productos}
 
 
 @router.get("/catalogo/adicionales")
