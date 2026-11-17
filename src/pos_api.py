@@ -47,6 +47,10 @@ COOKIE_ADMIN = "abadion_pos_admin"
 COOKIE_VENTAS = "abadion_pos_ventas"
 
 
+def cookies_pos(request):
+    return getattr(request.app.state, "cookies_pos", (COOKIE_ADMIN, COOKIE_VENTAS))
+
+
 class LoginEntrada(BaseModel):
     usuario: str = Field(min_length=1, max_length=40)
     contrasena: str = Field(min_length=1, max_length=256)
@@ -90,7 +94,8 @@ def evitar_cache_pos(response: Response):
 
 
 def exigir_administrador_pos(request: Request) -> dict:
-    token_admin = request.cookies.get(COOKIE_ADMIN)
+    cookie_admin, cookie_ventas = cookies_pos(request)
+    token_admin = request.cookies.get(cookie_admin)
 
     if token_admin:
         usuario = obtener_usuario_sesion_pos(token_admin)
@@ -98,7 +103,7 @@ def exigir_administrador_pos(request: Request) -> dict:
         if usuario is not None and usuario["rol"] == "admin":
             return usuario
 
-    token_ventas = request.cookies.get(COOKIE_VENTAS)
+    token_ventas = request.cookies.get(cookie_ventas)
 
     if token_ventas:
         usuario = obtener_usuario_sesion_pos(token_ventas)
@@ -137,7 +142,8 @@ def iniciar_sesion(
     token = crear_sesion_pos(usuario["id_usuario"])
 
     es_admin = usuario["rol"] == "admin"
-    nombre_cookie = COOKIE_ADMIN if es_admin else COOKIE_VENTAS
+    cookie_admin, cookie_ventas = cookies_pos(request)
+    nombre_cookie = cookie_admin if es_admin else cookie_ventas
     duracion = 8 * 3600 if es_admin else 30 * 24 * 3600
 
     response.set_cookie(
@@ -158,10 +164,7 @@ def iniciar_sesion(
 
 
 def exigir_usuario_pos(request: Request):
-    for nombre_cookie, rol in (
-        (COOKIE_ADMIN, "admin"),
-        (COOKIE_VENTAS, "ventas"),
-    ):
+    for nombre_cookie, rol in zip(cookies_pos(request), ("admin", "ventas")):
         token = request.cookies.get(nombre_cookie)
 
         if not token:
@@ -421,7 +424,7 @@ def consultar_movimientos_pos(
 def cerrar_sesion(request: Request, response: Response):
     comprobar_origen(request)
 
-    for nombre_cookie in (COOKIE_ADMIN, COOKIE_VENTAS):
+    for nombre_cookie in cookies_pos(request):
         token = request.cookies.get(nombre_cookie)
 
         if token:
