@@ -282,14 +282,14 @@
     {
       "nombre": "Mozzarella",
       "categoria": "Pizzas",
-      "precio_centavos": null,
+      "precio_centavos": 1000000,
       "controla_stock": false,
       "stock_inicial": 0
     },
     {
       "nombre": "Jamón y morrones",
       "categoria": "Pizzas",
-      "precio_centavos": null,
+      "precio_centavos": 1200000,
       "controla_stock": false,
       "stock_inicial": 0
     }
