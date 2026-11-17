@@ -2,6 +2,7 @@ from datetime import datetime
 import sqlite3
 
 from database import obtener_conexion
+from pos_contabilidad import corte_contable, fecha_local, validar_fecha_costo, validar_reversion_costo
 from deudas_negocio import registrar_compra_deuda_en_cursor
 from productos import listar_productos, buscar_producto_por_id
 
@@ -71,9 +72,6 @@ def registrar_compra(
             "mensaje": "El precio debe ser mayor que cero."
         }
 
-    if fecha is None:
-        fecha = datetime.now().strftime("%Y-%m-%d")
-
     cuenta_deuda_limpia = (
         str(cuenta_deuda).strip()
         if cuenta_deuda is not None
@@ -88,6 +86,11 @@ def registrar_compra(
 
     try:
         conexion.execute("BEGIN IMMEDIATE")
+        integrada = corte_contable(conexion) is not None
+        fecha = fecha if fecha is not None else (fecha_local() if integrada else datetime.now().date().isoformat())
+        rechazo = validar_fecha_costo(fecha) if integrada else None
+        if rechazo:
+            return rechazo
         cursor = conexion.cursor()
 
         medio_pago = (
@@ -398,7 +401,12 @@ def anular_compra(id_compra, motivo):
                 )
             }
 
-        fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
+        integrada = corte_contable(conexion) is not None
+        if integrada:
+            rechazo = validar_reversion_costo(conexion, "compra", id_compra)
+            if rechazo:
+                return rechazo
+        fecha_anulacion = fecha_local() if integrada else datetime.now().date().isoformat()
 
         cursor.execute("""
             UPDATE productos

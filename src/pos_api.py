@@ -25,6 +25,7 @@ from pos_cobros import (
     AbonoEntrada, Centavos, CierreEntrada, DevolucionEntrada, ReversionEntrada,
     SolicitudContable, TransferenciaEntrada,
 )
+from pos_contabilidad import calcular_periodo, corte_contable, etapa_contable_activa, fecha_local
 from pos_puente import consultar_puente_ficticio
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
@@ -200,6 +201,8 @@ def estado_simulacion_pos():
         estado = {"ok": True, "simulacion": True}
         if caja_diaria_activa(db):
             estado["caja_diaria"] = True
+        if etapa_contable_activa(db):
+            estado["contabilidad"] = True
         return estado
 
 
@@ -399,6 +402,21 @@ def consultar_cierre_pos(periodo: int = Path(gt=0, le=2**63 - 1)):
 @router.get("/simulacion/cajas", dependencies=[Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
 def consultar_cajas_pos():
     return {"ok": True, "simulacion": True, **consultar_cajas_simuladas()}
+
+
+@router.get("/simulacion/contabilidad", dependencies=[
+    Depends(exigir_administrador_pos), Depends(evitar_cache_pos),
+])
+def contabilidad_pos(desde: date | None = None, hasta: date | None = None):
+    with transaccion_simulacion() as db:
+        if not etapa_contable_activa(db):
+            raise HTTPException(404, "Prepará una copia ficticia para la etapa 7.")
+        hoy = fecha_local()
+        inicio = desde.isoformat() if desde else hoy
+        fin = hasta.isoformat() if hasta else hoy
+        if inicio > fin or fin > hoy or fin < corte_contable(db)[0]:
+            raise HTTPException(422, "Elegí un período válido que incluya fechas de la etapa 7.")
+        return {"ok": True, **calcular_periodo(db, inicio, fin)}
 
 
 @router.get("/simulacion/conciliacion", dependencies=[

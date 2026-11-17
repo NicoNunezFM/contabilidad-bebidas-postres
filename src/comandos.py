@@ -108,6 +108,18 @@ def formatear_precios(productos):
 
 
 def formatear_resumen(titulo, resumen):
+    informe = resumen.get("contabilidad_centavos")
+    if informe:
+        return "\n".join([
+            f"*{titulo} · simulación desde {informe['desde_contable']}*",
+            f"Ventas devengadas: {formatear_pesos(resumen['ventas'])}",
+            f"Cobros netos: {formatear_pesos(informe['cobrado_neto_centavos'] / 100)}",
+            f"Fiado pendiente: {formatear_pesos(informe['fiado_al_cierre_centavos'] / 100)}",
+            f"Compras: {formatear_pesos(resumen['compras'])}",
+            f"Gastos: {formatear_pesos(resumen['gastos'])}",
+            f"Resultado devengado: {formatear_pesos(resumen['resultado_negocio'])}",
+            f"Diezmo estimado: {formatear_pesos(resumen['diezmo_estimado'])}",
+        ])
     return "\n".join([
         f"*{titulo}*",
         f"Ventas: {formatear_pesos(resumen['ventas'])}",
@@ -123,7 +135,22 @@ def formatear_resumen(titulo, resumen):
     ])
 
 
+def formatear_caja_diaria(diaria):
+    nombres = {"comidas": "Rotisería / Comidas", "bebidas_postres": "Bebidas y Postres"}
+    lineas = [f"*Caja diaria ficticia · {diaria['fecha_local']}*"]
+    for caja, jornada in diaria["cajas"].items():
+        if jornada is None:
+            lineas.append(f"{nombres[caja]} · sin jornada")
+            continue
+        esperado = formatear_pesos(jornada["esperado_centavos"] / 100)
+        estado = "cerrada" if jornada["cerrada"] else "abierta"
+        lineas.append(f"{nombres[caja]} · {jornada['fecha']} · {estado} · esperado {esperado}")
+    return "\n".join(lineas)
+
+
 def formatear_caja(estado):
+    if "caja_diaria_centavos" in estado:
+        return formatear_caja_diaria(estado["caja_diaria_centavos"])
     return "\n".join([
         "*Estado de caja*",
         f"Ventas: {formatear_pesos(estado['ventas'])}",
@@ -145,6 +172,8 @@ def formatear_caja(estado):
 
 
 def formatear_caja_seccion(estado):
+    if "caja_diaria_centavos" in estado:
+        return formatear_caja_diaria(estado["caja_diaria_centavos"])
     lineas = [
         f"*Caja {estado['nombre']}*",
     ]

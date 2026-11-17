@@ -2,6 +2,7 @@ from datetime import datetime
 import sqlite3
 
 from database import obtener_conexion
+from pos_contabilidad import corte_contable, fecha_local, validar_fecha_costo, validar_reversion_costo
 
 
 CATEGORIAS_GASTO = {
@@ -80,12 +81,15 @@ def registrar_gasto(
         }
 
     # Fecha automática
-    if fecha is None:
-        fecha = datetime.now().strftime("%Y-%m-%d")
-
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN IMMEDIATE")
+        integrada = corte_contable(conexion) is not None
+        fecha = fecha if fecha is not None else (fecha_local() if integrada else datetime.now().date().isoformat())
+        rechazo = validar_fecha_costo(fecha) if integrada else None
+        if rechazo:
+            return rechazo
         cursor = conexion.cursor()
 
         cursor.execute(
@@ -293,6 +297,7 @@ def anular_gasto(id_gasto, motivo):
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN IMMEDIATE")
         cursor = conexion.cursor()
 
         cursor.execute(
@@ -322,7 +327,12 @@ def anular_gasto(id_gasto, motivo):
                 "mensaje": "El gasto ya se encuentra anulado."
             }
 
-        fecha_anulacion = datetime.now().strftime("%Y-%m-%d")
+        integrada = corte_contable(conexion) is not None
+        if integrada:
+            rechazo = validar_reversion_costo(conexion, "gasto", id_gasto)
+            if rechazo:
+                return rechazo
+        fecha_anulacion = fecha_local() if integrada else datetime.now().date().isoformat()
 
         cursor.execute(
             """

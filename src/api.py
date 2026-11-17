@@ -1,4 +1,3 @@
-from datetime import datetime
 import os
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
@@ -13,11 +12,7 @@ from backups import crear_backup_diario
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-from caja import (
-    obtener_estado_caja,
-    obtener_caja_seccion,
-    recaudado_por_categoria,
-)
+from caja import recaudado_por_categoria
 from catalogo import asegurar_productos_catalogo
 
 from comandos import procesar_comando
@@ -62,6 +57,7 @@ from movimientos_caja import (
 from productos import obtener_productos
 
 from reportes import (
+    fecha_reporte_hoy,
     resumen_por_periodo,
     resumen_semana_actual,
     resumen_mes_actual
@@ -73,7 +69,7 @@ from ventas import (
 )
 
 from pos_api import router as pos_router
-from pos_puente import COMANDO_PUENTE_POS, exigir_copia_puente, respuesta_puente_bot
+from pos_puente import COMANDO_PUENTE_POS, consultar_caja_operativa, exigir_copia_puente, respuesta_puente_bot
 from pos_simulacion import transaccion_simulacion
 
 
@@ -115,6 +111,10 @@ CODIGOS_HTTP = {
     # 409 - Conflictos con el estado actual
     "STOCK_INSUFICIENTE": 409,
     "VENTA_YA_ANULADA": 409,
+    "VENTAS_SOLO_POS": 409,
+    "PERIODO_CONTABLE_NO_CERRABLE": 409,
+    "FECHA_CONTABLE_INVALIDA": 409,
+    "COSTO_ANTERIOR_AL_CORTE": 409,
     "COMPRA_YA_ANULADA": 409,
     "STOCK_INSUFICIENTE_PARA_ANULAR_COMPRA": 409,
     "GASTO_YA_ANULADO": 409,
@@ -495,7 +495,7 @@ def registrar_inventario_api(
 @contabilidad.get("/reportes/hoy")
 def reporte_hoy_api():
 
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    fecha_hoy = fecha_reporte_hoy()
 
     return resumen_por_periodo(
         fecha_hoy,
@@ -522,7 +522,7 @@ def reporte_mes_api():
 @contabilidad.get("/caja")
 def consultar_caja_api():
 
-    return obtener_estado_caja()
+    return consultar_caja_operativa()
 
 
 @contabilidad.get("/caja/secciones/{seccion}")
@@ -533,7 +533,7 @@ def consultar_caja_seccion_api(
         return {
             "ok": True,
             "codigo": "CAJA_SECCION",
-            "datos": obtener_caja_seccion(
+            "datos": consultar_caja_operativa(
                 seccion
             ),
         }

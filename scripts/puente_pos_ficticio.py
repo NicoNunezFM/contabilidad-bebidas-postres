@@ -12,6 +12,7 @@ from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from pos_contabilidad import corte_contable, crear_integracion_contable
 from pos_puente import leer_conciliacion
 from pos_caja_diaria import caja_diaria_activa, crear_caja_diaria
 from pos_simulacion import ID_SQLITE_SIMULACION, VERSION_ESQUEMA_SIMULACION
@@ -31,7 +32,7 @@ def abrir_ficticia(ruta):
         yield db
 
 
-def copiar_ficticia(origen, destino, *, caja_diaria=False):
+def copiar_ficticia(origen, destino, *, caja_diaria=False, contabilidad=False):
     if destino.suffix.lower() != ".db" or destino.name.casefold() == "negocio.db":
         raise ValueError("Elegí un archivo .db nuevo de nombre distinto de negocio.db.")
     with abrir_ficticia(origen) as anterior:
@@ -42,9 +43,13 @@ def copiar_ficticia(origen, destino, *, caja_diaria=False):
                 anterior.backup(copia)
                 with copia:
                     copia.execute("BEGIN IMMEDIATE")
-                    if caja_diaria_activa(copia):
+                    if contabilidad:
+                        if not caja_diaria_activa(copia) or corte_contable(copia):
+                            raise ValueError("Para etapa 7, elegí una copia ficticia de etapa 6.")
+                        crear_integracion_contable(copia)
+                    elif caja_diaria_activa(copia):
                         raise ValueError("La fuente ya tiene el registro diario de etapa 6.")
-                    if not (caja_diaria and copia.execute("""
+                    if not contabilidad and not (caja_diaria and copia.execute("""
                         SELECT 1 FROM sqlite_schema WHERE name = 'pos_puente_ficticio' AND type = 'table'
                     """).fetchone()):
                         copia.execute("""
@@ -89,7 +94,9 @@ def main():
     copiar = comandos.add_parser("copiar", help="Crea y verifica una copia nueva de POS 4")
     copiar.add_argument("origen", type=Path)
     copiar.add_argument("destino", type=Path)
-    copiar.add_argument("--caja-diaria", action="store_true", help="Habilita la etapa 6 en la copia nueva")
+    modo = copiar.add_mutually_exclusive_group()
+    modo.add_argument("--contabilidad", action="store_true", help="Habilita la etapa 7 desde una copia de etapa 6")
+    modo.add_argument("--caja-diaria", action="store_true", help="Habilita la etapa 6 en la copia nueva")
     verificar = comandos.add_parser("conciliar", help="Emite el informe JSON en solo lectura")
     verificar.add_argument("ruta", type=Path)
     servir = comandos.add_parser("servir", help="Inicia la simulación en 127.0.0.1")
@@ -99,7 +106,7 @@ def main():
 
     try:
         if args.comando == "copiar":
-            copiar_ficticia(args.origen, args.destino, caja_diaria=args.caja_diaria)
+            copiar_ficticia(args.origen, args.destino, caja_diaria=args.caja_diaria, contabilidad=args.contabilidad)
             print(f"Copia ficticia conciliada en {args.destino}")
         elif args.comando == "conciliar":
             informe = verificar_ficticia(args.ruta)

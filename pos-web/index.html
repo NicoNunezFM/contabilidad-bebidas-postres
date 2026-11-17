@@ -101,6 +101,7 @@ button:disabled{opacity:.55;cursor:default}
 <div class="operations">
   <button id="historialSimulado" type="button" hidden>Historial simulado</button>
   <button id="cajasSimuladas" type="button" hidden>Cajas simuladas</button>
+  <button id="contabilidadPos" type="button" hidden>Contabilidad</button>
   <button id="cajaDiariaPos" type="button" hidden>Caja diaria</button>
 </div>
   <nav class="tabs" id="tabs" aria-label="Categorías"></nav>
@@ -160,6 +161,7 @@ button:disabled{opacity:.55;cursor:default}
   var revisionPedidoReal = 0;
   var simulacionActiva = false;
   var cajaDiariaActiva = false;
+  var contabilidadActiva = false;
   var sesionPos = null;
   var validacionPos = null;
   var medioSimulado = '';
@@ -984,6 +986,7 @@ function mostrarPedidoReal() {
     el('adminExtras').hidden = !sesionAdmin;
     el('historialSimulado').hidden = !simulacionActiva || !sesionPos;
     el('cajasSimuladas').hidden = !simulacionActiva || !sesionAdmin;
+    el('contabilidadPos').hidden = !contabilidadActiva || !sesionAdmin;
     el('cajaDiariaPos').hidden = !cajaDiariaActiva || !sesionPos;
 
     if (usuarioAnterior && usuarioAnterior.id_usuario !== sesionPos?.id_usuario) {
@@ -2181,6 +2184,7 @@ if (modoReal) {
   }
 
   el('cajasSimuladas').onclick = () => mostrarCajasPos();
+  el('contabilidadPos').onclick = () => mostrarContabilidadPos();
   el('cajaDiariaPos').onclick = () => mostrarCajaDiaria();
 
   var rutaCajaDiaria = '/simulacion/caja-diaria';
@@ -2336,6 +2340,45 @@ if (modoReal) {
     } catch (error) {
       estado.textContent = error.status ? error.message : 'No se pudo cargar la caja diaria.';
       cuerpo.append(botonCajaDiaria('Reintentar', () => mostrarCajaDiaria()));
+    }
+  }
+
+  async function mostrarContabilidadPos() {
+    var cuerpo = abrirConsultaPos('Contabilidad ficticia');
+    var estado = nodoPos('p', 'Cargando informe…', 'muted');
+    estado.setAttribute('role', 'status');
+    cuerpo.append(estado);
+    try {
+      var datos = await consultarPos('/simulacion/contabilidad');
+      if (!cuerpo.isConnected || overlay.hidden) return;
+      estado.textContent = datos.hasta + ' · Fecha local de Argentina';
+      var resumen = nodoPos('ul');
+      [
+        ['Ventas devengadas', datos.devengado_centavos],
+        ['Cobros netos', datos.cobrado_neto_centavos],
+        ['Fiado pendiente', datos.fiado_al_cierre_centavos],
+        ['Compras', datos.compras_centavos],
+        ['Gastos con receptor', datos.gastos_con_receptor_centavos],
+        ['Gastos sin receptor', datos.gastos_sin_receptor_centavos],
+        ['Resultado devengado', datos.resultado_devengado_centavos],
+        ['Resultado base del diezmo', datos.resultado_base_diezmo_centavos],
+        ['Diezmo estimado', datos.diezmo_centavos],
+      ].forEach(([etiqueta, centavos]) => resumen.append(nodoPos('li', etiqueta + ' · ' + importePos(centavos))));
+      cuerpo.append(resumen);
+      var secciones = nodoPos('ul');
+      Object.entries(datos.secciones).forEach(([seccion, totales]) => {
+        secciones.append(nodoPos('li', nombresCajas[seccion] + ' · Devengado '
+          + importePos(totales.devengado_centavos) + ' · Cobrado atribuido '
+          + importePos(totales.cobrado_atribuido_centavos)));
+      });
+      cuerpo.append(nodoPos('h3', 'Ventas por sección'), secciones);
+      var receptores = nodoPos('ul');
+      datos.cobros_por_receptor.forEach(fila => receptores.append(nodoPos('li', nombreReceptorPos(fila.receptor)
+        + ' · ' + mediosSimulados[fila.medio_pago] + ' · ' + importePos(fila.neto_centavos))));
+      cuerpo.append(nodoPos('h3', 'Cobros por receptor'),
+        receptores.childElementCount ? receptores : nodoPos('p', 'Sin cobros en el período.'));
+    } catch (error) {
+      estado.textContent = error.status ? error.message : 'No se pudo cargar el informe.';
     }
   }
 
@@ -2662,9 +2705,11 @@ if (modoReal) {
         var estadoSimulacion = await consultarPos('/simulacion/estado');
         simulacionActiva = estadoSimulacion.simulacion === true;
         cajaDiariaActiva = estadoSimulacion.caja_diaria === true;
+        contabilidadActiva = estadoSimulacion.contabilidad === true;
       } catch (error) {
         simulacionActiva = false;
         cajaDiariaActiva = false;
+        contabilidadActiva = false;
       }
       el('simulationBanner').hidden = !simulacionActiva;
       await actualizarSesionPos();

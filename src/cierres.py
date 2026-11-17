@@ -3,7 +3,8 @@ import calendar
 import sqlite3
 
 from database import obtener_conexion
-from reportes import resumen_por_periodo
+from reportes import fecha_reporte_hoy, resumen_por_periodo
+from pos_contabilidad import detalle_cierre, fecha_local, guardar_detalle_cierre, validar_periodo_cierre
 
 
 PORCENTAJE_DIEZMO = 0.10
@@ -50,9 +51,13 @@ def registrar_cierre_semanal(fecha_desde, fecha_hasta):
             )
         }
 
+    fecha_desde = datetime.strptime(fecha_desde, "%Y-%m-%d").date().isoformat()
+    fecha_hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d").date().isoformat()
+
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN IMMEDIATE")
         cursor = conexion.cursor()
 
         # Evitar cerrar dos veces exactamente el mismo período
@@ -75,27 +80,19 @@ def registrar_cierre_semanal(fecha_desde, fecha_hasta):
                 "mensaje": "Ese período ya tiene un cierre registrado."
             }
 
-        resumen = resumen_por_periodo(
-            fecha_desde,
-            fecha_hasta
-        )
+        resumen = resumen_por_periodo(fecha_desde, fecha_hasta, conexion=conexion)
+        rechazo = validar_cierre_integrado(conexion, "semanal", resumen)
+        if rechazo:
+            return rechazo
 
         resultado_negocio = resumen["resultado_negocio"]
-
-        if resultado_negocio > 0:
-            diezmo_estimado = (
-                resultado_negocio * PORCENTAJE_DIEZMO
-            )
-        else:
-            diezmo_estimado = 0
+        diezmo_estimado = resumen.get("diezmo_estimado", max(resultado_negocio, 0) * PORCENTAJE_DIEZMO)
 
         resultado_despues_diezmo = (
             resultado_negocio - diezmo_estimado
         )
 
-        fecha_cierre = datetime.now().strftime(
-            "%Y-%m-%d"
-        )
+        fecha_cierre = fecha_local() if "contabilidad_centavos" in resumen else datetime.now().date().isoformat()
 
         cursor.execute("""
             INSERT INTO cierres_semanales (
@@ -130,6 +127,11 @@ def registrar_cierre_semanal(fecha_desde, fecha_hasta):
 
         id_cierre = cursor.lastrowid
 
+        detalle = {}
+        if "contabilidad_centavos" in resumen:
+            detalle["contabilidad_centavos"] = resumen["contabilidad_centavos"]
+            guardar_detalle_cierre(conexion, "semanal", id_cierre, resumen["contabilidad_centavos"])
+
         conexion.commit()
 
         return {
@@ -148,7 +150,8 @@ def registrar_cierre_semanal(fecha_desde, fecha_hasta):
             "aportes": resumen["aportes"],
             "retiros": resumen["retiros"],
             "saldo_caja": resumen["saldo_caja"],
-            "fecha_cierre": fecha_cierre
+            "fecha_cierre": fecha_cierre,
+            **detalle
         }
 
     except sqlite3.Error as error:
@@ -209,7 +212,8 @@ def obtener_cierres_semanales():
                 "saldo_caja": cierre[9],
                 "diezmo_estimado": cierre[10],
                 "resultado_despues_diezmo": cierre[11],
-                "fecha_cierre": cierre[12]
+                "fecha_cierre": cierre[12],
+                **detalle_cierre(conexion, "semanal", cierre[0])
             }
 
             cierres.append(cierre_python)
@@ -254,7 +258,7 @@ def registrar_cierre_mensual(anio, mes):
         f"{anio}-{mes:02d}-{ultimo_dia:02d}"
     )
 
-    hoy = datetime.now().date()
+    hoy = datetime.fromisoformat(fecha_reporte_hoy()).date()
 
     fecha_fin_mes = datetime.strptime(
         fecha_hasta,
@@ -268,23 +272,10 @@ def registrar_cierre_mensual(anio, mes):
             "mensaje": "No se puede cerrar un mes que todavía no terminó."
         }
 
-    resumen = resumen_por_periodo(
-        fecha_desde,
-        fecha_hasta
-    )
-
-    resultado_negocio = resumen["resultado_negocio"]
-
-    if resultado_negocio > 0:
-        diezmo_correspondiente = (
-            resultado_negocio * PORCENTAJE_DIEZMO
-        )
-    else:
-        diezmo_correspondiente = 0
-
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN IMMEDIATE")
         cursor = conexion.cursor()
 
         cursor.execute("""
@@ -306,9 +297,15 @@ def registrar_cierre_mensual(anio, mes):
                 "mensaje": "Ese mes ya tiene un cierre registrado."
             }
 
-        fecha_cierre = datetime.now().strftime(
-            "%Y-%m-%d"
-        )
+        resumen = resumen_por_periodo(fecha_desde, fecha_hasta, conexion=conexion)
+        rechazo = validar_cierre_integrado(conexion, "mensual", resumen)
+        if rechazo:
+            return rechazo
+
+        resultado_negocio = resumen["resultado_negocio"]
+        diezmo_correspondiente = resumen.get("diezmo_estimado", max(resultado_negocio, 0) * PORCENTAJE_DIEZMO)
+
+        fecha_cierre = fecha_local() if "contabilidad_centavos" in resumen else datetime.now().date().isoformat()
 
         cursor.execute("""
             INSERT INTO cierres_mensuales (
@@ -345,6 +342,11 @@ def registrar_cierre_mensual(anio, mes):
 
         id_cierre = cursor.lastrowid
 
+        detalle = {}
+        if "contabilidad_centavos" in resumen:
+            detalle["contabilidad_centavos"] = resumen["contabilidad_centavos"]
+            guardar_detalle_cierre(conexion, "mensual", id_cierre, resumen["contabilidad_centavos"])
+
         conexion.commit()
 
         return {
@@ -364,7 +366,8 @@ def registrar_cierre_mensual(anio, mes):
             "retiros": resumen["retiros"],
             "saldo_caja": resumen["saldo_caja"],
             "diezmo_correspondiente": diezmo_correspondiente,
-            "fecha_cierre": fecha_cierre
+            "fecha_cierre": fecha_cierre,
+            **detalle
         }
 
     except sqlite3.Error as error:
@@ -427,7 +430,8 @@ def obtener_cierres_mensuales():
                 "retiros": cierre[10],
                 "saldo_caja": cierre[11],
                 "diezmo_correspondiente": cierre[12],
-                "fecha_cierre": cierre[13]
+                "fecha_cierre": cierre[13],
+                **detalle_cierre(conexion, "mensual", cierre[0])
             }
 
             cierres.append(cierre_python)
@@ -436,3 +440,13 @@ def obtener_cierres_mensuales():
 
     finally:
         conexion.close()
+
+
+def validar_cierre_integrado(conexion, tipo, resumen):
+    informe = resumen.get("contabilidad_centavos")
+    if informe is None:
+        return None
+    mensaje = validar_periodo_cierre(conexion, tipo, resumen["fecha_desde"], resumen["fecha_hasta"], informe)
+    if mensaje:
+        return {"ok": False, "codigo": "PERIODO_CONTABLE_NO_CERRABLE", "mensaje": mensaje}
+    return None

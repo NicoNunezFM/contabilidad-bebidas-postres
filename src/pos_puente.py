@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from caja import obtener_caja_seccion, obtener_estado_caja
 from pos_caja_diaria import caja_diaria_activa, conciliar_caja_diaria, estado_cajas
 from pos_cobros import SECCIONES, estado_cuenta
+from pos_contabilidad import calcular_periodo, corte_contable, etapa_contable_activa, fecha_local
 from pos_simulacion import consultar_cajas_simuladas, transaccion_simulacion
 
 
@@ -117,7 +118,10 @@ def leer_conciliacion(conexion):
     if caja_diaria_activa(conexion):
         diferencias.extend(conciliar_caja_diaria(conexion))
         caja_diaria["caja_diaria_centavos"] = estado_cajas(conexion)
+    corte = corte_contable(conexion)
+    integrada = {"contabilidad_centavos": calcular_periodo(conexion, corte[0], fecha_local())} if corte else {}
     return {
+        **integrada,
         "ok": True,
         "simulacion": True,
         "cuadrado": not diferencias,
@@ -152,6 +156,10 @@ def respuesta_puente_bot():
             "devengado_centavos", "cobrado_atribuido_centavos", "por_cobrar_centavos",
         )]
         lineas.append(f"{nombre} · venta {importes[0]} · cobrado atribuido {importes[1]} · fiado {importes[2]}")
+    if "contabilidad_centavos" in informe:
+        contabilidad = informe["contabilidad_centavos"]
+        lineas.append(f"Desde el corte · cobrado neto {formatear_centavos(contabilidad['cobrado_neto_centavos'])}"
+                      f" · diezmo estimado {formatear_centavos(contabilidad['diezmo_centavos'])}")
     lineas.append(f"Legado · ventas ${legado['ventas']:.2f} · caja disponible ${legado['saldo_disponible']:.2f}")
     return {"ok": True, "respuesta": "\n".join(lineas), "simulacion": True}
 
@@ -160,3 +168,21 @@ def formatear_centavos(centavos):
     pesos, resto = divmod(abs(centavos), 100)
     signo = "-" if centavos < 0 else ""
     return f"{signo}${pesos},{resto:02d}"
+
+
+
+def consultar_caja_operativa(seccion=None):
+    from database import lectura_contable
+
+    with lectura_contable() as db:
+        db.execute("BEGIN")
+        if seccion is None:
+            legado = obtener_estado_caja(conexion=db)
+        else:
+            legado = obtener_caja_seccion(seccion, conexion=db)
+        if etapa_contable_activa(db):
+            diaria = estado_cajas(db)
+            if seccion is not None:
+                diaria["cajas"] = {legado["seccion"]: diaria["cajas"][legado["seccion"]]}
+            legado["caja_diaria_centavos"] = diaria
+        return legado

@@ -3,7 +3,8 @@ import sqlite3
 import calendar
 
 from database import lectura_contable, obtener_conexion
-from reportes import resumen_por_periodo
+from pos_contabilidad import detalle_cierre, etapa_contable_activa
+from reportes import fecha_reporte_hoy, resumen_por_periodo
 
 
 PORCENTAJE_DIEZMO = 0.10
@@ -383,13 +384,15 @@ def estado_diezmo_mes(
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN")
 
         cursor = conexion.cursor()
 
         cursor.execute("""
             SELECT
                 diezmo_correspondiente,
-                resultado_negocio
+                resultado_negocio,
+                id_cierre
             FROM cierres_mensuales
             WHERE anio = ?
             AND mes = ?
@@ -399,6 +402,9 @@ def estado_diezmo_mes(
         ))
 
         cierre = cursor.fetchone()
+        detalle = {}
+        if cierre and etapa_contable_activa(conexion):
+            detalle = detalle_cierre(conexion, "mensual", cierre[2]).get("contabilidad_centavos", {})
 
     finally:
 
@@ -410,7 +416,7 @@ def estado_diezmo_mes(
 
     if cierre is None:
 
-        hoy = datetime.now().date()
+        hoy = datetime.fromisoformat(fecha_reporte_hoy()).date()
 
         mes_consultado = (
             anio,
@@ -485,7 +491,7 @@ def estado_diezmo_mes(
         )
 
         resultado_estimado = (
-            resumen["resultado_negocio"]
+            resumen.get("resultado_base_diezmo", resumen["resultado_negocio"])
         )
 
         if resultado_estimado > 0:
@@ -498,6 +504,8 @@ def estado_diezmo_mes(
         else:
 
             diezmo_estimado = 0
+
+        diezmo_estimado = resumen.get("diezmo_estimado", diezmo_estimado)
 
         diferencia_estimada = (
             diezmo_estimado - reservado
@@ -563,6 +571,7 @@ def estado_diezmo_mes(
         "anio": anio,
         "mes": mes,
         "resultado_negocio": resultado_negocio,
+        **({"resultado_base_diezmo": detalle["resultado_base_diezmo_centavos"] / 100} if detalle else {}),
         "diezmo_correspondiente": diezmo_correspondiente,
         "reservado": reservado,
         "pendiente_reservar": pendiente_reservar,

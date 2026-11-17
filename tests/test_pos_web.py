@@ -44,9 +44,15 @@ def navegador_pos(base_prueba, monkeypatch, tmp_path, request):
             "INSERT INTO productos (nombre, categoria, stock, precio_venta) VALUES (?, ?, ?, ?)",
             [("Comida ficticia", "Comidas", 10, 2500), ("Bebida ficticia", "Bebidas", 20, 1500)],
         )
-    if getattr(request, "param", None) == "caja_diaria":
+    etapa = getattr(request, "param", None)
+    if etapa in {"caja_diaria", "contabilidad"}:
         copia = tmp_path / "pos6-ficticio.db"
         copiar_ficticia(base_prueba, copia, caja_diaria=True)
+        if etapa == "contabilidad":
+            integrada = tmp_path / "pos7-ficticio.db"
+            copiar_ficticia(copia, integrada, contabilidad=True)
+            copia = integrada
+            monkeypatch.setenv("ABADION_PUENTE_FICTICIO", "1")
         monkeypatch.setenv("NEGOCIO_DB_PATH", str(copia))
 
     with socket.socket() as red:
@@ -407,3 +413,20 @@ def test_pos_web_fiado_pago_combinado_y_abono_con_respuesta_perdida(controles_po
     texto("#dialogBody", "Devolución registrada en la venta #2")
     clic("#dialogBody summary")
     texto("#dialogBody details", "Período 2")
+
+
+
+@pytest.mark.parametrize("navegador_pos", ["contabilidad"], indirect=True)
+def test_pos_web_contabilidad_ficticia_para_administracion(controles_pos):
+    evaluar, clic, texto, iniciar_sesion = controles_pos
+    texto("#apiStatus", "Catálogo ficticio de simulación")
+    iniciar_sesion("ventas")
+    assert evaluar("document.querySelector('#contabilidadPos').hidden")
+    clic("#adminAccess")
+    texto("#adminAccess", "Iniciar sesión")
+    iniciar_sesion("admin")
+    clic("#contabilidadPos")
+    texto("#consultaPos", "Ventas devengadas")
+    texto("#consultaPos", "Fiado pendiente")
+    texto("#consultaPos", "Diezmo estimado")
+    texto("#consultaPos", "Sin cobros en el período.")

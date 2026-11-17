@@ -1,5 +1,7 @@
 # Abadion POS · Etapa 6 · Caja diaria ficticia
 
+La [etapa 7](pos-integracion-definitiva.md) integra esta caja diaria con reportes, cierres y diezmo sobre una copia ficticia nueva.
+
 En Lo de Clau se cuenta el efectivo de Rotisería / Comidas y de Bebidas y Postres por separado. El POS será el canal principal para ventas y WhatsApp seguirá como complemento. La base de esta etapa es el PR #5 en `9e50636`, con el [puente de conciliación ficticio](pos-integracion-contable.md).
 
 ## Operación por caja
