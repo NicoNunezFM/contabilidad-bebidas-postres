@@ -1,6 +1,6 @@
 {
   "aviso": "Lista de Lo de Clau para entrenamiento. Las cantidades y el extra de práctica son ficticios.",
-  "combinar_sabores_promo": false,
+  "combinar_sabores_promo": true,
   "productos": [
     {
       "nombre": "Manaos Pomelo 600ml",
