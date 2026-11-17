@@ -1,5 +1,7 @@
 # Abadion POS · Etapa 5 de integración contable ficticia
 
+La [etapa 6](pos-caja-diaria.md) agrega caja diaria al puente en una copia ficticia nueva.
+
 ## Base revisada
 
 La rama de trabajo parte de `39e7d2f`, punta del PR #4. La cadena abierta y en borrador es #1 (`e8bb64d`), #2 (`a5efe43`), #3 (`98f7c09`) y #4 (`39e7d2f`). Se revisaron sus cambios y las guías [de auditoría](auditoria-integracion-pos.md) y [de cobros y fiados](pos-cobros-fiados.md). La prueba manual del POS 4 fue confirmada por el usuario.

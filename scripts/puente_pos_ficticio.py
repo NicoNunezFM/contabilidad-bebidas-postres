@@ -13,6 +13,7 @@ from fastapi import HTTPException
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pos_puente import leer_conciliacion
+from pos_caja_diaria import caja_diaria_activa, crear_caja_diaria
 from pos_simulacion import ID_SQLITE_SIMULACION, VERSION_ESQUEMA_SIMULACION
 
 
@@ -30,7 +31,7 @@ def abrir_ficticia(ruta):
         yield db
 
 
-def copiar_ficticia(origen, destino):
+def copiar_ficticia(origen, destino, *, caja_diaria=False):
     if destino.suffix.lower() != ".db" or destino.name.casefold() == "negocio.db":
         raise ValueError("Elegí un archivo .db nuevo de nombre distinto de negocio.db.")
     with abrir_ficticia(origen) as anterior:
@@ -41,10 +42,17 @@ def copiar_ficticia(origen, destino):
                 anterior.backup(copia)
                 with copia:
                     copia.execute("BEGIN IMMEDIATE")
-                    copia.execute("""
-                        CREATE TABLE pos_puente_ficticio (version INTEGER PRIMARY KEY CHECK (version = 1))
-                    """)
-                    copia.execute("INSERT INTO pos_puente_ficticio VALUES (1)")
+                    if caja_diaria_activa(copia):
+                        raise ValueError("La fuente ya tiene el registro diario de etapa 6.")
+                    if not (caja_diaria and copia.execute("""
+                        SELECT 1 FROM sqlite_schema WHERE name = 'pos_puente_ficticio' AND type = 'table'
+                    """).fetchone()):
+                        copia.execute("""
+                            CREATE TABLE pos_puente_ficticio (version INTEGER PRIMARY KEY CHECK (version = 1))
+                        """)
+                        copia.execute("INSERT INTO pos_puente_ficticio VALUES (1)")
+                    if caja_diaria:
+                        crear_caja_diaria(copia)
                     if not leer_conciliacion(copia)["cuadrado"]:
                         raise ValueError("La copia tiene diferencias contables. Revisá la simulación de origen.")
         except BaseException:
@@ -81,6 +89,7 @@ def main():
     copiar = comandos.add_parser("copiar", help="Crea y verifica una copia nueva de POS 4")
     copiar.add_argument("origen", type=Path)
     copiar.add_argument("destino", type=Path)
+    copiar.add_argument("--caja-diaria", action="store_true", help="Habilita la etapa 6 en la copia nueva")
     verificar = comandos.add_parser("conciliar", help="Emite el informe JSON en solo lectura")
     verificar.add_argument("ruta", type=Path)
     servir = comandos.add_parser("servir", help="Inicia la simulación en 127.0.0.1")
@@ -90,7 +99,7 @@ def main():
 
     try:
         if args.comando == "copiar":
-            copiar_ficticia(args.origen, args.destino)
+            copiar_ficticia(args.origen, args.destino, caja_diaria=args.caja_diaria)
             print(f"Copia ficticia conciliada en {args.destino}")
         elif args.comando == "conciliar":
             informe = verificar_ficticia(args.ruta)

@@ -14,6 +14,7 @@ from api import app
 from database import obtener_conexion
 from pos_auth import generar_hash
 from pos_simulacion import crear_esquema_simulacion
+from scripts.puente_pos_ficticio import copiar_ficticia
 
 
 def esperar(consulta):
@@ -26,7 +27,7 @@ def esperar(consulta):
 
 
 @pytest.fixture
-def navegador_pos(base_prueba, monkeypatch, tmp_path):
+def navegador_pos(base_prueba, monkeypatch, tmp_path, request):
     ejecutable = os.getenv("POS_TEST_BROWSER")
     if not ejecutable:
         pytest.skip("Configurá POS_TEST_BROWSER con la ruta de Edge o Chrome.")
@@ -43,6 +44,10 @@ def navegador_pos(base_prueba, monkeypatch, tmp_path):
             "INSERT INTO productos (nombre, categoria, stock, precio_venta) VALUES (?, ?, ?, ?)",
             [("Comida ficticia", "Comidas", 10, 2500), ("Bebida ficticia", "Bebidas", 20, 1500)],
         )
+    if getattr(request, "param", None) == "caja_diaria":
+        copia = tmp_path / "pos6-ficticio.db"
+        copiar_ficticia(base_prueba, copia, caja_diaria=True)
+        monkeypatch.setenv("NEGOCIO_DB_PATH", str(copia))
 
     with socket.socket() as red:
         red.bind(("127.0.0.1", 0))
@@ -126,6 +131,76 @@ def controles_pos(navegador_pos):
         esperar(lambda: evaluar("document.querySelector('#overlay').hidden"))
 
     return evaluar, clic, texto, iniciar_sesion
+
+
+@pytest.mark.parametrize("navegador_pos", ["caja_diaria"], indirect=True)
+def test_pos_web_apertura_arqueo_autorizacion_reintento_e_historial(controles_pos):
+    evaluar, clic, texto, iniciar_sesion = controles_pos
+    texto("#apiStatus", "Catálogo ficticio de simulación")
+    iniciar_sesion("ventas")
+    clic("#cajaDiariaPos")
+    comidas = '[data-caja-diaria="comidas"]'
+    bebidas = '[data-caja-diaria="bebidas_postres"]'
+
+    def boton(caja, nombre):
+        esperar(lambda: evaluar(f"""
+            (() => {{
+              const boton = Array.from(document.querySelectorAll({json.dumps(caja + " button")}))
+                .find(b => b.textContent === {json.dumps(nombre)});
+              if (!boton) return false;
+              boton.click();
+              return true;
+            }})()
+        """))
+
+    for caja, inicial in ((comidas, "300,25"), (bebidas, "0")):
+        boton(caja, "Abrir caja")
+        evaluar(f"document.querySelector('#importeCajaDiaria').value = {json.dumps(inicial)}")
+        clic("#accept")
+        texto(caja, "Abierta")
+    boton(comidas, "Guardar arqueo")
+    evaluar("document.querySelector('#importeCajaDiaria').value = '299,25'")
+    evaluar("document.querySelector('#camposOperacionPos textarea').value = 'Falta un peso'")
+    clic("#accept")
+    texto(comidas, "Administración debe autorizar")
+    assert not evaluar(f"Array.from(document.querySelectorAll({json.dumps(comidas + ' button')}))"
+                       ".some(b => b.textContent === 'Cerrar caja')")
+
+    clic("#accept")
+    clic("#adminAccess")
+    texto("#adminAccess", "Iniciar sesión")
+    iniciar_sesion("admin")
+    clic("#cajaDiariaPos")
+    boton(comidas, "Cerrar caja")
+    evaluar("""
+        const fetchDiarioOriginal = window.fetch;
+        window.fetch = async (...args) => {
+          const respuesta = await fetchDiarioOriginal(...args);
+          if (args[0] === '/pos-api/simulacion/caja-diaria/comidas/cierre') {
+            window.fetch = fetchDiarioOriginal;
+            throw new TypeError('Respuesta perdida en la prueba');
+          }
+          return respuesta;
+        };
+    """)
+    clic("#accept")
+    texto("#errorOperacionPos", "Confirmación pendiente")
+    evaluar("setTimeout(() => location.reload(), 0)")
+    texto("#adminAccess", "Cerrar sesión (admin)")
+    clic("#cajaDiariaPos")
+    boton(comidas, "Reintentar · Cerrar caja")
+    clic("#accept")
+    texto(comidas, "Cerrada")
+    texto(comidas, "Falta un peso")
+    texto(bebidas, "Abierta")
+    boton(comidas, "Ver historial")
+    texto("#consultaPos", "Cerró admin")
+    clic("#consultaPos div button")
+    texto("#consultaPos", "Falta un peso")
+    texto("#consultaPos", "ventas")
+
+    with closing(obtener_conexion()) as db:
+        assert db.execute("SELECT COUNT(*) FROM pos_diario_caja WHERE tipo = 'cierre'").fetchone() == (1,)
 
 
 def test_pos_web_precio_reintento_historial_y_anulacion(controles_pos):

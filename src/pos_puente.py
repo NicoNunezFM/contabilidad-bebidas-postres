@@ -5,6 +5,7 @@ import os
 from fastapi import HTTPException
 
 from caja import obtener_caja_seccion, obtener_estado_caja
+from pos_caja_diaria import caja_diaria_activa, conciliar_caja_diaria, estado_cajas
 from pos_cobros import SECCIONES, estado_cuenta
 from pos_simulacion import consultar_cajas_simuladas, transaccion_simulacion
 
@@ -112,12 +113,17 @@ def leer_conciliacion(conexion):
     exigir_copia_puente(conexion)
     pos = consultar_cajas_simuladas(conexion)
     diferencias = conciliar_pos(conexion, pos)
+    caja_diaria = {}
+    if caja_diaria_activa(conexion):
+        diferencias.extend(conciliar_caja_diaria(conexion))
+        caja_diaria["caja_diaria_centavos"] = estado_cajas(conexion)
     return {
         "ok": True,
         "simulacion": True,
         "cuadrado": not diferencias,
         "diferencias": diferencias,
         "pos_centavos": pos,
+        **caja_diaria,
         "legado_pesos": {
             "caja_general": obtener_estado_caja(conexion=conexion),
             "secciones": {s: obtener_caja_seccion(s, conexion=conexion) for s in SECCIONES},
