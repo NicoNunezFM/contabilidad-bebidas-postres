@@ -171,7 +171,9 @@ def test_actualizar_catalogo_conserva_una_instalacion_anterior(tmp_path):
                          json={"precio_nuevo": 3000}).status_code == 403
 
     sabores = {"items": [item("Chocotorta chica"), item("Oreo chico")]}
-    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 600000
+    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 500000
+    assert cliente.post(validar, json={"items": [item("Chocotorta chica", 2)]}).json()["total_centavos"] == 500000
+    assert cliente.post(validar, json={"items": [item("Chocotorta chica", 2), item("Oreo chico")]}).json()["total_centavos"] == 800000
     items = [item("Oreo chico", 3), item("Clásica doble")]
     cotizacion = cliente.post(validar, json={"items": items}).json()
     assert cotizacion["descuento_centavos"] == 100000
@@ -199,18 +201,19 @@ def test_actualizar_catalogo_conserva_una_instalacion_anterior(tmp_path):
     assert devolucion.json()["reembolsado_centavos"] == 250000
 
     configuracion = json.loads(nuevo)
-    configuracion["combinar_sabores_promo"] = True
+    configuracion["combinar_sabores_promo"] = False
     pizza = next(p for p in configuracion["productos"] if p["nombre"] == "Mozzarella")
     pizza["precio_centavos"] = 0
     json_local.write_text(json.dumps(configuracion), encoding="utf-8")
     with pytest.raises(ValueError, match="precio_centavos"):
         actualizar_catalogo(tmp_path)
-    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 600000
+    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 500000
 
     pizza["precio_centavos"] = 123400  # Importe ficticio para probar la activación por JSON.
     json_local.write_text(json.dumps(configuracion), encoding="utf-8")
     actualizar_catalogo(tmp_path)
-    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 500000
+    assert cliente.post(validar, json=sabores).json()["total_centavos"] == 600000
+    assert cliente.post(validar, json={"items": [item("Chocotorta chica", 2)]}).json()["total_centavos"] == 500000
     assert cliente.post(validar, json={"items": [item("Mozzarella")]}).json()["total_centavos"] == 123400
 
 
