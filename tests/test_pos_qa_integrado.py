@@ -192,3 +192,26 @@ def test_conciliacion_entrenamiento_detecta_desvio_sin_repararlo(tmp_path):
     assert diferencia["cuadrado"] is False
     assert {d["codigo"] for d in diferencia["diferencias"]} == {"MOVIMIENTO_FISICO_SIN_CONCILIAR"}
     assert admin.get(conciliacion).json() == diferencia
+
+
+def test_migracion_rechaza_escritura_bloqueada_sin_generar_respaldo(tmp_path, monkeypatch):
+    from scripts import abadion_entrenamiento
+
+    destino = preparar_base(tmp_path)
+    # Fuerza la ruta de migración de una instalación anterior.
+    with closing(sqlite3.connect(destino)) as db, db:
+        db.execute("DELETE FROM pos_inicio_contable")
+    anterior = destino.read_bytes()
+
+    def abrir_sin_espera(ruta, **opciones):
+        conexion = abrir_base_entrenamiento(ruta, **opciones)
+        conexion.execute("PRAGMA busy_timeout = 0")
+        return conexion
+
+    monkeypatch.setattr(abadion_entrenamiento, "abrir_base_entrenamiento", abrir_sin_espera)
+    with closing(sqlite3.connect(destino)) as ocupado:
+        ocupado.execute("BEGIN IMMEDIATE")
+        with pytest.raises(sqlite3.OperationalError, match="locked"):
+            activar_contabilidad(tmp_path)
+    assert not list(tmp_path.glob("*.pre-etapa7-*.db"))
+    assert destino.read_bytes() == anterior

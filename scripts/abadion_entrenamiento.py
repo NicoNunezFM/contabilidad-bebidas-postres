@@ -231,7 +231,10 @@ def activar_contabilidad(carpeta):
     """Incorpora etapa 7 a una base de práctica existente sin borrar transacciones."""
     with bloquear_entrenamiento(carpeta):
         ruta = carpeta / ARCHIVO_BASE
-        with closing(abrir_base_entrenamiento(ruta)) as db:
+        with closing(abrir_base_entrenamiento(ruta)) as db, db:
+            db.execute("PRAGMA foreign_keys = ON")
+            # Reserva la escritura antes del respaldo para preservar el mismo estado previo al corte.
+            db.execute("BEGIN IMMEDIATE")
             if not caja_diaria_activa(db):
                 raise ValueError("La base de entrenamiento no tiene caja diaria habilitada.")
             if corte_contable(db) is not None:
@@ -240,12 +243,16 @@ def activar_contabilidad(carpeta):
             respaldo = carpeta / nombre
             with respaldo.open("xb"):
                 pass
-            with closing(sqlite3.connect(respaldo)) as copia:
-                db.backup(copia)
-            with db:
-                db.execute("PRAGMA foreign_keys = ON")
-                db.execute("BEGIN IMMEDIATE")
-                crear_integracion_contable(db)
+            try:
+                # SQLite necesita una conexión lectora separada para copiar durante la transacción.
+                with closing(sqlite3.connect(ruta.as_uri() + "?mode=ro", uri=True)) as origen, closing(
+                    sqlite3.connect(respaldo)
+                ) as copia:
+                    origen.backup(copia)
+            except BaseException:
+                respaldo.unlink(missing_ok=True)
+                raise
+            crear_integracion_contable(db)
             return respaldo
 
 
