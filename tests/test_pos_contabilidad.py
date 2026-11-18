@@ -102,7 +102,10 @@ def test_libro_unificado_combinado_stock_y_bot(integrada, monkeypatch):
     assert resultado["gastos_sin_receptor_centavos"] == 425
     assert resultado["resultado_base_diezmo_centavos"] == 17075
     assert resultado["diezmo_centavos"] == 1708
-    assert resultado["secciones"][COMIDAS]["cobrado_atribuido_centavos"] < 10000
+    assert {caja: valores["cobrado_atribuido_centavos"]
+            for caja, valores in resultado["secciones"].items()} == {
+        COMIDAS: 3224, BEBIDAS: 14776,
+    }
     assert estado(ventas, COMIDAS)["esperado_centavos"] == 9800
     assert estado(ventas, BEBIDAS)["esperado_centavos"] == 2000
     assert legado.get("/caja").json()["caja_diaria_centavos"]["cajas"][COMIDAS]["esperado_centavos"] == 9800
@@ -147,6 +150,12 @@ def test_cierres_congelados_y_cobros_en_el_periodo_del_pago(integrada):
         respuestas = list(grupo.map(lambda _: cerrar(), range(2)))
     assert sorted(r.status_code for r in respuestas) == [201, 409]
     semanal = next(r.json() for r in respuestas if r.status_code == 201)
+    solapado = {"fecha_desde": (date.fromisoformat(pasado) - timedelta(days=1)).isoformat(),
+                 "fecha_hasta": pasado}
+    assert legado.post(SEMANAL, json=solapado).status_code == 409
+    en_curso = {"fecha_desde": pasado, "fecha_hasta": hoy.isoformat()}
+    assert legado.post(SEMANAL, json=en_curso).status_code == 409
+    assert legado.post("/cierres/mensuales", json={"anio": hoy.year, "mes": hoy.month}).status_code == 409
     detalle = semanal["contabilidad_centavos"]
     assert detalle["devengado_centavos"] == 28051
     assert detalle["cobrado_neto_centavos"] == 0

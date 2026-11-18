@@ -1,0 +1,14 @@
+# Actualizar Abadion Entrenamiento en Windows
+
+Usá esta guía después de revisar el PR y aprobar los trabajos de SQLite/API y Edge. Ensayá primero con una copia descartable. La aplicación de práctica escucha en `127.0.0.1:8060`. Conservá el proceso de WhatsApp y los archivos del sistema real fuera de estos pasos.
+
+1. Detené únicamente el servidor del POS de Entrenamiento con Ctrl+C. Cerrá sus pestañas. En PowerShell, anotá el commit anterior con `git rev-parse HEAD` en la carpeta del código de práctica y verificá con `git status --short` que esté limpia.
+2. Con el servidor detenido, copiá la carpeta `%LOCALAPPDATA%\Abadion\Entrenamiento` completa a un directorio local de respaldo con fecha. Confirmá que la copia contiene `abadion-entrenamiento.db` y `catalogo-entrenamiento.json`. Si SQLite aún tiene archivos auxiliares, detené la actualización y revisá que la base esté cerrada correctamente.
+3. Desde el código de práctica, descargá `integration/abadion-entrenamiento-qa-menu`, revisá que el commit coincida con el aprobado en el PR y seleccioná ese commit con `git switch --detach <SHA-aprobado>`. Instalá los requisitos con el Python del entorno virtual de práctica.
+4. Ejecutá `python scripts/abadion_entrenamiento.py activar-contabilidad` con ese mismo Python. Si el corte ya existe, conserva la práctica. Si falta, reserva la escritura antes del respaldo SQLite y crea un corte prospectivo. El historial y los saldos anteriores se conservan.
+5. Para aplicar precios y catálogo nuevos, revisá el JSON local frente a `scripts/catalogo-entrenamiento.json`, incorporá los cambios aprobados al JSON local conservando sus ajustes y ejecutá `python scripts/abadion_entrenamiento.py actualizar-catalogo`. Si querés conservar el catálogo actual, omití este paso. La actualización conserva IDs, existencias e historial, así como los agotados ya registrados. Evitá `reiniciar`, que borra las prácticas.
+6. Iniciá con `python scripts/abadion_entrenamiento.py servir`. Abrí el POS en Edge y verificá el aviso de práctica, las tres familias, los agotados y la edición por línea. En la copia descartable, registrá una comida con cheddar y una bebida, dejá saldo fiado, cobralo por transferencia y devolvé la comida desde Administración. Revisá resumen de cocina, historial, existencias por producto, caja, reembolso y conciliación. Probá también dos postres chicos de sabores distintos por $5.000.
+
+Si falla la actualización, detené el servidor, conservá la carpeta actual con otro nombre, restaurá la copia completa y volvé al commit anterior. Si hubo operaciones de práctica posteriores al respaldo, preservá la carpeta desplazada para poder consultarlas.
+
+Los agregados se registran por preparación. El descuento de inventario sigue la configuración de cada producto. El inventario por ingrediente requiere recetas y unidades de consumo. Queda pendiente validar comodidad en la tablet física y confirmar los ingredientes de cheddar y huevo, pollo y Big Mac.

@@ -68,6 +68,16 @@ button:disabled{opacity:.55;cursor:default}
 .dialog .row p {margin-top: 4px; overflow-wrap: anywhere}
 
 </style>
+<style>
+.menu-selector {display:grid; gap:.6rem; margin:.75rem 0}
+.menu-selector label {display:grid; gap:.3rem; font-weight:600}
+.menu-selector select, .menu-selector textarea, .menu-selector input[type=number] {
+  box-sizing:border-box; min-height:44px; width:100%; font:inherit; padding:.45rem;
+  border:1px solid #aaa; border-radius:.5rem; color:#202020; background:#fff;
+}
+.menu-selector textarea {min-height:5rem; resize:vertical}
+.menu-selector .extra-preparacion {grid-template-columns:1fr 5rem; align-items:center}
+</style>
 </head>
 <body>
 
@@ -122,6 +132,7 @@ button:disabled{opacity:.55;cursor:default}
 <aside class="order" aria-label="Pedido">
 <div class="row-head"><div class="order-heading"><h2>Pedido actual</h2><span id="count" class="product-count"></span></div><button id="clearCart" type="button">Limpiar</button></div>
 <div id="lines" class="lines"></div>
+<button id="resumenCocina" type="button" class="wide" hidden>Ver pedido para cocina</button>
 <div class="split"><span>Caja rotisería</span><strong id="foodTotal"></strong></div>
 <div class="split"><span>Caja bebidas y postres</span><strong id="otherTotal"></strong></div>
 <div class="total order-total"><span id="totalLabel">Total del pedido</span><strong id="total"></strong></div>
@@ -259,6 +270,133 @@ function mostrarCategoriasReales() {
 }
   
 
+function productoDisponible(producto) {
+  return producto.estado_entrenamiento !== 'sin_stock' &&
+    (!producto.estado_entrenamiento || !producto.controla_stock || producto.stock > 0) &&
+    Number.isFinite(producto.precio_venta) && producto.precio_venta > 0;
+}
+
+function elegirVarianteReal(producto, indicePedido) {
+  if (!producto.familia_menu) {
+    personalizarProductoReal(producto, indicePedido);
+    return;
+  }
+  const variantes = productosReales.filter(actual => actual.familia_menu === producto.familia_menu);
+  const atributos = Object.keys(producto.variante_menu);
+  const elegidos = {...producto.variante_menu};
+  el('dialogBody').onchange = null;
+  show(producto.familia_menu, '<div id="selectoresMenu" class="menu-selector"></div>' +
+    '<p id="estadoVariante" role="status"></p>', 'Continuar');
+  const campos = el('selectoresMenu');
+  const continuar = el('accept');
+  const selectores = atributos.map(atributo => {
+    const etiqueta = document.createElement('label');
+    const selector = document.createElement('select');
+    etiqueta.append(atributo, selector);
+    campos.append(etiqueta);
+    selector.onchange = () => {
+      elegidos[atributo] = selector.value;
+      actualizar();
+    };
+    return selector;
+  });
+
+  function actualizar() {
+    let candidatas = variantes;
+    atributos.forEach((atributo, indice) => {
+      const selector = selectores[indice];
+      const valores = [...new Set(candidatas.map(variante => variante.variante_menu[atributo]))];
+      const opciones = valores.map(valor => {
+        const disponible = candidatas.some(variante => variante.variante_menu[atributo] === valor &&
+          productoDisponible(variante));
+        const opcion = new Option(disponible ? valor : valor + ' · No disponible', valor);
+        opcion.disabled = !disponible;
+        return opcion;
+      });
+      if (!valores.includes(elegidos[atributo])) elegidos[atributo] = opciones.find(opcion => !opcion.disabled)?.value || valores[0];
+      selector.replaceChildren(...opciones);
+      selector.value = elegidos[atributo];
+      candidatas = candidatas.filter(variante => variante.variante_menu[atributo] === selector.value);
+    });
+    const elegida = candidatas[0];
+    continuar.disabled = !productoDisponible(elegida);
+    const precio = Number.isFinite(elegida.precio_venta) ? money(elegida.precio_venta) : 'Precio pendiente';
+    el('estadoVariante').textContent = continuar.disabled ? precio + ' · No disponible' : precio;
+    continuar.onclick = () => personalizarProductoReal(elegida, indicePedido);
+  }
+  actualizar();
+  selectores[0].focus();
+}
+
+function mostrarOpcionesMenu(contenedor, menu, anterior) {
+  const panel = document.createElement('div');
+  panel.className = 'menu-selector';
+  const cantidades = [];
+  const guardados = anterior?.adicionales_preparacion || [];
+  const permiteDobles = menu.papas_dobles_centavos !== null;
+  let porcion;
+  if (permiteDobles) {
+    const etiqueta = document.createElement('label');
+    porcion = document.createElement('select');
+    porcion.append(new Option('Normales · incluidas', 'normal'),
+      new Option('Dobles · +' + money(menu.papas_dobles_centavos / 100), 'doble'));
+    porcion.value = anterior?.papas_dobles ? 'doble' : 'normal';
+    etiqueta.append('Porción de papas fritas', porcion);
+    panel.append(etiqueta);
+  }
+  for (const [destino, preparacion] of Object.entries(menu.destinos)) {
+    const titulo = document.createElement('h3');
+    titulo.textContent = 'Adicionales en ' + preparacion.toLowerCase();
+    panel.append(titulo);
+    for (const extra of menu.adicionales) {
+      const etiqueta = document.createElement('label');
+      etiqueta.className = 'extra-preparacion';
+      const campo = document.createElement('input');
+      campo.type = 'number';
+      campo.min = '0';
+      campo.max = '30';
+      campo.inputMode = 'numeric';
+      campo.dataset.tipo = extra.tipo;
+      campo.dataset.destino = destino;
+      campo.value = guardados.find(guardado => guardado.tipo === extra.tipo &&
+        guardado.destino === destino)?.cantidad || 0;
+      const nombre = extra.nombre + ' (' + preparacion + ')';
+      campo.setAttribute('aria-label', nombre);
+      etiqueta.append(nombre + ' · +' + money(extra.precio_centavos / 100), campo);
+      panel.append(etiqueta);
+      cantidades.push({campo, extra, destino});
+    }
+  }
+  const etiqueta = document.createElement('label');
+  const nota = document.createElement('textarea');
+  nota.id = 'observacionMenu';
+  nota.maxLength = 300;
+  nota.value = anterior?.observacion || '';
+  etiqueta.append('Observación para cocina (opcional)', nota);
+  panel.append(etiqueta);
+  contenedor.append(panel);
+
+  const dobles = () => porcion?.value === 'doble';
+  const cantidad = campo => campo.validity.valid ? Number(campo.value) : 0;
+  return {
+    perdioOpciones: (anterior?.papas_dobles && !permiteDobles) ||
+      guardados.some(extra => !(extra.destino in menu.destinos)),
+    valido: () => cantidades.every(({campo}) => campo.reportValidity()),
+    recargo: () => cantidades.reduce((suma, {campo, extra}) =>
+      suma + cantidad(campo) * extra.precio_centavos, dobles() ? menu.papas_dobles_centavos : 0),
+    datos: () => ({
+      guarnicion: permiteDobles ? (dobles() ? 'Papas fritas dobles' : 'Papas fritas normales') : menu.guarnicion,
+      papas_dobles: dobles(),
+      observacion: nota.value.trim(),
+      adicionales_preparacion: cantidades.filter(({campo}) => cantidad(campo) > 0)
+        .map(({campo, destino, extra}) => ({
+          tipo: extra.tipo, destino, cantidad: cantidad(campo), nombre: extra.nombre,
+          preparacion: menu.destinos[destino]
+        }))
+    })
+  };
+}
+
 function personalizarProductoReal(producto, indicePedido) {
   // Si nos pasan un índice, editamos una línea existente.
   // Sin índice, agregamos una línea nueva al pedido de prueba.
@@ -267,7 +405,8 @@ function personalizarProductoReal(producto, indicePedido) {
 
   if (editandoReal && (
     !itemExistente ||
-    Number(itemExistente.id_producto) !== Number(producto.id_producto)
+    (Number(itemExistente.id_producto) !== Number(producto.id_producto) &&
+      (!producto.familia_menu || itemExistente.familia_menu !== producto.familia_menu))
   )) {
     alert('No se encontró el producto para editarlo.');
     return;
@@ -276,8 +415,8 @@ function personalizarProductoReal(producto, indicePedido) {
   var precioBase = producto.precio_venta;
   var numeroSolicitud = ++solicitudPersonalizacionReal;
 
-  if (!Number.isFinite(precioBase) || precioBase <= 0) {
-    alert('Este producto no tiene un precio válido.');
+  if (!productoDisponible(producto)) {
+    alert('Este producto no está disponible.');
     return;
   }
 
@@ -323,6 +462,13 @@ function personalizarProductoReal(producto, indicePedido) {
 
       el('estadoPersonalizacion').textContent =
         'Precio base: ' + money(precioBase);
+
+      const menu = datos.menu;
+      if (menu) {
+        datos.ingredientes = Array.from(new Map(
+          [...datos.ingredientes, ...menu.ingredientes].map(nombre => [nombre.toLowerCase(), nombre])
+        ).values());
+      }
 
       if (editandoReal) {
         var aclaracion = document.createElement('p');
@@ -411,6 +557,8 @@ function personalizarProductoReal(producto, indicePedido) {
         contenedor.appendChild(etiqueta);
       });
 
+      const opcionesMenu = menu ? mostrarOpcionesMenu(contenedor, menu, itemExistente) : null;
+
       if (itemExistente) {
         var ingredientesDisponibles = new Set(datos.ingredientes);
         var extrasDisponibles = new Set(
@@ -426,7 +574,7 @@ function personalizarProductoReal(producto, indicePedido) {
             return !ingredientesDisponibles.has(nombre);
           }) || itemExistente.adicionales.some(function (extra) {
             return !extrasDisponibles.has(Number(extra.id_adicional_catalogo));
-          });
+          }) || (opcionesMenu && opcionesMenu.perdioOpciones);
 
         if (opcionesNoDisponibles) {
           var advertencia = document.createElement('p');
@@ -448,7 +596,7 @@ function personalizarProductoReal(producto, indicePedido) {
       }
 
       function calcularTotal() {
-        var total = precioBase;
+        var total = precioBase + (opcionesMenu ? opcionesMenu.recargo() / 100 : 0);
 
         seleccionados('extraReal').forEach(function (casilla) {
           var extra = extrasPorId.get(Number(casilla.value));
@@ -465,11 +613,13 @@ function personalizarProductoReal(producto, indicePedido) {
       }
 
       el('dialogBody').onchange = calcularTotal;
+      if (opcionesMenu) contenedor.oninput = calcularTotal;
       calcularTotal();
 
       el('accept').disabled = false;
 
       el('accept').onclick = function () {
+        if (opcionesMenu && !opcionesMenu.valido()) return;
         var quitados = seleccionados('quitarReal').map(
           function (casilla) {
             return casilla.value;
@@ -485,6 +635,7 @@ function personalizarProductoReal(producto, indicePedido) {
         var itemActualizado = {
           id_producto: producto.id_producto,
           nombre: producto.nombre,
+          familia_menu: producto.familia_menu,
           // Mantener la cantidad existente si estamos editando.
           cantidad: editandoReal ? itemExistente.cantidad : 1,
           categoria: producto.categoria,
@@ -497,7 +648,8 @@ function personalizarProductoReal(producto, indicePedido) {
               precio_venta: extra.precio_venta
             };
           }),
-          total: calcularTotal()
+          total: calcularTotal(),
+          ...(opcionesMenu ? opcionesMenu.datos() : {})
         };
 
         if (editandoReal) {
@@ -523,6 +675,24 @@ function personalizarProductoReal(producto, indicePedido) {
 }
 
 
+function tarjetasCatalogo(productos) {
+  const tarjetas = [];
+  const familias = new Map();
+  for (const producto of productos) {
+    if (!producto.familia_menu) {
+      tarjetas.push({producto});
+    } else if (!familias.has(producto.familia_menu)) {
+      const tarjeta = {producto, familia: producto.familia_menu};
+      familias.set(tarjeta.familia, tarjeta);
+      tarjetas.push(tarjeta);
+    } else {
+      const tarjeta = familias.get(producto.familia_menu);
+      if (!productoDisponible(tarjeta.producto) && productoDisponible(producto)) tarjeta.producto = producto;
+    }
+  }
+  return tarjetas;
+}
+
 function mostrarCatalogoReal() {
   var filtro = searchable(
     (el('search').value || '').trim()
@@ -530,7 +700,8 @@ function mostrarCatalogoReal() {
 
   var visibles = productosReales.filter(function (producto) {
     var texto = String(producto.nombre || '') + ' ' +
-                String(producto.categoria || '');
+                String(producto.categoria || '') + ' ' + (producto.familia_menu || '') + ' ' +
+                Object.values(producto.variante_menu || {}).join(' ');
 
     
     return (
@@ -552,19 +723,19 @@ function mostrarCatalogoReal() {
       : categoriaReal;
 
 
-  el('productCount').textContent =
-    visibles.length + ' de ' +
-    productosReales.length + ' productos';
+  const tarjetas = tarjetasCatalogo(visibles);
+  el('productCount').textContent = tarjetas.length + ' de ' + tarjetasCatalogo(productosReales).length + ' productos';
 
-  visibles.forEach(function (producto) {
+  tarjetas.forEach(function ({producto, familia}) {
     var tarjeta = document.createElement('article');
     tarjeta.className = 'card';
+    if (familia) tarjeta.dataset.familia = familia;
 
     var contenido = document.createElement('div');
     contenido.className = 'card-body';
 
     var nombre = document.createElement('h3');
-    nombre.textContent = producto.nombre;
+    nombre.textContent = familia || producto.nombre;
 
     var categoria = document.createElement('p');
     categoria.className = 'ingredients';
@@ -581,7 +752,8 @@ function mostrarCatalogoReal() {
     var aviso = document.createElement('p');
     aviso.className = 'muted';
     
-    if (producto.estado_entrenamiento === 'sin_stock') {
+    if (producto.estado_entrenamiento === 'sin_stock' ||
+        (producto.estado_entrenamiento && producto.controla_stock && producto.stock <= 0)) {
       aviso.textContent = 'SIN STOCK';
     } else if (producto.promo_postres_chicos) {
       aviso.textContent = 'Promo de a dos · $1.000 de descuento por par';
@@ -591,23 +763,24 @@ function mostrarCatalogoReal() {
 
     var botonAgregar = document.createElement('button');
     botonAgregar.type = 'button';
-    botonAgregar.textContent = '+ Agregar';
-
-    botonAgregar.disabled = producto.estado_entrenamiento === 'sin_stock' || !(
-      typeof producto.precio_venta === 'number' &&
-      Number.isFinite(producto.precio_venta) &&
-      producto.precio_venta > 0
-    );
+    botonAgregar.textContent = familia ? 'Elegir variante' : '+ Agregar';
+    if (familia) {
+      const disponibles = productosReales.filter(actual => actual.familia_menu === familia && productoDisponible(actual));
+      precio.textContent = disponibles.length ? 'Desde ' + money(Math.min(...disponibles.map(actual => actual.precio_venta))) : '';
+      aviso.textContent = disponibles.length ? '' : 'SIN STOCK';
+    } else {
+      botonAgregar.disabled = !productoDisponible(producto);
+    }
 
     botonAgregar.onclick = function () {
-      personalizarProductoReal(producto);
+      elegirVarianteReal(producto);
     };
 
 
     contenido.appendChild(nombre);
-    contenido.appendChild(categoria);
+    if (!familia) contenido.appendChild(categoria);
     contenido.appendChild(precio);
-    contenido.appendChild(aviso);
+    if (aviso.textContent) contenido.appendChild(aviso);
     contenido.appendChild(botonAgregar);
     tarjeta.appendChild(contenido);
     contenedor.appendChild(tarjeta);
@@ -709,6 +882,36 @@ el('catalogMode').onclick = function () {
 };
 
 
+function indicacionesCocina(item) {
+  const cambios = item.guarnicion ? [item.guarnicion] : [];
+  cambios.push(...item.ingredientes_quitados.map(nombre => 'Sin ' + nombre.toLowerCase()));
+  cambios.push(...item.adicionales.map(extra => '+ ' + extra.nombre));
+  for (const extra of item.adicionales_preparacion || []) {
+    cambios.push('+ ' + extra.cantidad + ' × ' + extra.nombre + ' en ' + extra.preparacion.toLowerCase());
+  }
+  if (item.observacion) cambios.push('Nota: ' + item.observacion);
+  return cambios;
+}
+
+el('resumenCocina').onclick = function () {
+  show('Pedido para cocina', '<ul id="lineasCocina"></ul>', 'Cerrar');
+  for (const item of pedidoReal) {
+    const linea = document.createElement('li');
+    const nombre = document.createElement('strong');
+    nombre.textContent = (item.cantidad || 1) + ' × ' + item.nombre;
+    linea.append(nombre);
+    const cambios = indicacionesCocina(item);
+    if (cambios.length) {
+      const detalle = document.createElement('p');
+      detalle.textContent = cambios.join(' · ');
+      linea.append(detalle);
+    }
+    el('lineasCocina').append(linea);
+  }
+  el('cancel').hidden = true;
+  el('accept').onclick = close;
+};
+
 function mostrarPedidoReal() {
   revisionPedidoReal++;
   validacionPos = null;
@@ -718,6 +921,7 @@ function mostrarPedidoReal() {
     : simulacionActiva && !sesionPos ? 'Iniciá sesión en el POS para validar y registrar ventas simuladas.' : '';
   var contenedor = el('lines');
   contenedor.innerHTML = '';
+  el('resumenCocina').hidden = !pedidoReal.length || !productosReales.some(producto => producto.estado_entrenamiento);
 
   var totalRotiseria = 0;
   var totalPostresBebidas = 0;
@@ -755,15 +959,7 @@ function mostrarPedidoReal() {
     encabezado.appendChild(precio);
     fila.appendChild(encabezado);
 
-    var cambios = item.ingredientes_quitados.map(
-      function (ingrediente) {
-        return 'Sin ' + ingrediente.toLowerCase();
-      }
-    );
-
-    item.adicionales.forEach(function (extra) {
-      cambios.push('+ ' + extra.nombre);
-    });
+    var cambios = indicacionesCocina(item);
 
     if (cambios.length) {
       var detalle = document.createElement('p');
@@ -776,7 +972,7 @@ function mostrarPedidoReal() {
     botonEditar.type = 'button';
     botonEditar.textContent = 'Editar';
     botonEditar.setAttribute('aria-label',
-      'Editar ingredientes y extras de ' + item.nombre);
+      'Editar ' + item.nombre);
     botonEditar.onclick = function () {
       var producto = productosReales.find(function (actual) {
         return Number(actual.id_producto) === Number(item.id_producto);
@@ -786,7 +982,7 @@ function mostrarPedidoReal() {
         alert('El producto ya no figura en el catálogo cargado.');
         return;
       }
-      personalizarProductoReal(producto, indice);
+      elegirVarianteReal(producto, indice);
     };
 
     var quitar = document.createElement('button');
@@ -876,11 +1072,11 @@ function mostrarPedidoReal() {
     return {food:food,other:other,total:food+other};
   }
   function order() {
-
   if (modoReal) {
     mostrarPedidoReal();
     return;
   }
+  el('resumenCocina').hidden = true;
 
   revisionPedidoReal++;
   validacionPos = null;
@@ -2050,8 +2246,7 @@ if (modoReal) {
     var items = nodoPos('ul');
     venta.items.forEach(function (item) {
       var linea = nodoPos('li', item.cantidad + ' × ' + item.producto + ' · ' + importePos(item.subtotal_centavos));
-      var cambios = item.ingredientes_quitados.map(nombre => 'Sin ' + nombre)
-        .concat(item.adicionales.map(extra => '+ ' + extra.nombre));
+      var cambios = indicacionesCocina(item);
       if (cambios.length) linea.append(nodoPos('p', cambios.join(' · '), 'muted'));
       items.append(linea);
     });
@@ -2503,7 +2698,11 @@ if (modoReal) {
       id_producto: item.id_producto,
       cantidad: item.cantidad,
       ingredientes_quitados: item.ingredientes_quitados,
-      ids_adicionales: item.adicionales.map(extra => extra.id_adicional_catalogo)
+      ids_adicionales: item.adicionales.map(extra => extra.id_adicional_catalogo),
+      ...(item.papas_dobles ? {papas_dobles: true} : {}),
+      ...(item.observacion ? {observacion: item.observacion} : {}),
+      ...(item.adicionales_preparacion?.length ? {adicionales_preparacion: item.adicionales_preparacion
+        .map(({tipo, destino, cantidad}) => ({tipo, destino, cantidad}))} : {})
     }));
     validacionPos = null;
     validandoRevision = revision;
@@ -2700,7 +2899,7 @@ if (modoReal) {
     if (overlay.hidden) return;
     if (event.key === 'Escape' || event.keyCode === 27) { close(); return; }
     if (event.key !== 'Tab' && event.keyCode !== 9) return;
-    var controls = Array.from(overlay.querySelectorAll('input,textarea,button,summary'))
+    var controls = Array.from(overlay.querySelectorAll('input,textarea,select,button,summary'))
       .filter(control => !control.disabled && control.getClientRects().length);
     if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls[controls.length-1].focus(); }
     if (!event.shiftKey && document.activeElement === controls[controls.length-1]) { event.preventDefault(); controls[0].focus(); }
