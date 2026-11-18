@@ -23,13 +23,17 @@ def corte_contable(db):
 
 
 def etapa_contable_activa(db):
-    if os.getenv("POS_V1_SIMULACION") != "1" or os.getenv("ABADION_PUENTE_FICTICIO") != "1":
-        return False
-    from database import obtener_ruta_base
+    from database import RUTA_ENTRENAMIENTO, obtener_ruta_base
     from pos_simulacion import ID_SQLITE_SIMULACION, VERSION_ESQUEMA_SIMULACION
 
+    entrenamiento = RUTA_ENTRENAMIENTO.get() is not None
+    if not entrenamiento and (
+        os.getenv("POS_V1_SIMULACION") != "1" or os.getenv("ABADION_PUENTE_FICTICIO") != "1"
+    ):
+        return False
+
     return (
-        bool(os.getenv("NEGOCIO_DB_PATH"))
+        (entrenamiento or bool(os.getenv("NEGOCIO_DB_PATH")))
         and obtener_ruta_base().resolve().name.casefold() != "negocio.db"
         and db.execute("PRAGMA application_id").fetchone()[0] == ID_SQLITE_SIMULACION
         and db.execute("PRAGMA user_version").fetchone()[0] == VERSION_ESQUEMA_SIMULACION

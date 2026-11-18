@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from caja import CATEGORIAS_CAJA_BEBIDAS_POSTRES
-from database import obtener_conexion, obtener_ruta_base
+from database import RUTA_ENTRENAMIENTO, obtener_conexion, obtener_ruta_base
 from pos_caja_diaria import caja_diaria_activa
 from pos_cobros import (
     Medio, PagoPos, caja_receptora, crear_libro, estado_cuenta, iniciar_evento,
@@ -143,9 +143,11 @@ def migrar_esquema_simulacion_v3(conexion):
 @contextmanager
 def transaccion_simulacion(*, escritura=False):
     ruta = obtener_ruta_base()
+    habilitada = RUTA_ENTRENAMIENTO.get() is not None or (
+        os.getenv("POS_V1_SIMULACION") == "1" and os.getenv("NEGOCIO_DB_PATH")
+    )
     if (
-        os.getenv("POS_V1_SIMULACION") != "1"
-        or not os.getenv("NEGOCIO_DB_PATH")
+        not habilitada
         or ruta.resolve().name.casefold() == "negocio.db"
         or not ruta.is_file()
     ):

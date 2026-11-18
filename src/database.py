@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from contextlib import closing, nullcontext
+from contextvars import ContextVar
 from pathlib import Path
 
 
@@ -9,7 +10,12 @@ RUTA_BASE_PREDETERMINADA = (
 )
 
 
+RUTA_ENTRENAMIENTO = ContextVar("ruta_entrenamiento", default=None)
+
+
 def obtener_ruta_base():
+    if ruta := RUTA_ENTRENAMIENTO.get():
+        return ruta
 
     ruta_personalizada = os.getenv("NEGOCIO_DB_PATH")
 
@@ -21,9 +27,15 @@ def obtener_ruta_base():
 
 def obtener_conexion():
 
-    conexion = sqlite3.connect(
-        obtener_ruta_base()
-    )
+    ruta = obtener_ruta_base()
+    if RUTA_ENTRENAMIENTO.get() is not None:
+        from pos_entrenamiento_db import abrir_base_entrenamiento
+
+        conexion = abrir_base_entrenamiento(ruta)
+    else:
+        if ruta.name.casefold() == "abadion-entrenamiento.db":
+            raise ValueError("Usá el launcher de Abadion Entrenamiento para esta base.")
+        conexion = sqlite3.connect(ruta)
 
     conexion.execute("PRAGMA foreign_keys = ON")
 
