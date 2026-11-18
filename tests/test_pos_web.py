@@ -161,7 +161,7 @@ def test_pos_web_aviso_de_entrenamiento_visible_al_ingresar(controles_pos):
             const agotada = tarjeta('Big Mac doble');
             const pizza = tarjeta('Mozzarella');
             return agotada.textContent.includes('SIN STOCK') && agotada.querySelector('button').disabled
-                && pizza.textContent.includes('$10.000') && !pizza.querySelector('button').disabled
+                && pizza.textContent.replace(/\s/g, '').includes('$10.000') && !pizza.querySelector('button').disabled
                 && !tarjeta('Clásica doble').querySelector('button').disabled;
         })()
     """)
