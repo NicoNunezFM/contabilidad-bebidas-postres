@@ -617,17 +617,19 @@ def test_pos_web_entrenamiento_promocion_fiado_devolucion_y_cierre(controles_pos
     texto("#estadoPedido", "1.000,00")
     clic("#payments button:nth-child(5)")
     clic("#checkout")
+    clic("#dialogBody details summary")
+    evaluar("document.querySelector('#nombreClientePos').value = 'Cliente entrenamiento Edge'")
+    clic("#altaRapidaClientePos")
+    texto("#clienteElegidoPos", "Cliente entrenamiento Edge")
+    boton_por_texto("#dialogBody button", "Agregar pago")
     evaluar("""
-        const datos = document.querySelector('#errorVentaPos').previousElementSibling;
-        datos.querySelector('input').value = 'Cliente entrenamiento Edge';
-        datos.querySelector('button').click();
         const pago = document.querySelector('.filaPagoPos');
         pago.querySelectorAll('select')[1].value = 'bebidas_postres_efectivo';
         const importe = pago.querySelector('[data-importe-pago]');
         importe.value = '2000';
         importe.dispatchEvent(new Event('input', {bubbles: true}));
     """)
-    texto('#dialogBody p[aria-live="polite"]', "3.000,00")
+    texto('#clienteElegidoPos ~ p[aria-live="polite"]', "3.000,00")
     clic("#accept")
     texto("#notice", "3.000,00")
     clic("#historialSimulado")
@@ -635,15 +637,25 @@ def test_pos_web_entrenamiento_promocion_fiado_devolucion_y_cierre(controles_pos
     texto("#dialogBody details", "Cliente entrenamiento Edge")
     assert evaluar("""![...document.querySelectorAll('#dialogBody details button')]
         .some(b => b.textContent === 'Devolver productos')""")
-    boton_por_texto("#dialogBody details button", "Registrar abono")
+    clic("#accept")
+    clic("#clientesPos")
+    evaluar("document.querySelector('#buscarClientePos').value = 'Cliente entrenamiento Edge'")
+    boton_por_texto("#consultaPos button", "Buscar")
+    boton_por_texto("#consultaPos button", "Cliente entrenamiento Edge · #1")
+    texto("#consultaPos", "3.000,00")
+    clic("#abonarClientePos")
     evaluar("""
-        const [medio, receptor] = document.querySelector('.filaPagoPos').querySelectorAll('select');
+        const campos = document.querySelector('#camposOperacionPos');
+        const [medio, receptor] = campos.querySelectorAll('select');
         medio.value = 'transferencia';
         medio.dispatchEvent(new Event('change'));
         receptor.value = 'comidas_banco';
+        campos.querySelector('input').value = '3000';
     """)
+    clic("#preverAbonoClientePos")
+    texto("#distribucionAbonoClientePos", "Venta #1")
     clic("#accept")
-    texto("#dialogBody", "Abono registrado")
+    texto("#consultaPos", "Abono registrado.")
     clic("#accept")
 
     clic("#adminAccess")

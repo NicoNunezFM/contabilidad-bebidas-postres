@@ -3,6 +3,7 @@
 from contextlib import closing
 from datetime import date
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, Response
 
@@ -16,7 +17,7 @@ from pos_auth import (
 )
 
 from database import RUTA_ENTRENAMIENTO, obtener_conexion
-from pos_entrenamiento_db import consultar_catalogo_entrenamiento
+from pos_entrenamiento_db import clientes_activos, consultar_catalogo_entrenamiento
 from pos_menu_entrenamiento import personalizacion_menu, variante_menu
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
 from productos import obtener_productos
@@ -24,8 +25,12 @@ from pos_caja_diaria import (
     Caja, caja_diaria_activa, estado_cajas, exigir_caja_diaria,
     historial_caja, historial_eventos, registrar_operacion,
 )
+from pos_clientes import (
+    AltaCliente, PagoCliente, abonar_cliente, alta_cliente, buscar_clientes, corregir_abono,
+    ficha_cliente, prever_abono,
+)
 from pos_cobros import (
-    AbonoEntrada, Centavos, CierreEntrada, DevolucionEntrada, ReversionEntrada,
+    AbonoEntrada, PagoPos, Centavos, CierreEntrada, DevolucionEntrada, ReversionEntrada,
     SolicitudContable, TransferenciaEntrada,
 )
 from pos_contabilidad import calcular_periodo, corte_contable, etapa_contable_activa, fecha_local
@@ -209,6 +214,8 @@ def estado_simulacion_pos():
             estado["caja_diaria"] = True
         if etapa_contable_activa(db):
             estado["contabilidad"] = True
+        if RUTA_ENTRENAMIENTO.get() is not None and clientes_activos(db):
+            estado["clientes"] = True
         return estado
 
 
@@ -324,6 +331,50 @@ def mover_caja_diaria(
 
 
 router.include_router(diario)
+
+
+clientes = APIRouter(prefix="/simulacion/clientes", dependencies=[Depends(exigir_simulacion_activa),
+                                                                 Depends(evitar_cache_pos)])
+
+
+@clientes.get("")
+def listar_clientes(q: str = Query(default="", max_length=300), usuario=Depends(exigir_usuario_pos)):
+    return {"clientes": buscar_clientes(q)}
+
+
+@clientes.post("", dependencies=[Depends(comprobar_origen)])
+def crear_cliente(datos: AltaCliente, usuario=Depends(exigir_usuario_pos),
+                  x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return alta_cliente(datos, usuario)
+
+
+@clientes.get("/{id_cliente}")
+def ver_cliente(id_cliente: int = Path(gt=0, le=2**53 - 1), usuario=Depends(exigir_usuario_pos)):
+    return ficha_cliente(id_cliente)
+
+
+@clientes.post("/{id_cliente}/abonos/vista-previa", dependencies=[Depends(comprobar_origen)])
+def vista_previa_abono(datos: PagoPos, id_cliente: int = Path(gt=0, le=2**53 - 1),
+                      usuario=Depends(exigir_usuario_pos)):
+    return prever_abono(id_cliente, datos)
+
+
+@clientes.post("/{id_cliente}/abonos", dependencies=[Depends(comprobar_origen)])
+def registrar_abono_cliente(datos: PagoCliente, id_cliente: int = Path(gt=0, le=2**53 - 1),
+                            usuario=Depends(exigir_usuario_pos), x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return abonar_cliente(id_cliente, datos, usuario)
+
+
+@clientes.post("/{id_cliente}/abonos/{uuid_abono}/correccion", dependencies=[Depends(comprobar_origen)])
+def corregir_abono_cliente(uuid_abono: UUID, datos: ReversionEntrada, id_cliente: int = Path(gt=0, le=2**53 - 1),
+                           usuario=Depends(exigir_administrador_pos), x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return corregir_abono(id_cliente, str(uuid_abono), datos, usuario)
+
+
+router.include_router(clientes)
 
 
 @router.post("/simulacion/ventas", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])

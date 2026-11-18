@@ -109,6 +109,7 @@ button:disabled{opacity:.55;cursor:default}
   Ver catálogo de SQLite
 </button>
 <div class="operations">
+  <button id="clientesPos" type="button" hidden>Clientes</button>
   <button id="historialSimulado" type="button" hidden>Historial simulado</button>
   <button id="cajasSimuladas" type="button" hidden>Cajas simuladas</button>
   <button id="contabilidadPos" type="button" hidden>Contabilidad</button>
@@ -171,6 +172,7 @@ button:disabled{opacity:.55;cursor:default}
   var pedidoReal = [];
   var revisionPedidoReal = 0;
   var simulacionActiva = false;
+  var clientesActivos = false;
   var cajaDiariaActiva = false;
   var contabilidadActiva = false;
   var sesionPos = null;
@@ -1186,6 +1188,7 @@ function mostrarPedidoReal() {
       ? 'Cerrar sesión (' + sesionPos.usuario + ')' : 'Iniciar sesión POS';
     el('adminPrices').hidden = !sesionAdmin;
     el('adminExtras').hidden = !sesionAdmin;
+    el('clientesPos').hidden = !clientesActivos || !sesionPos;
     el('historialSimulado').hidden = !simulacionActiva || !sesionPos;
     el('cajasSimuladas').hidden = !simulacionActiva || !sesionAdmin;
     el('contabilidadPos').hidden = !contabilidadActiva || !sesionAdmin;
@@ -2255,6 +2258,7 @@ if (modoReal) {
       detalle.append(nodoPos('p', nombresCajas[caja] + ' · ' + importePos(importe)));
     });
 
+    if (venta.fiado_historico && el('entrenamientoAviso')) detalle.append(nodoPos('p', 'Fiado histórico sin vincular'));
     if (venta.deudor) detalle.append(nodoPos('p', 'Cliente o deudor: ' + venta.deudor));
     if (venta.importe_vigente_centavos !== venta.importe_original_centavos) {
       detalle.append(nodoPos('p', 'Importe vigente ' + importePos(venta.importe_vigente_centavos)));
@@ -2777,6 +2781,240 @@ if (modoReal) {
     }
   }
 
+  const rutaClientesPos = '/simulacion/clientes';
+
+  function etiquetaClientePos(cliente) {
+    return cliente.nombre + ' · #' + cliente.id_cliente +
+      (cliente.referencia ? ' · ' + cliente.referencia : '') +
+      (cliente.telefono ? ' · ' + cliente.telefono : '');
+  }
+
+  function campoClientePos(campos, etiqueta, maximo, id) {
+    const label = nodoPos('label', etiqueta + ' ');
+    const input = nodoPos('input');
+    input.maxLength = maximo;
+    if (id) input.id = id;
+    label.append(input);
+    campos.append(label);
+    return input;
+  }
+
+  function camposAltaClientePos(campos) {
+    const nombre = campoClientePos(campos, 'Nombre o apodo', 120, 'nombreClientePos');
+    const telefono = campoClientePos(campos, 'Teléfono', 60);
+    const referencia = campoClientePos(campos, 'Referencia', 300);
+    return () => {
+      if (!nombre.value.trim()) throw new Error('Ingresá un nombre o apodo.');
+      return {nombre: nombre.value.trim(), telefono: telefono.value.trim() || null,
+        referencia: referencia.value.trim() || null};
+    };
+  }
+
+  function buscarClientePos(campos, usuario, elegir) {
+    const termino = campoClientePos(campos, 'Nombre, ID, teléfono o referencia', 300, 'buscarClientePos');
+    const buscar = nodoPos('button', 'Buscar');
+    buscar.type = 'button';
+    const lista = nodoPos('div');
+    lista.setAttribute('aria-live', 'polite');
+    campos.append(buscar, lista);
+    buscar.onclick = async () => {
+      buscar.disabled = true;
+      lista.textContent = 'Buscando…';
+      try {
+        const datos = await consultarPos(rutaClientesPos + '?q=' + encodeURIComponent(termino.value));
+        if (sesionPos !== usuario) return;
+        lista.replaceChildren();
+        for (const cliente of datos.clientes) {
+          const boton = nodoPos('button', etiquetaClientePos(cliente));
+          boton.type = 'button';
+          boton.onclick = () => elegir(cliente);
+          lista.append(boton);
+        }
+        if (!datos.clientes.length) lista.textContent = 'Sin coincidencias.';
+      } catch (error) {
+        lista.textContent = error.message;
+      } finally {
+        buscar.disabled = false;
+      }
+    };
+    return buscar;
+  }
+
+  function elegirClienteFiadoPos(campos, usuario) {
+    let cliente;
+    const elegido = nodoPos('p', 'Seleccioná o registrá un cliente para confirmar la deuda.');
+    elegido.id = 'clienteElegidoPos';
+    elegido.setAttribute('aria-live', 'polite');
+    campos.append(elegido);
+    function elegir(datos) {
+      cliente = datos;
+      elegido.textContent = etiquetaClientePos(datos);
+    }
+    buscarClientePos(campos, usuario, elegir);
+    const alta = nodoPos('details');
+    alta.append(nodoPos('summary', 'Alta rápida'));
+    const leer = camposAltaClientePos(alta);
+    const registrar = nodoPos('button', 'Guardar y seleccionar');
+    registrar.type = 'button';
+    registrar.id = 'altaRapidaClientePos';
+    const errorEl = nodoPos('p');
+    errorEl.setAttribute('role', 'alert');
+    let pendiente;
+    registrar.onclick = async () => {
+      if (sesionPos !== usuario) return;
+      errorEl.textContent = '';
+      registrar.disabled = true;
+      try {
+        pendiente ||= {...leer(), id_solicitud: crypto.randomUUID()};
+        elegir(await enviarPos(rutaClientesPos, pendiente, usuario));
+        pendiente = null;
+        alta.open = false;
+      } catch (error) {
+        if ([409, 422].includes(error.status) && error.codigo !== 'SESION_CAMBIADA') pendiente = null;
+        errorEl.textContent = error.message;
+      } finally {
+        registrar.disabled = false;
+      }
+    };
+    alta.append(registrar, errorEl);
+    campos.append(alta);
+    return () => {
+      if (!cliente) throw new Error('Seleccioná un cliente registrado.');
+      return cliente.id_cliente;
+    };
+  }
+
+  function mostrarClientesPos() {
+    const usuario = sesionPos;
+    if (!usuario) return;
+    const panel = abrirConsultaPos('Clientes y cuentas corrientes');
+    buscarClientePos(panel, usuario, cliente => mostrarFichaClientePos(cliente.id_cliente));
+    const alta = nodoPos('button', 'Nuevo cliente');
+    alta.onclick = () => abrirOperacionPos('Nuevo cliente', rutaClientesPos, usuario,
+      camposAltaClientePos, cliente => mostrarFichaClientePos(cliente.id_cliente));
+    panel.append(alta);
+  }
+
+  function abrirPagoClientePos(ficha, usuario) {
+    const ruta = rutaClientesPos + '/' + ficha.id_cliente + '/abonos';
+    abrirOperacionPos('Abono de ' + etiquetaClientePos(ficha), ruta, usuario, campos => {
+      const medios = selectorPos('Medio', mediosSimulados);
+      const receptores = selectorPos('Receptor real', receptoresPos(medios.select.value));
+      medios.select.onchange = () => {
+        const opciones = selectorPos('Receptor real', receptoresPos(medios.select.value));
+        receptores.select.replaceChildren(...opciones.select.options);
+      };
+      const monto = importeEntradaPos('Importe en pesos');
+      const referencia = campoClientePos(campos, 'Referencia de pago', 120);
+      campos.prepend(medios.label, receptores.label, monto.label);
+      const prever = nodoPos('button', 'Ver distribución FIFO');
+      prever.type = 'button';
+      prever.id = 'preverAbonoClientePos';
+      const resumen = nodoPos('div');
+      resumen.id = 'distribucionAbonoClientePos';
+      resumen.setAttribute('aria-live', 'polite');
+      campos.append(prever, resumen);
+      const leerPago = () => ({medio_pago: medios.select.value, receptor: receptores.select.value,
+        importe_centavos: leerCentavosPos(monto.input.value), referencia: referencia.value.trim() || null});
+      let vista;
+      let pagoPrevio;
+      prever.onclick = async () => {
+        vista = null;
+        prever.disabled = true;
+        resumen.textContent = 'Calculando…';
+        try {
+          pagoPrevio = leerPago();
+          vista = await enviarPos(ruta + '/vista-previa', pagoPrevio, usuario);
+          resumen.replaceChildren();
+          for (const parte of vista.imputaciones) {
+            resumen.append(nodoPos('p', 'Venta #' + parte.id_venta + ' · ' + importePos(parte.importe_centavos)
+              + ' · ' + Object.entries(parte.por_seccion_centavos)
+                .map(([seccion, importe]) => nombresCajas[seccion] + ' ' + importePos(importe)).join(' · ')));
+          }
+        } catch (error) {
+          resumen.textContent = error.message;
+        } finally {
+          prever.disabled = false;
+        }
+      };
+      return () => {
+        const pago = leerPago();
+        if (!vista || JSON.stringify(pago) !== JSON.stringify(pagoPrevio)) {
+          throw new Error('Consultá la distribución antes de confirmar el abono.');
+        }
+        return {pago, vista_previa: vista.vista_previa};
+      };
+    }, () => mostrarFichaClientePos(ficha.id_cliente, 'Abono registrado.'));
+  }
+
+  async function mostrarFichaClientePos(id, mensaje) {
+    const usuario = sesionPos;
+    const panel = abrirConsultaPos('Cuenta corriente');
+    panel.textContent = 'Cargando…';
+    const ruta = rutaClientesPos + '/' + id;
+    try {
+      const ficha = await consultarPos(ruta);
+      if (!panel.isConnected || sesionPos !== usuario) return;
+      panel.replaceChildren(nodoPos('h3', etiquetaClientePos(ficha)));
+      if (mensaje) panel.append(nodoPos('p', mensaje));
+      const volver = nodoPos('button', 'Volver a Clientes');
+      volver.onclick = mostrarClientesPos;
+      panel.append(volver, nodoPos('p', 'Saldo total ' + importePos(ficha.saldo_centavos)));
+      for (const [seccion, saldo] of Object.entries(ficha.saldo_por_seccion_centavos)) {
+        panel.append(nodoPos('p', nombresCajas[seccion] + ' · ' + importePos(saldo)));
+      }
+      if (ficha.saldo_centavos > 0 || hayOperacionPos(ruta + '/abonos', usuario)) {
+        const abonar = nodoPos('button', 'Registrar abono FIFO');
+        abonar.id = 'abonarClientePos';
+        abonar.onclick = () => abrirPagoClientePos(ficha, usuario);
+        panel.append(abonar);
+      }
+      panel.append(nodoPos('h3', 'Ventas y eventos'));
+      for (const venta of ficha.ventas) {
+        const detalle = nodoPos('details');
+        detalle.append(nodoPos('summary', 'Venta #' + venta.id_venta + ' · ' + fechaPos(venta.fecha)
+          + ' · Saldo ' + importePos(venta.saldo_pendiente_centavos)));
+        for (const item of venta.items) detalle.append(nodoPos('p', item.cantidad + ' × ' + item.producto));
+        for (const evento of venta.historial) {
+          detalle.append(nodoPos('p', fechaPos(evento.fecha) + ' · ' + evento.tipo
+            + (evento.motivo ? ' · ' + evento.motivo : '')));
+          for (const mov of evento.movimientos) {
+            detalle.append(nodoPos('p', nombreReceptorPos(mov.receptor) + ' · ' + importePos(mov.importe_centavos)));
+          }
+        }
+        panel.append(detalle);
+      }
+      panel.append(nodoPos('h3', 'Abonos globales y correcciones'));
+      const corregidos = new Set(ficha.operaciones.filter(op => op.tipo === 'correccion').map(op => op.uuid_abono));
+      for (const op of ficha.operaciones) {
+        const detalle = nodoPos('details');
+        detalle.append(nodoPos('summary', fechaPos(op.fecha) + ' · '
+          + (op.tipo === 'abono' ? 'Abono ' + importePos(op.pago.importe_centavos) : 'Corrección · ' + op.motivo)));
+        if (op.tipo === 'abono') {
+          detalle.append(nodoPos('p', nombreReceptorPos(op.pago.receptor)));
+          for (const parte of op.imputaciones) {
+            detalle.append(nodoPos('p', 'Venta #' + parte.id_venta + ' · ' + importePos(parte.importe_centavos)));
+          }
+          if (sesionAdmin && !corregidos.has(op.uuid)) {
+            const corregir = nodoPos('button', 'Corregir abono');
+            corregir.onclick = () => abrirOperacionPos('Corregir abono', ruta + '/abonos/' + op.uuid + '/correccion',
+              usuario, campos => {
+                const motivo = motivoOperacionPos(campos);
+                return () => ({motivo: motivo()});
+              }, () => mostrarFichaClientePos(id, 'Corrección registrada.'));
+            detalle.append(corregir);
+          }
+        }
+        panel.append(detalle);
+      }
+    } catch (error) {
+      panel.textContent = error.message;
+    }
+  }
+
+  el('clientesPos').onclick = mostrarClientesPos;
+
+
   function prepararVentaSimulada() {
     if (!simulacionActiva || !sesionPos || enviandoVenta) return;
     if (ventaPendiente) {
@@ -2798,9 +3036,17 @@ if (modoReal) {
     errorVenta.before(campos);
     var leerPagos;
     var deudor;
+    var leerCliente;
     var receptor;
     if (medio === 'combinado' || medio === 'fiado') {
-      if (medio === 'fiado') {
+      if (medio === 'fiado' && el('entrenamientoAviso')) {
+        if (!clientesActivos) {
+          errorVenta.textContent = 'Activá Clientes para registrar nuevas ventas fiadas.';
+          el('accept').disabled = true;
+          return;
+        }
+        leerCliente = elegirClienteFiadoPos(campos, usuario);
+      } else if (medio === 'fiado') {
         var label = nodoPos('label', 'Cliente o identificador ');
         deudor = nodoPos('input');
         deudor.maxLength = 120;
@@ -2837,8 +3083,9 @@ if (modoReal) {
           if (cobrado > validacion.total || (fiado ? cobrado === validacion.total : cobrado !== validacion.total)) {
             throw new Error(fiado ? 'El fiado debe dejar un saldo pendiente.' : 'Los pagos deben cubrir el total.');
           }
-          if (fiado && !deudor.value.trim()) throw new Error('Ingresá el cliente o identificador.');
+          if (fiado && !leerCliente && !deudor.value.trim()) throw new Error('Ingresá el cliente o identificador.');
           modalidad = {pagos, fiado, deudor: deudor?.value.trim() || null};
+          if (fiado && leerCliente) modalidad.id_cliente = leerCliente();
         } else if (receptor.select.value) {
           modalidad = {pagos: [{medio_pago: medio, receptor: receptor.select.value, importe_centavos: validacion.total}]};
         }
@@ -2912,10 +3159,12 @@ if (modoReal) {
       try {
         var estadoSimulacion = await consultarPos('/simulacion/estado');
         simulacionActiva = estadoSimulacion.simulacion === true;
+        clientesActivos = estadoSimulacion.clientes === true;
         cajaDiariaActiva = estadoSimulacion.caja_diaria === true;
         contabilidadActiva = estadoSimulacion.contabilidad === true;
       } catch (error) {
         simulacionActiva = false;
+        clientesActivos = false;
         cajaDiariaActiva = false;
         contabilidadActiva = false;
       }
