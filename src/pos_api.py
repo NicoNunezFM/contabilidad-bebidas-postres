@@ -17,6 +17,7 @@ from pos_auth import (
 
 from database import RUTA_ENTRENAMIENTO, obtener_conexion
 from pos_entrenamiento_db import consultar_catalogo_entrenamiento
+from pos_menu_entrenamiento import personalizacion_menu, variante_menu
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
 from productos import obtener_productos
 from pos_caja_diaria import (
@@ -572,10 +573,12 @@ def consultar_productos_pos(request: Request):
         with closing(obtener_conexion()) as db:
             opciones = consultar_catalogo_entrenamiento(db)
         productos = [
-            dict(producto, estado_entrenamiento=estado, promo_postres_chicos=grupo is not None)
+            dict(producto, estado_entrenamiento=estado, promo_postres_chicos=grupo is not None,
+                 **({"familia_menu": familia, "variante_menu": variante} if familia else {}))
             for producto in productos
             for estado, grupo in [opciones.get(producto["id_producto"], ("disponible", None))]
             if estado != "fuera_menu"
+            for familia, variante in [variante_menu(producto["nombre"], producto["categoria"])]
         ]
     return {"ok": True, "productos": productos}
 
@@ -622,7 +625,7 @@ def consultar_personalizaciones_pos(id_producto: int):
         # Comprobar que el producto existe.
         producto = conexion.execute(
             """
-            SELECT nombre
+            SELECT nombre, categoria
             FROM productos
             WHERE id_producto = ?
             """,
@@ -636,13 +639,15 @@ def consultar_personalizaciones_pos(id_producto: int):
             )
 
         ingredientes, adicionales = consultar_opciones_producto(conexion, id_producto)
+        menu = {"menu": personalizacion_menu(*producto)} if RUTA_ENTRENAMIENTO.get() is not None else {}
 
         return {
             "ok": True,
             "id_producto": id_producto,
             "producto": producto[0],
             "ingredientes": ingredientes,
-            "adicionales": adicionales
+            "adicionales": adicionales,
+            **menu,
         }
 
     finally:

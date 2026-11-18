@@ -173,9 +173,15 @@ def test_arqueo_vigente_autorizacion_reintento_y_auditoria(diaria, monkeypatch):
     assert [evento["tipo"] for evento in eventos] == ["cierre", "arqueo", "retiro", "aporte", "arqueo", "apertura"]
 
 
-def test_cierre_concurrente_con_cobro(diaria):
+@pytest.mark.parametrize("operacion", ["venta", "abono"])
+def test_cierre_concurrente_con_cobro(diaria, operacion):
     ventas, _, venta, _, _ = diaria
     jornada = abrir(ventas, COMIDAS)
+    ruta_cobro = VENTAS
+    if operacion == "abono":
+        alta = post(ventas, VENTAS, {**venta, "pagos": []})
+        ruta_cobro = f"{VENTAS}/{alta['id_venta']}/abonos"
+        venta = solicitud(pagos=[pago("comidas_efectivo", 10000, "efectivo")])
     arqueo = arquear(ventas, COMIDAS, 1000)
     cierre = solicitud(id_jornada=jornada, id_arqueo=arqueo["id_evento"])
     barrera = Barrier(2, timeout=5)
@@ -186,7 +192,7 @@ def test_cierre_concurrente_con_cobro(diaria):
         return cliente.post(ruta, headers=ORIGEN, json=datos).status_code
 
     with ThreadPoolExecutor(max_workers=2) as ejecutor:
-        cobro = ejecutor.submit(enviar, VENTAS, venta)
+        cobro = ejecutor.submit(enviar, ruta_cobro, venta)
         cerrar = ejecutor.submit(enviar, f"{RUTA}/{COMIDAS}/cierre", cierre)
         cobro_estado, cierre_estado = cobro.result(timeout=10), cerrar.result(timeout=10)
     assert sorted([cobro_estado, cierre_estado]) == [200, 409]

@@ -100,6 +100,7 @@ def cargar_catalogo(db, catalogo):
             grupo_promo TEXT
         )
     """)
+    estados_anteriores = dict(db.execute("SELECT id_producto, estado FROM pos_catalogo_entrenamiento"))
     db.execute("""
         INSERT INTO pos_catalogo_entrenamiento (id_producto, estado)
         SELECT id_producto, 'fuera_menu' FROM productos WHERE 1
@@ -138,7 +139,7 @@ def cargar_catalogo(db, catalogo):
         grupo = None
         if producto.promo_postres_chicos:
             grupo = "todos" if catalogo.combinar_sabores_promo else str(id_producto)
-        estado = "sin_stock" if producto.sin_stock else "disponible"
+        estado = "sin_stock" if producto.sin_stock or estados_anteriores.get(id_producto) == "sin_stock" else "disponible"
         db.execute("""
             INSERT INTO pos_catalogo_entrenamiento VALUES (?, ?, ?)
             ON CONFLICT(id_producto) DO UPDATE SET estado = excluded.estado, grupo_promo = excluded.grupo_promo
@@ -231,7 +232,10 @@ def activar_contabilidad(carpeta):
     """Incorpora etapa 7 a una base de práctica existente sin borrar transacciones."""
     with bloquear_entrenamiento(carpeta):
         ruta = carpeta / ARCHIVO_BASE
-        with closing(abrir_base_entrenamiento(ruta)) as db:
+        with closing(abrir_base_entrenamiento(ruta)) as db, db:
+            db.execute("PRAGMA foreign_keys = ON")
+            # Reserva la escritura antes del respaldo para preservar el mismo estado previo al corte.
+            db.execute("BEGIN IMMEDIATE")
             if not caja_diaria_activa(db):
                 raise ValueError("La base de entrenamiento no tiene caja diaria habilitada.")
             if corte_contable(db) is not None:
@@ -240,12 +244,16 @@ def activar_contabilidad(carpeta):
             respaldo = carpeta / nombre
             with respaldo.open("xb"):
                 pass
-            with closing(sqlite3.connect(respaldo)) as copia:
-                db.backup(copia)
-            with db:
-                db.execute("PRAGMA foreign_keys = ON")
-                db.execute("BEGIN IMMEDIATE")
-                crear_integracion_contable(db)
+            try:
+                # SQLite necesita una conexión lectora separada para copiar durante la transacción.
+                with closing(sqlite3.connect(ruta.as_uri() + "?mode=ro", uri=True)) as origen, closing(
+                    sqlite3.connect(respaldo)
+                ) as copia:
+                    origen.backup(copia)
+            except BaseException:
+                respaldo.unlink(missing_ok=True)
+                raise
+            crear_integracion_contable(db)
             return respaldo
 
 

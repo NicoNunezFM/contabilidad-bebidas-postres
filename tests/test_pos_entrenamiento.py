@@ -22,6 +22,157 @@ from scripts.abadion_entrenamiento import (
 ORIGEN = "http://127.0.0.1:8060"
 
 
+@pytest.fixture
+def menu_entrenamiento(tmp_path):
+    ruta = preparar_base(tmp_path)
+    with TestClient(crear_app_entrenamiento(tmp_path), base_url=ORIGEN, headers={"Origin": ORIGEN}) as cliente:
+        usuario, _, clave = USUARIOS[1]
+        assert cliente.post("/pos-api/login", json={"usuario": usuario, "contrasena": clave}).status_code == 200
+        productos = cliente.get("/pos-api/catalogo/productos").json()["productos"]
+        yield ruta, cliente, {producto["nombre"]: producto for producto in productos}
+
+
+def test_menu_entrenamiento_variantes_precios_y_disponibilidad(menu_entrenamiento):
+    _, cliente, productos = menu_entrenamiento
+    validar = "/pos-api/pedidos/validar"
+    familias = {
+        "Hamburguesas": {
+            "Clásica simple": 7000, "Clásica doble": 9000, "Cheddar y huevo simple": 8000,
+            "Cheddar y huevo doble": 10000, "Pollo con papas simple": 5500,
+        },
+        "Sándwiches": {
+            "Chico de pollo + papas": 7000, "Chico de carne + papas": 8000,
+            "Grande de pollo individual": 7500, "Grande de carne individual": 8500,
+            "Grande de pollo + papas": 9000, "Grande de carne + papas": 10000,
+        },
+        "Milanesas al plato": {
+            "Milanesa de pollo con fritas": 9000, "Milanesa de carne con fritas": 10000,
+            "Milanesa de pollo con puré": 8500, "Milanesa de carne con puré": 9500,
+            "Napo de pollo con fritas": 10500, "Napo de carne con fritas": 11500,
+            "Napo de pollo con puré": 10000, "Napo de carne con puré": 11000,
+        },
+    }
+    assert len(productos) == 40
+    for familia, variantes in familias.items():
+        for nombre, precio in variantes.items():
+            producto = productos[nombre]
+            assert producto["familia_menu"] == familia
+            assert producto["precio_venta"] == precio
+            respuesta = cliente.post(validar, json={"items": [{"id_producto": producto["id_producto"], "cantidad": 1}]})
+            if nombre.startswith(("Cheddar", "Pollo con papas")):
+                assert producto["estado_entrenamiento"] == "sin_stock" and respuesta.status_code == 409
+            else:
+                assert respuesta.status_code == 200, respuesta.text
+                assert respuesta.json()["total_centavos"] == precio * 100
+    for nombre in ("Pollo con papas doble", "Big Mac simple", "Big Mac doble"):
+        assert productos[nombre]["estado_entrenamiento"] == "sin_stock"
+    assert productos["Pollo con papas doble"]["precio_venta"] is None
+    assert {p["variante_menu"]["Guarnición"] for p in productos.values()
+            if p.get("familia_menu") == "Milanesas al plato"} == {"Papas fritas", "Puré"}
+    for nombre, precio in {
+        "Tortilla": 8500, "Conos": 3500, "Bandeja chica": 4500, "Bandeja grande": 5500,
+        "Chocotorta grande": 4500, "Oreo grande": 4500, "Pepsi lata": 1600, "7up lata": 1600,
+        **{f"Manaos {sabor} 600ml": 1300 for sabor in ("Pomelo", "Cola")},
+        **{f"Manaos {sabor} 2.25l": 2000 for sabor in ("Pomelo", "Cola", "Naranja", "Manzana")},
+    }.items():
+        assert productos[nombre]["precio_venta"] == precio
+        assert "familia_menu" not in productos[nombre]
+
+
+def test_personalizacion_menu_en_venta_sqlite_e_historial(menu_entrenamiento):
+    ruta, cliente, productos = menu_entrenamiento
+    simulacion = "/pos-api/simulacion"
+    ventas = f"{simulacion}/ventas"
+    validar = "/pos-api/pedidos/validar"
+
+    def item(nombre, **datos):
+        return {"id_producto": productos[nombre]["id_producto"], "cantidad": 1, **datos}
+
+    extra = {"tipo": "cheddar", "destino": "principal", "cantidad": 1}
+    linea = item("Clásica doble", ingredientes_quitados=["tomate", "kétchup"],
+                 papas_dobles=True, observacion="  Bien cocida <sin salsa>  ",
+                 adicionales_preparacion=[extra, dict(extra, destino="papas", cantidad=2)])
+    for invalida in (
+        item("Grande de pollo individual", papas_dobles=True), item("Milanesa de pollo con fritas", papas_dobles=True),
+        item("Milanesa de pollo con puré", adicionales_preparacion=[dict(extra, destino="papas")]),
+        item("Manaos Cola 600ml", adicionales_preparacion=[extra]),
+        item("Clásica doble", adicionales_preparacion=[extra, extra]),
+        item("Clásica doble", adicionales_preparacion=[dict(extra, precio_centavos=1)]),
+        item("Napo de carne con puré", ingredientes_quitados=["Media porción"]),
+    ):
+        assert cliente.post(validar, json={"items": [invalida]}).status_code == 422
+    for personalizable in (
+        item("Tortilla", adicionales_preparacion=[extra]), item("Bandeja chica", adicionales_preparacion=[extra]),
+        item("Mozzarella", adicionales_preparacion=[extra]),
+        item("Napo de carne con puré", ingredientes_quitados=["Orégano", "Rodaja de tomate"],
+             adicionales_preparacion=[dict(extra, tipo="huevo", destino="pure")]),
+        item("Grande de carne individual", ingredientes_quitados=["Lechuga"]),
+    ):
+        assert cliente.post(validar, json={"items": [personalizable]}).status_code == 200
+
+    bebida = item("Manaos Cola 600ml")
+    apertura = {"fecha": ahora_local()[:10], "inicial_centavos": 0}
+    for caja in ("comidas", "bebidas_postres"):
+        respuesta = cliente.post(f"{simulacion}/caja-diaria/{caja}/apertura", json={
+            **apertura, "id_solicitud": str(uuid4()),
+        })
+        assert respuesta.status_code == 200, respuesta.text
+    pedido = {"items": [linea, bebida], "id_solicitud": str(uuid4()),
+              "total_esperado_centavos": 1_530_000, "medio_pago": "efectivo"}
+    respuesta = cliente.post(ventas, json=pedido)
+    assert respuesta.status_code == 200, respuesta.text
+    venta = respuesta.json()
+    assert venta["cajas_centavos"] == {"comidas": 1_400_000, "bebidas_postres": 130_000}
+    comida, bebida_vendida = venta["items"]
+    assert comida["id_producto"] == linea["id_producto"]
+    assert comida["precio_base_centavos"] == 900_000
+    assert comida["guarnicion"] == "Papas fritas dobles"
+    assert comida["recargo_papas_dobles_centavos"] == 200_000
+    assert comida["observacion"] == "Bien cocida <sin salsa>"
+    assert comida["ingredientes_quitados"] == ["Tomate", "Kétchup"]
+    assert [(a["destino"], a["cantidad"], a["precio_unitario_centavos"])
+            for a in comida["adicionales_preparacion"]] == [("principal", 1, 100_000), ("papas", 2, 100_000)]
+    assert "observacion" not in bebida_vendida
+    assert cliente.post(ventas, json=pedido).json() == venta
+    pedido["items"][0] = dict(linea, observacion="Otro pedido")
+    assert cliente.post(ventas, json=pedido).status_code == 409
+    assert cliente.get(ventas).json()["ventas"][0]["items"] == venta["items"]
+    assert cliente.get(f"{simulacion}/contabilidad").json()["devengado_centavos"] == 1_530_000
+    assert cliente.get(f"{simulacion}/conciliacion").json()["cuadrado"] is True
+    with closing(sqlite3.connect(ruta)) as db:
+        assert db.execute("SELECT stock FROM productos WHERE id_producto = ?", (bebida["id_producto"],)).fetchone() == (23,)
+        solicitud, guardado = db.execute("SELECT solicitud, pedido FROM pos_ventas_simuladas").fetchone()
+        assert json.loads(guardado)["items"] == venta["items"]
+        assert json.loads(solicitud)["items"][1] == dict(bebida, ingredientes_quitados=[], ids_adicionales=[])
+
+
+def test_actualizacion_menu_conserva_ids_stock_historial_y_agotados(menu_entrenamiento, tmp_path):
+    ruta, cliente, productos = menu_entrenamiento
+    bebida = productos["Manaos Cola 600ml"]["id_producto"]
+    clasica = productos["Clásica simple"]["id_producto"]
+    with closing(sqlite3.connect(ruta)) as db, db:
+        db.execute("UPDATE productos SET stock = 3 WHERE id_producto = ?", (bebida,))
+        db.execute("UPDATE pos_catalogo_entrenamiento SET estado = 'sin_stock' WHERE id_producto = ?", (clasica,))
+        db.execute("UPDATE productos SET precio_venta = 7000 WHERE nombre = 'Cheddar y huevo simple'")
+        antiguo = {"items": [{"id_producto": bebida, "producto": "Nombre histórico", "cantidad": 1,
+                              "precio_unitario_centavos": 130000}], "total_centavos": 130000}
+        db.execute("""INSERT INTO pos_ventas_simuladas (id_usuario, id_solicitud, solicitud, pedido)
+                      VALUES (1, ?, '{}', ?)""", (str(uuid4()), json.dumps(antiguo)))
+        antes = db.execute("SELECT * FROM pos_ventas_simuladas").fetchall()
+    actualizar_catalogo(tmp_path)
+    actualizar_catalogo(tmp_path)
+    with closing(sqlite3.connect(ruta)) as db:
+        assert db.execute("SELECT * FROM pos_ventas_simuladas").fetchall() == antes
+        assert db.execute("SELECT stock FROM productos WHERE id_producto = ?", (bebida,)).fetchone() == (3,)
+        assert dict(db.execute("SELECT nombre, id_producto FROM productos")) == {
+            nombre: producto["id_producto"] for nombre, producto in productos.items()
+        }
+    actuales = {p["nombre"]: p for p in cliente.get("/pos-api/catalogo/productos").json()["productos"]}
+    assert actuales["Cheddar y huevo simple"]["precio_venta"] == 8000
+    assert actuales["Clásica simple"]["estado_entrenamiento"] == "sin_stock"
+    assert cliente.post("/pos-api/pedidos/validar", json={"items": [{"id_producto": clasica, "cantidad": 1}]}).status_code == 409
+
+
 def test_entrenamiento_aisla_ventas_fiados_caja_y_sesiones(tmp_path, monkeypatch):
     real_falsa = tmp_path / "negocio.db"
     real_falsa.write_bytes(b"testigo de aislamiento")
