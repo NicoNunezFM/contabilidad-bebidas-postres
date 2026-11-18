@@ -15,6 +15,7 @@ from pos_entrenamiento_web import AVISO, crear_app_entrenamiento
 from pos_simulacion import crear_esquema_simulacion
 from scripts.abadion_entrenamiento import (
     ARCHIVO_CATALOGO, CONFIRMACION, PLANTILLA_CATALOGO, USUARIOS, actualizar_catalogo, preparar_base,
+    activar_contabilidad,
 )
 
 
@@ -237,3 +238,69 @@ def test_rechaza_directorio_sincronizado(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", staticmethod(lambda: raiz))
     with pytest.raises(ValueError, match="fuera de OneDrive"):
         carpeta_local()
+
+
+def test_entrenamiento_integrado_promocion_fiado_y_diezmo(tmp_path):
+    destino = preparar_base(tmp_path)
+    cliente = TestClient(crear_app_entrenamiento(tmp_path), base_url=ORIGEN, headers={"Origin": ORIGEN})
+    assert cliente.get("/pos-api/simulacion/estado").json()["contabilidad"] is True
+
+    usuario, _, clave = USUARIOS[1]
+    assert cliente.post("/pos-api/login", json={"usuario": usuario, "contrasena": clave}).status_code == 200
+    apertura = cliente.post("/pos-api/simulacion/caja-diaria/bebidas_postres/apertura", json={
+        "id_solicitud": str(uuid4()), "fecha": ahora_local()[:10], "inicial_centavos": 10000,
+    })
+    assert apertura.status_code == 200, apertura.text
+
+    productos = {p["nombre"]: p for p in cliente.get("/pos-api/catalogo/productos").json()["productos"]}
+    items = [{"id_producto": productos[n]["id_producto"], "cantidad": 1}
+             for n in ("Chocotorta chica", "Oreo chico")]
+    validacion = cliente.post("/pos-api/pedidos/validar", json={"items": items})
+    assert validacion.status_code == 200, validacion.text
+    assert validacion.json()["total_centavos"] == 500000
+    venta = cliente.post("/pos-api/simulacion/ventas", json={
+        "id_solicitud": str(uuid4()), "items": items, "total_esperado_centavos": 500000,
+        "fiado": True, "deudor": "Cliente ficticio",
+        "pagos": [{"medio_pago": "efectivo", "receptor": "bebidas_postres_efectivo",
+                   "importe_centavos": 200000}],
+    })
+    assert venta.status_code == 200, venta.text
+    assert venta.json()["saldo_pendiente_centavos"] == 300000
+
+    informe = cliente.get("/pos-api/simulacion/contabilidad")
+    assert informe.status_code == 200, informe.text
+    assert informe.json()["devengado_centavos"] == 500000
+    assert informe.json()["cobrado_neto_centavos"] == 200000
+    assert informe.json()["diezmo_centavos"] == 20000
+
+    abono = cliente.post(
+        f'/pos-api/simulacion/ventas/{venta.json()["id_venta"]}/abonos',
+        json={"id_solicitud": str(uuid4()),
+              "pagos": [{"medio_pago": "transferencia", "receptor": "bebidas_postres_banco",
+                         "importe_centavos": 300000}]},
+    )
+    assert abono.status_code == 200, abono.text
+    final = cliente.get("/pos-api/simulacion/contabilidad").json()
+    assert final["devengado_centavos"] == 500000
+    assert final["cobrado_neto_centavos"] == 500000
+    assert final["fiado_al_cierre_centavos"] == 0
+    assert final["diezmo_centavos"] == 50000
+    assert destino.exists()
+    assert activar_contabilidad(tmp_path) is None
+
+
+def test_activar_etapa7_respalda_base_de_entrenamiento_anterior(tmp_path):
+    destino = preparar_base(tmp_path)
+    with closing(sqlite3.connect(destino)) as db, db:
+        for (nombre,) in db.execute(
+            "SELECT name FROM sqlite_schema WHERE type = 'trigger' AND name LIKE 'pos_contable_%'"
+        ).fetchall():
+            db.execute(f'DROP TRIGGER "{nombre}"')
+        for nombre in ("pos_inicio_contable", "pos_costos_contables", "pos_cierres_contables"):
+            db.execute(f"DROP TABLE {nombre}")
+    respaldo = activar_contabilidad(tmp_path)
+    assert respaldo is not None and respaldo.exists()
+    with closing(sqlite3.connect(destino)) as db:
+        assert db.execute("SELECT COUNT(*) FROM pos_inicio_contable").fetchone() == (1,)
+        assert db.execute("SELECT COUNT(*) FROM productos").fetchone()[0] == 40
+    assert activar_contabilidad(tmp_path) is None
