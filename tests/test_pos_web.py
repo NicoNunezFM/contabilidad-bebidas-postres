@@ -90,11 +90,20 @@ def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket):
             ) as navegador:
                 try:
                     puerto = perfil / "DevToolsActivePort"
-                    esperar(puerto.is_file)
-                    urls = httpx.get(
-                        f"http://127.0.0.1:{puerto.read_text().splitlines()[0]}/json/list"
-                    ).json()
-                    pagina = next(url for url in urls if url["type"] == "page")
+
+                    def pagina_disponible():
+                        # Edge puede bloquear el archivo mientras publica el puerto de depuración.
+                        try:
+                            lineas = puerto.read_text().splitlines()
+                            if not lineas:
+                                return None
+                            respuesta = httpx.get(f"http://127.0.0.1:{lineas[0]}/json/list", timeout=1)
+                            respuesta.raise_for_status()
+                            return next((url for url in respuesta.json() if url["type"] == "page"), None)
+                        except (OSError, httpx.HTTPError, ValueError):
+                            return None
+
+                    pagina = esperar(pagina_disponible)
                     with closing(websocket.create_connection(
                         pagina["webSocketDebuggerUrl"], suppress_origin=True, timeout=10
                     )) as canal:
@@ -164,11 +173,9 @@ def test_pos_web_aviso_de_entrenamiento_visible_al_ingresar(controles_pos):
         (() => {
             const tarjetas = [...document.querySelectorAll('#cardsReal article')];
             const tarjeta = nombre => tarjetas.find(t => t.querySelector('h3').textContent === nombre);
-            const agotada = tarjeta('Big Mac doble');
             const pizza = tarjeta('Mozzarella');
-            return agotada.textContent.includes('SIN STOCK') && agotada.querySelector('button').disabled
-                && pizza.textContent.replace(/\s/g, '').includes('$10.000') && !pizza.querySelector('button').disabled
-                && !tarjeta('Clásica doble').querySelector('button').disabled;
+            return pizza.textContent.replace(/\s/g, '').includes('$10.000') && !pizza.querySelector('button').disabled
+                && !tarjeta('Hamburguesas').querySelector('button').disabled && !tarjeta('Clásica doble');
         })()
     """)
     clic("#adminAccess")
@@ -190,6 +197,78 @@ def test_pos_web_aviso_de_entrenamiento_visible_al_ingresar(controles_pos):
     clic("#cajaDiariaPos")
     assert evaluar("document.querySelector('#entrenamientoAviso').getBoundingClientRect().top") == 0
     texto("#entrenamientoAviso", AVISO)
+
+
+@pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
+def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
+    evaluar, clic, texto, _ = controles_pos
+    texto("#cardsReal", "Milanesas al plato")
+    assert evaluar("document.querySelectorAll('#cardsReal [data-familia]').length") == 3
+
+    def tocar_campo(selector, valor):
+        evaluar(f"""
+            (() => {{
+                const campo = document.querySelector({json.dumps(selector)});
+                campo.value = {json.dumps(valor)};
+                campo.dispatchEvent(new Event('input', {{bubbles: true}}));
+                campo.dispatchEvent(new Event('change', {{bubbles: true}}));
+            }})()
+        """)
+
+    clic("#adminAccess")
+    usuario, _, clave = USUARIOS[0]
+    tocar_campo("#usuarioPos", usuario)
+    tocar_campo("#claveAdmin", clave)
+    clic("#accept")
+    texto("#adminAccess", f"Cerrar sesión ({usuario})")
+
+    clic('[data-familia="Hamburguesas"] button')
+    assert evaluar("""Array.from(document.querySelector('#selectoresMenu select').options)
+        .filter(opcion => opcion.disabled).map(opcion => opcion.value)""") == ["Pollo con papas", "Big Mac", "Cheddar y huevo"]
+    tocar_campo("#selectoresMenu label:nth-child(2) select", "Doble")
+    clic("#accept")
+    texto("#estadoPersonalizacion", "9.000")
+    tocar_campo("#opcionesReales select", "doble")
+    tocar_campo('[data-tipo="cheddar"][data-destino="principal"]', "1")
+    tocar_campo('[data-tipo="cheddar"][data-destino="papas"]', "1")
+    clic('input[name="quitarReal"][value="Tomate"]')
+    tocar_campo("#observacionMenu", "Bien cocida <sin salsa>")
+    texto("#totalPersonalizado", "13.000")
+    clic("#accept")
+    clic("#resumenCocina")
+    for detalle in ("Clásica doble", "Papas fritas dobles", "Sin tomate", "Cheddar extra en plato principal",
+                    "Cheddar extra en papas fritas", "Bien cocida <sin salsa>"):
+        texto("#lineasCocina", detalle)
+    assert not evaluar("document.querySelector('#lineasCocina sin') !== null")
+    clic("#accept")
+
+    clic('#lines button[aria-label="Editar Clásica doble"]')
+    tocar_campo("#selectoresMenu label:nth-child(2) select", "Simple")
+    clic("#accept")
+    texto("#totalPersonalizado", "11.000")
+    assert evaluar("document.querySelector('#observacionMenu').value") == "Bien cocida <sin salsa>"
+    tocar_campo("#observacionMenu", "Entregar primero")
+    clic("#accept")
+
+    clic('[data-familia="Milanesas al plato"] button')
+    tocar_campo("#selectoresMenu label:first-child select", "Carne")
+    tocar_campo("#selectoresMenu label:nth-child(2) select", "Napolitana")
+    assert evaluar("""Array.from(document.querySelector('#selectoresMenu label:nth-child(3) select').options)
+        .map(opcion => opcion.value)""") == ["Papas fritas", "Puré"]
+    tocar_campo("#selectoresMenu label:nth-child(3) select", "Puré")
+    clic("#accept")
+    texto("#estadoPersonalizacion", "11.000")
+    assert not evaluar("Boolean(document.querySelector('#opcionesReales select'))")
+    assert evaluar("document.querySelector('#observacionMenu').value") == ""
+    clic("#accept")
+
+    clic("#validarPedido")
+    texto("#estadoPedido", "22.000,00")
+    clic("#resumenCocina")
+    texto("#lineasCocina", "Clásica simple")
+    texto("#lineasCocina", "Entregar primero")
+    texto("#lineasCocina", "Napo de carne con puré")
+    assert evaluar("document.querySelector('#lineasCocina').children.length") == 2
 
 
 @pytest.mark.parametrize("navegador_pos", ["caja_diaria"], indirect=True)

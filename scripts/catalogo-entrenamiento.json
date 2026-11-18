@@ -219,7 +219,7 @@
     {
       "nombre": "Cheddar y huevo simple",
       "categoria": "Hamburguesas",
-      "precio_centavos": 700000,
+      "precio_centavos": 800000,
       "controla_stock": false,
       "stock_inicial": 0,
       "sin_stock": true
@@ -227,7 +227,7 @@
     {
       "nombre": "Cheddar y huevo doble",
       "categoria": "Hamburguesas",
-      "precio_centavos": 900000,
+      "precio_centavos": 1000000,
       "controla_stock": false,
       "stock_inicial": 0,
       "sin_stock": true

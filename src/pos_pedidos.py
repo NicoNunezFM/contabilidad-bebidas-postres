@@ -1,16 +1,25 @@
 from collections import Counter
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from database import RUTA_ENTRENAMIENTO
 from pos_entrenamiento_db import DESCUENTO_POSTRE_CENTAVOS, consultar_catalogo_entrenamiento
+from pos_menu_entrenamiento import personalizacion_menu
 
 
 IdCatalogo = Annotated[int, Field(strict=True, gt=0, le=2**63 - 1)]
 Ingrediente = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+
+
+class AdicionalPreparacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tipo: Literal["cheddar", "huevo"]
+    destino: Literal["principal", "papas", "pure"]
+    cantidad: int = Field(strict=True, ge=1, le=30)
 
 
 class LineaPedidoPos(BaseModel):
@@ -20,6 +29,13 @@ class LineaPedidoPos(BaseModel):
     cantidad: int = Field(strict=True, gt=0, le=10_000)
     ingredientes_quitados: list[Ingrediente] = Field(default_factory=list, max_length=30)
     ids_adicionales: list[IdCatalogo] = Field(default_factory=list, max_length=30)
+    adicionales_preparacion: list[AdicionalPreparacion] = Field(
+        default_factory=list, max_length=6, exclude_if=lambda valor: not valor,
+    )
+    papas_dobles: bool = Field(default=False, strict=True, exclude_if=lambda valor: not valor)
+    observacion: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] = Field(
+        default="", exclude_if=lambda valor: not valor,
+    )
 
 
 class PedidoPos(BaseModel):
@@ -62,6 +78,55 @@ def _precio_centavos(precio, nombre, minimo):
     if centavos < minimo:
         raise HTTPException(409, f"Precio inválido para {nombre}.")
     return centavos
+
+
+def _personalizar_preparacion(linea, menu):
+    if menu is None:
+        if linea.adicionales_preparacion or linea.papas_dobles or linea.observacion:
+            raise HTTPException(422, "Estas opciones están disponibles en modo entrenamiento.")
+        return 0, {}
+
+    adicionales = []
+    recargo = 0
+    guarnicion = menu["guarnicion"]
+    recargo_papas = menu["papas_dobles_centavos"]
+    if linea.papas_dobles:
+        if recargo_papas is None:
+            raise HTTPException(422, "Las papas dobles se pueden pedir en los combos con papas.")
+        guarnicion = "Papas fritas dobles"
+        recargo += recargo_papas
+    elif recargo_papas is not None:
+        guarnicion = "Papas fritas normales"
+
+    destinos = menu["destinos"]
+    opciones = {extra["tipo"]: extra for extra in menu["adicionales"]}
+    usados = set()
+    for extra in linea.adicionales_preparacion:
+        clave = (extra.tipo, extra.destino)
+        if clave in usados or extra.destino not in destinos or extra.tipo not in opciones:
+            raise HTTPException(422, "Adicionales por preparación no disponibles o repetidos.")
+        usados.add(clave)
+        opcion = opciones[extra.tipo]
+        recargo += opcion["precio_centavos"] * extra.cantidad
+        adicionales.append({
+            "tipo": extra.tipo,
+            "nombre": opcion["nombre"],
+            "destino": extra.destino,
+            "preparacion": destinos[extra.destino],
+            "cantidad": extra.cantidad,
+            "precio_unitario_centavos": opcion["precio_centavos"],
+        })
+
+    detalle = {}
+    if guarnicion:
+        detalle["guarnicion"] = guarnicion
+    if linea.observacion:
+        detalle["observacion"] = linea.observacion
+    if adicionales:
+        detalle["adicionales_preparacion"] = adicionales
+    if linea.papas_dobles:
+        detalle["recargo_papas_dobles_centavos"] = recargo_papas
+    return recargo, detalle
 
 
 def calcular_pedido_pos(conexion, pedido):
@@ -108,17 +173,21 @@ def calcular_pedido_pos(conexion, pedido):
             grupos_promo[id_producto] = grupo
             unidades_promo[grupo] += cantidad
         ingredientes, adicionales = consultar_opciones_producto(conexion, id_producto)
+        menu = personalizacion_menu(nombre, categoria) if entrenamiento else None
+        if menu:
+            ingredientes.extend(menu["ingredientes"])
         catalogo[id_producto] = (
             nombre, categoria, base, bool(controla_stock),
-            {nombre.casefold(): nombre for nombre in ingredientes},
+            {ingrediente.casefold(): ingrediente for ingrediente in ingredientes},
             {extra["id_adicional_catalogo"]: extra for extra in adicionales},
+            menu,
         )
 
     pendientes_promo = {grupo: cantidad - cantidad % 2 for grupo, cantidad in unidades_promo.items()}
     descuento_total = 0
     items = []
     for linea in pedido.items:
-        nombre, categoria, base, controla_stock, ingredientes, extras = catalogo[linea.id_producto]
+        nombre, categoria, base, controla_stock, ingredientes, extras, menu = catalogo[linea.id_producto]
         quitados = [ingrediente.casefold() for ingrediente in linea.ingredientes_quitados]
         if len(set(quitados)) != len(quitados) or not ingredientes.keys() >= set(quitados):
             raise HTTPException(422, f"Ingredientes no permitidos o repetidos para {nombre}.")
@@ -137,7 +206,8 @@ def calcular_pedido_pos(conexion, pedido):
             }
             for id_extra in ids
         ]
-        unitario = base + sum(extra["precio_unitario_centavos"] for extra in adicionales)
+        recargo, detalle = _personalizar_preparacion(linea, menu)
+        unitario = base + recargo + sum(extra["precio_unitario_centavos"] for extra in adicionales)
         item = {
             "id_producto": linea.id_producto,
             "producto": nombre,
@@ -149,6 +219,7 @@ def calcular_pedido_pos(conexion, pedido):
             "precio_base_centavos": base,
             "precio_unitario_centavos": unitario,
             "subtotal_centavos": unitario * linea.cantidad,
+            **detalle,
         }
         grupo = grupos_promo.get(linea.id_producto)
         cantidad_con_descuento = min(linea.cantidad, pendientes_promo.get(grupo, 0))
