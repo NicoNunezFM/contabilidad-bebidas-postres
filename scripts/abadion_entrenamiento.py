@@ -6,6 +6,7 @@ import sqlite3
 import sys
 from contextlib import closing
 from pathlib import Path
+from datetime import datetime
 from tempfile import TemporaryDirectory
 
 import uvicorn
@@ -15,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from database import inicializar_base_de_datos, obtener_conexion
 from pos_auth import generar_hash
-from pos_caja_diaria import crear_caja_diaria
+from pos_caja_diaria import crear_caja_diaria, caja_diaria_activa
+from pos_contabilidad import crear_integracion_contable, corte_contable
 from pos_entrenamiento_db import (
     ARCHIVO_BASE, DESCUENTO_POSTRE_CENTAVOS, IDENTIDAD, abrir_base_entrenamiento, bloquear_entrenamiento,
     carpeta_local, comprobar_archivo,
@@ -178,6 +180,7 @@ def construir_base(ruta, catalogo):
             db.execute("CREATE TABLE pos_puente_ficticio (version INTEGER PRIMARY KEY CHECK (version = 1))")
             db.execute("INSERT INTO pos_puente_ficticio VALUES (1)")
             crear_caja_diaria(db)
+            crear_integracion_contable(db)
             db.execute("CREATE TABLE pos_entrenamiento (identidad TEXT PRIMARY KEY NOT NULL)")
             db.execute("INSERT INTO pos_entrenamiento VALUES (?)", (IDENTIDAD,))
             # Las solicitudes que queden en pestañas viejas están asociadas al usuario de la base anterior.
@@ -224,16 +227,46 @@ def preparar_base(carpeta, *, confirmacion=None):
         return destino
 
 
+def activar_contabilidad(carpeta):
+    """Incorpora etapa 7 a una base de práctica existente sin borrar transacciones."""
+    with bloquear_entrenamiento(carpeta):
+        ruta = carpeta / ARCHIVO_BASE
+        with closing(abrir_base_entrenamiento(ruta)) as db:
+            if not caja_diaria_activa(db):
+                raise ValueError("La base de entrenamiento no tiene caja diaria habilitada.")
+            if corte_contable(db) is not None:
+                return None
+            nombre = f"abadion-entrenamiento.pre-etapa7-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.db"
+            respaldo = carpeta / nombre
+            with respaldo.open("xb"):
+                pass
+            with closing(sqlite3.connect(respaldo)) as copia:
+                db.backup(copia)
+            with db:
+                db.execute("PRAGMA foreign_keys = ON")
+                db.execute("BEGIN IMMEDIATE")
+                crear_integracion_contable(db)
+            return respaldo
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     comandos = parser.add_subparsers(dest="comando", required=True)
     comandos.add_parser("preparar", help="Crear la base y el catálogo inicial")
     comandos.add_parser("servir", help="Abrir el POS en http://127.0.0.1:8060/pos/")
     comandos.add_parser("actualizar-catalogo", help="Aplicar el JSON local y conservar las prácticas")
+    comandos.add_parser("activar-contabilidad", help="Activar etapa 7 conservando las prácticas anteriores")
     comandos.add_parser("reiniciar", help="Borrar las prácticas y recargar el catálogo JSON")
     args = parser.parse_args()
     try:
         carpeta = carpeta_local()
+        if args.comando == "activar-contabilidad":
+            respaldo = activar_contabilidad(carpeta)
+            if respaldo is None:
+                print("Contabilidad de entrenamiento ya activada. Se conservaron las prácticas.")
+            else:
+                print(f"Contabilidad activada desde el nuevo corte. Respaldo previo: {respaldo}")
+            return
         if args.comando == "actualizar-catalogo":
             print(f"Catálogo aplicado: {actualizar_catalogo(carpeta)} productos. Se conservaron las prácticas.")
             return
