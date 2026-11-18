@@ -5,6 +5,9 @@ from typing import Annotated
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from database import RUTA_ENTRENAMIENTO
+from pos_entrenamiento_db import DESCUENTO_POSTRE_CENTAVOS, consultar_catalogo_entrenamiento
+
 
 IdCatalogo = Annotated[int, Field(strict=True, gt=0, le=2**63 - 1)]
 Ingrediente = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
@@ -67,6 +70,10 @@ def calcular_pedido_pos(conexion, pedido):
     for linea in pedido.items:
         cantidades[linea.id_producto] += linea.cantidad
 
+    entrenamiento = RUTA_ENTRENAMIENTO.get() is not None
+    opciones = consultar_catalogo_entrenamiento(conexion) if entrenamiento else {}
+    unidades_promo = Counter()
+    grupos_promo = {}
     catalogo = {}
     for id_producto, cantidad in cantidades.items():
         producto = conexion.execute(
@@ -80,6 +87,13 @@ def calcular_pedido_pos(conexion, pedido):
             raise HTTPException(404, f"Producto no encontrado (ID {id_producto}).")
 
         nombre, categoria, precio, stock, controla_stock = producto
+        estado, grupo = opciones.get(id_producto, ("disponible", None))
+        if estado == "sin_stock":
+            raise HTTPException(409, f"Sin stock: {nombre}.")
+        if estado == "fuera_menu":
+            raise HTTPException(409, f"{nombre} está fuera del menú.")
+        if entrenamiento and precio is None:
+            raise HTTPException(409, f"Precio pendiente para {nombre}.")
         if controla_stock and cantidad > stock:
             raise HTTPException(409, {
                 "codigo": "STOCK_INSUFICIENTE",
@@ -89,13 +103,19 @@ def calcular_pedido_pos(conexion, pedido):
                 "cantidad_solicitada": cantidad,
             })
 
+        base = _precio_centavos(precio, nombre, 1)
+        if grupo is not None and base > DESCUENTO_POSTRE_CENTAVOS:
+            grupos_promo[id_producto] = grupo
+            unidades_promo[grupo] += cantidad
         ingredientes, adicionales = consultar_opciones_producto(conexion, id_producto)
         catalogo[id_producto] = (
-            nombre, categoria, _precio_centavos(precio, nombre, 1), bool(controla_stock),
+            nombre, categoria, base, bool(controla_stock),
             {nombre.casefold(): nombre for nombre in ingredientes},
             {extra["id_adicional_catalogo"]: extra for extra in adicionales},
         )
 
+    pendientes_promo = {grupo: cantidad - cantidad % 2 for grupo, cantidad in unidades_promo.items()}
+    descuento_total = 0
     items = []
     for linea in pedido.items:
         nombre, categoria, base, controla_stock, ingredientes, extras = catalogo[linea.id_producto]
@@ -118,7 +138,7 @@ def calcular_pedido_pos(conexion, pedido):
             for id_extra in ids
         ]
         unitario = base + sum(extra["precio_unitario_centavos"] for extra in adicionales)
-        items.append({
+        item = {
             "id_producto": linea.id_producto,
             "producto": nombre,
             "categoria": categoria,
@@ -129,6 +149,24 @@ def calcular_pedido_pos(conexion, pedido):
             "precio_base_centavos": base,
             "precio_unitario_centavos": unitario,
             "subtotal_centavos": unitario * linea.cantidad,
-        })
+        }
+        grupo = grupos_promo.get(linea.id_producto)
+        cantidad_con_descuento = min(linea.cantidad, pendientes_promo.get(grupo, 0))
+        if cantidad_con_descuento:
+            # Una línea por precio efectivo permite devolver unidades al importe realmente cobrado.
+            pendientes_promo[grupo] -= cantidad_con_descuento
+            precio_reducido = unitario - DESCUENTO_POSTRE_CENTAVOS
+            descuento = DESCUENTO_POSTRE_CENTAVOS * cantidad_con_descuento
+            items.append(dict(item, cantidad=cantidad_con_descuento,
+                              precio_unitario_centavos=precio_reducido,
+                              subtotal_centavos=precio_reducido * cantidad_con_descuento,
+                              descuento_centavos=descuento))
+            descuento_total += descuento
+        cantidad_regular = linea.cantidad - cantidad_con_descuento
+        if cantidad_regular:
+            items.append(dict(item, cantidad=cantidad_regular, subtotal_centavos=unitario * cantidad_regular))
 
-    return {"items": items, "total_centavos": sum(item["subtotal_centavos"] for item in items)}
+    resultado = {"items": items, "total_centavos": sum(item["subtotal_centavos"] for item in items)}
+    if descuento_total:
+        resultado["descuento_centavos"] = descuento_total
+    return resultado
