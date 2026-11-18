@@ -14,6 +14,8 @@ from api import app
 from database import obtener_conexion
 from pos_auth import generar_hash
 from pos_simulacion import crear_esquema_simulacion
+from pos_entrenamiento_web import AVISO, crear_app_entrenamiento
+from scripts.abadion_entrenamiento import USUARIOS, preparar_base
 from scripts.puente_pos_ficticio import copiar_ficticia
 
 
@@ -32,6 +34,19 @@ def navegador_pos(base_prueba, monkeypatch, tmp_path, request):
     if not ejecutable:
         pytest.skip("Configurá POS_TEST_BROWSER con la ruta de Edge o Chrome.")
     import websocket
+    modo = getattr(request, "param", None)
+    if modo == "entrenamiento":
+        carpeta = tmp_path / "entrenamiento"
+        preparar_base(carpeta)
+        app_prueba = crear_app_entrenamiento(carpeta)
+    else:
+        preparar_simulacion_web(base_prueba, monkeypatch, tmp_path, modo)
+        app_prueba = app
+
+    yield from abrir_navegador(app_prueba, ejecutable, tmp_path, websocket)
+
+
+def preparar_simulacion_web(base_prueba, monkeypatch, tmp_path, modo):
     monkeypatch.setenv("POS_V1_SIMULACION", "1")
     with closing(obtener_conexion()) as db, db:
         crear_esquema_simulacion(db)
@@ -44,21 +59,22 @@ def navegador_pos(base_prueba, monkeypatch, tmp_path, request):
             "INSERT INTO productos (nombre, categoria, stock, precio_venta) VALUES (?, ?, ?, ?)",
             [("Comida ficticia", "Comidas", 10, 2500), ("Bebida ficticia", "Bebidas", 20, 1500)],
         )
-    etapa = getattr(request, "param", None)
-    if etapa in {"caja_diaria", "contabilidad"}:
+    if modo in {"caja_diaria", "contabilidad"}:
         copia = tmp_path / "pos6-ficticio.db"
         copiar_ficticia(base_prueba, copia, caja_diaria=True)
-        if etapa == "contabilidad":
+        if modo == "contabilidad":
             integrada = tmp_path / "pos7-ficticio.db"
             copiar_ficticia(copia, integrada, contabilidad=True)
             copia = integrada
             monkeypatch.setenv("ABADION_PUENTE_FICTICIO", "1")
         monkeypatch.setenv("NEGOCIO_DB_PATH", str(copia))
 
+
+def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket):
     with socket.socket() as red:
         red.bind(("127.0.0.1", 0))
         origen = f"http://127.0.0.1:{red.getsockname()[1]}"
-        servidor = uvicorn.Server(uvicorn.Config(app, log_level="warning"))
+        servidor = uvicorn.Server(uvicorn.Config(app_prueba, log_level="warning"))
         hilo = Thread(target=servidor.run, kwargs={"sockets": [red]}, daemon=True)
         hilo.start()
         try:
@@ -137,6 +153,43 @@ def controles_pos(navegador_pos):
         esperar(lambda: evaluar("document.querySelector('#overlay').hidden"))
 
     return evaluar, clic, texto, iniciar_sesion
+
+
+@pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
+def test_pos_web_aviso_de_entrenamiento_visible_al_ingresar(controles_pos):
+    evaluar, clic, texto, _ = controles_pos
+    texto("#entrenamientoAviso", AVISO)
+    texto("#cardsReal", "Manaos")
+    assert evaluar("""
+        (() => {
+            const tarjetas = [...document.querySelectorAll('#cardsReal article')];
+            const tarjeta = nombre => tarjetas.find(t => t.querySelector('h3').textContent === nombre);
+            const agotada = tarjeta('Big Mac doble');
+            const pizza = tarjeta('Mozzarella');
+            return agotada.textContent.includes('SIN STOCK') && agotada.querySelector('button').disabled
+                && pizza.textContent.replace(/\s/g, '').includes('$10.000') && !pizza.querySelector('button').disabled
+                && !tarjeta('Clásica doble').querySelector('button').disabled;
+        })()
+    """)
+    clic("#adminAccess")
+    assert evaluar("""
+        (() => {
+            const aviso = document.querySelector('#entrenamientoAviso');
+            const rect = aviso.getBoundingClientRect();
+            return !document.querySelector('#overlay').hidden
+                && document.elementFromPoint(rect.width / 2, rect.height / 2) === aviso;
+        })()
+    """)
+    usuario, _, clave = USUARIOS[0]
+    evaluar(f"""
+        document.querySelector('#usuarioPos').value = {json.dumps(usuario)};
+        document.querySelector('#claveAdmin').value = {json.dumps(clave)};
+    """)
+    clic("#accept")
+    texto("#adminAccess", f"Cerrar sesión ({usuario})")
+    clic("#cajaDiariaPos")
+    assert evaluar("document.querySelector('#entrenamientoAviso').getBoundingClientRect().top") == 0
+    texto("#entrenamientoAviso", AVISO)
 
 
 @pytest.mark.parametrize("navegador_pos", ["caja_diaria"], indirect=True)
