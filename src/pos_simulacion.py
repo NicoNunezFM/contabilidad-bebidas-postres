@@ -15,6 +15,7 @@ from pos_cobros import (
     pagos_reversibles, receptor_original, registrar_movimiento,
     registrar_pagos, resumen_libro, terminar_evento,
 )
+from pos_entrenamiento_db import clientes_activos
 from pos_pedidos import PedidoPos, calcular_pedido_pos
 
 
@@ -32,13 +33,16 @@ class VentaSimuladaEntrada(PedidoPos):
     fiado: bool = Field(default=False, strict=True)
     deudor: str | None = Field(default=None, min_length=1, max_length=120)
 
+    id_cliente: int | None = Field(default=None, strict=True, gt=0, le=2**53 - 1)
+
     @model_validator(mode="after")
     def comprobar_modalidad(self):
         if self.medio_pago and (self.pagos is not None or self.fiado or self.deudor):
             raise ValueError("Elegí una sola modalidad de pago.")
         if not self.medio_pago and self.pagos is None:
             raise ValueError("Indicá los pagos de la venta, incluso si la lista está vacía.")
-        if self.fiado != (self.deudor is not None):
+        identificadores = sum(campo is not None for campo in (self.deudor, self.id_cliente))
+        if identificadores != int(self.fiado):
             raise ValueError("Indicá el cliente o identificador para registrar el fiado.")
         return self
 
@@ -108,7 +112,7 @@ def migrar_esquema_simulacion_v3(conexion):
                 anterior = None
                 normalizada = VentaSimuladaEntrada.model_validate(
                     {"id_solicitud": UUID(int=0), **json.loads(solicitud)}
-                ).model_dump_json(exclude={"id_solicitud"})
+                ).model_dump_json(exclude={"id_solicitud", "id_cliente"})
                 conexion.execute("""
                     UPDATE pos_ventas_simuladas SET solicitud = ?, pedido = ? WHERE id_venta = ?
                 """, (normalizada, json.dumps(pedido, ensure_ascii=False), venta))
@@ -169,7 +173,10 @@ def transaccion_simulacion(*, escritura=False):
 
 
 def registrar_venta_simulada(entrada, usuario):
-    solicitud = entrada.model_dump_json(exclude={"id_solicitud"})
+    excluir = {"id_solicitud"}
+    if entrada.id_cliente is None:
+        excluir.add("id_cliente")
+    solicitud = entrada.model_dump_json(exclude=excluir)
     clave = (usuario["id_usuario"], str(entrada.id_solicitud))
     with transaccion_simulacion(escritura=True) as conexion:
         existente = conexion.execute(
@@ -211,6 +218,19 @@ def registrar_venta_simulada(entrada, usuario):
                 stock[item["id_producto"]] += item["cantidad"]
         pedido["cajas_centavos"] = dict(subtotales)
         pedido["deudor"] = entrada.deudor
+        modulo = RUTA_ENTRENAMIENTO.get() is not None and clientes_activos(conexion)
+        if entrada.fiado and RUTA_ENTRENAMIENTO.get() is not None and not modulo:
+            raise HTTPException(409, "Activá Clientes para registrar nuevas ventas fiadas.")
+        if entrada.fiado and modulo and entrada.id_cliente is None:
+            raise HTTPException(422, "Seleccioná un cliente registrado para el fiado.")
+        if entrada.id_cliente is not None:
+            if not modulo:
+                raise HTTPException(422, "Clientes está disponible en Entrenamiento.")
+            from pos_clientes import obtener_cliente
+
+            cliente = obtener_cliente(conexion, entrada.id_cliente)
+            pedido["id_cliente"] = entrada.id_cliente
+            pedido["deudor"] = cliente["nombre"]
 
         pagos = entrada.pagos
         if entrada.medio_pago:
@@ -230,6 +250,8 @@ def registrar_venta_simulada(entrada, usuario):
             (*clave, solicitud, json.dumps(pedido, ensure_ascii=False)),
         )
         id_venta = cursor.lastrowid
+        if entrada.id_cliente is not None:
+            conexion.execute("INSERT INTO pos_ventas_clientes VALUES (?, ?)", (id_venta, entrada.id_cliente))
         evento, _ = iniciar_evento(conexion, "venta", usuario, entrada, id_venta, usar_uuid=False)
         try:
             registrar_pagos(conexion, evento, id_venta, pagos)
@@ -432,6 +454,7 @@ def consultar_historial_simulado(usuario, antes_de, limite):
             pedido = json.loads(pedido_json)
             ventas.append({
                 "id_venta": id_venta, "fecha": fecha, "id_usuario": autor, "anulada": anulador is not None,
+                "fiado_historico": bool(pedido.get("deudor") and not pedido.get("id_cliente")),
                 "anulacion": {"id_usuario": anulador, "fecha": fecha_anulacion, "motivo": motivo} if anulador else None,
                 **pedido, **estado_cuenta(conexion, id_venta, pedido, anulador is not None),
                 "historial": eventos_venta(conexion, id_venta),

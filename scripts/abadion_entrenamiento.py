@@ -15,11 +15,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from database import inicializar_base_de_datos, obtener_conexion
+from pos_clientes import crear_esquema_clientes
 from pos_auth import generar_hash
 from pos_caja_diaria import crear_caja_diaria, caja_diaria_activa
 from pos_contabilidad import crear_integracion_contable, corte_contable
 from pos_entrenamiento_db import (
-    ARCHIVO_BASE, DESCUENTO_POSTRE_CENTAVOS, IDENTIDAD, abrir_base_entrenamiento, bloquear_entrenamiento,
+    clientes_activos, ARCHIVO_BASE, DESCUENTO_POSTRE_CENTAVOS, IDENTIDAD, abrir_base_entrenamiento, bloquear_entrenamiento,
     carpeta_local, comprobar_archivo,
 )
 from pos_entrenamiento_web import crear_app_entrenamiento
@@ -178,6 +179,7 @@ def construir_base(ruta, catalogo):
         with closing(obtener_conexion()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             crear_esquema_simulacion(db)
+            crear_esquema_clientes(db)
             db.execute("CREATE TABLE pos_puente_ficticio (version INTEGER PRIMARY KEY CHECK (version = 1))")
             db.execute("INSERT INTO pos_puente_ficticio VALUES (1)")
             crear_caja_diaria(db)
@@ -228,6 +230,35 @@ def preparar_base(carpeta, *, confirmacion=None):
         return destino
 
 
+def respaldar_sqlite(ruta, etapa):
+    nombre = f"abadion-entrenamiento.pre-{etapa}-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.db"
+    respaldo = ruta.with_name(nombre)
+    with respaldo.open("xb"):
+        pass
+    try:
+        with closing(sqlite3.connect(ruta.as_uri() + "?mode=ro", uri=True)) as origen, closing(
+            sqlite3.connect(respaldo)
+        ) as copia:
+            origen.backup(copia)
+    except BaseException:
+        respaldo.unlink(missing_ok=True)
+        raise
+    return respaldo
+
+
+def activar_clientes(carpeta):
+    with bloquear_entrenamiento(carpeta):
+        ruta = carpeta / ARCHIVO_BASE
+        with closing(abrir_base_entrenamiento(ruta)) as db, db:
+            db.execute("PRAGMA foreign_keys = ON")
+            db.execute("BEGIN IMMEDIATE")
+            if clientes_activos(db):
+                return None
+            respaldo = respaldar_sqlite(ruta, "clientes")
+            crear_esquema_clientes(db)
+            return respaldo
+
+
 def activar_contabilidad(carpeta):
     """Incorpora etapa 7 a una base de práctica existente sin borrar transacciones."""
     with bloquear_entrenamiento(carpeta):
@@ -240,19 +271,7 @@ def activar_contabilidad(carpeta):
                 raise ValueError("La base de entrenamiento no tiene caja diaria habilitada.")
             if corte_contable(db) is not None:
                 return None
-            nombre = f"abadion-entrenamiento.pre-etapa7-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.db"
-            respaldo = carpeta / nombre
-            with respaldo.open("xb"):
-                pass
-            try:
-                # SQLite necesita una conexión lectora separada para copiar durante la transacción.
-                with closing(sqlite3.connect(ruta.as_uri() + "?mode=ro", uri=True)) as origen, closing(
-                    sqlite3.connect(respaldo)
-                ) as copia:
-                    origen.backup(copia)
-            except BaseException:
-                respaldo.unlink(missing_ok=True)
-                raise
+            respaldo = respaldar_sqlite(ruta, "etapa7")
             crear_integracion_contable(db)
             return respaldo
 
@@ -264,10 +283,15 @@ def main():
     comandos.add_parser("servir", help="Abrir el POS en http://127.0.0.1:8060/pos/")
     comandos.add_parser("actualizar-catalogo", help="Aplicar el JSON local y conservar las prácticas")
     comandos.add_parser("activar-contabilidad", help="Activar etapa 7 conservando las prácticas anteriores")
+    comandos.add_parser("activar-clientes", help="Activar Clientes con respaldo de la base")
     comandos.add_parser("reiniciar", help="Borrar las prácticas y recargar el catálogo JSON")
     args = parser.parse_args()
     try:
         carpeta = carpeta_local()
+        if args.comando == "activar-clientes":
+            respaldo = activar_clientes(carpeta)
+            print(f"Clientes activado. Respaldo previo: {respaldo}" if respaldo else "Clientes ya está activo.")
+            return
         if args.comando == "activar-contabilidad":
             respaldo = activar_contabilidad(carpeta)
             if respaldo is None:

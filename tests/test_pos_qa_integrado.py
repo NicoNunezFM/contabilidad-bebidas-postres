@@ -10,7 +10,7 @@ from pos_caja_diaria import ahora_local
 from pos_entrenamiento_db import ARCHIVO_BASE, abrir_base_entrenamiento, bloquear_entrenamiento
 from pos_entrenamiento_web import crear_app_entrenamiento
 from scripts.abadion_entrenamiento import USUARIOS, activar_contabilidad, preparar_base
-from tests.test_pos_entrenamiento import ORIGEN
+from tests.test_pos_entrenamiento import ORIGEN, registrar_cliente_prueba
 
 
 POS = "/pos-api"
@@ -48,7 +48,7 @@ def alta_promocion(navegador):
     post(navegador, SIM + "/caja-diaria/bebidas_postres/apertura",
          solicitud(fecha=ahora_local()[:10], inicial_centavos=0))
     venta = post(navegador, SIM + "/ventas", solicitud(
-        items=items, total_esperado_centavos=500000, fiado=True, deudor="Cliente QA",
+        items=items, total_esperado_centavos=500000, fiado=True, id_cliente=registrar_cliente_prueba(navegador, "Cliente QA"),
         pagos=[{"medio_pago": "efectivo", "receptor": "bebidas_postres_efectivo",
                 "importe_centavos": 200000}],
     ))
@@ -239,7 +239,7 @@ def test_devolucion_de_comida_personalizada_fiada_con_abono(tmp_path):
     post(ventas, SIM + "/caja-diaria/bebidas_postres/apertura",
          solicitud(fecha=ahora_local()[:10], inicial_centavos=0))
     venta = post(ventas, SIM + "/ventas", solicitud(
-        items=items, total_esperado_centavos=total, fiado=True, deudor="Cliente QA",
+        items=items, total_esperado_centavos=total, fiado=True, id_cliente=registrar_cliente_prueba(ventas, "Cliente QA"),
         pagos=[{"medio_pago": "efectivo", "receptor": "bebidas_postres_efectivo",
                 "importe_centavos": 130_000}],
     ))

@@ -9,6 +9,12 @@ IDENTIDAD = "abadion-entrenamiento-lo-de-clau-v1"
 DESCUENTO_POSTRE_CENTAVOS = 50_000
 
 
+def clientes_activos(db):
+    return db.execute(
+        "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'pos_clientes'"
+    ).fetchone() is not None
+
+
 def consultar_catalogo_entrenamiento(db):
     # Las bases instaladas antes de la actualización todavía pueden abrirse.
     if not db.execute("""

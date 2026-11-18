@@ -204,7 +204,7 @@ def test_entrenamiento_aisla_ventas_fiados_caja_y_sesiones(tmp_path, monkeypatch
         "items": [{"id_producto": producto["id_producto"], "cantidad": 1}],
         "total_esperado_centavos": total,
         "pagos": [{"receptor": "bebidas_postres_efectivo", "medio_pago": "efectivo", "importe_centavos": 500}],
-        "fiado": True, "deudor": "Cliente de ejemplo",
+        "fiado": True, "id_cliente": registrar_cliente_prueba(cliente, "Cliente de ejemplo"),
     })
     assert venta.status_code == 200, venta.text
     assert venta.json()["saldo_pendiente_centavos"] == total - 500
@@ -411,7 +411,7 @@ def test_entrenamiento_integrado_promocion_fiado_y_diezmo(tmp_path):
     assert validacion.json()["total_centavos"] == 500000
     venta = cliente.post("/pos-api/simulacion/ventas", json={
         "id_solicitud": str(uuid4()), "items": items, "total_esperado_centavos": 500000,
-        "fiado": True, "deudor": "Cliente ficticio",
+        "fiado": True, "id_cliente": registrar_cliente_prueba(cliente, "Cliente ficticio"),
         "pagos": [{"medio_pago": "efectivo", "receptor": "bebidas_postres_efectivo",
                    "importe_centavos": 200000}],
     })
@@ -455,3 +455,11 @@ def test_activar_etapa7_respalda_base_de_entrenamiento_anterior(tmp_path):
         assert db.execute("SELECT COUNT(*) FROM pos_inicio_contable").fetchone() == (1,)
         assert db.execute("SELECT COUNT(*) FROM productos").fetchone()[0] == 40
     assert activar_contabilidad(tmp_path) is None
+
+
+def registrar_cliente_prueba(navegador, nombre, **campos):
+    respuesta = navegador.post("/pos-api/simulacion/clientes", json={
+        "id_solicitud": str(uuid4()), "nombre": nombre, **campos,
+    })
+    assert respuesta.status_code == 200, respuesta.text
+    return respuesta.json()["id_cliente"]
