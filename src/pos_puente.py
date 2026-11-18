@@ -5,6 +5,7 @@ import os
 from fastapi import HTTPException
 
 from caja import obtener_caja_seccion, obtener_estado_caja
+from database import RUTA_ENTRENAMIENTO
 from pos_caja_diaria import caja_diaria_activa, conciliar_caja_diaria, estado_cajas
 from pos_cobros import SECCIONES, estado_cuenta
 from pos_simulacion import consultar_cajas_simuladas, transaccion_simulacion
@@ -134,7 +135,7 @@ def leer_conciliacion(conexion):
 
 
 def consultar_puente_ficticio():
-    if os.getenv("ABADION_PUENTE_FICTICIO") != "1":
+    if RUTA_ENTRENAMIENTO.get() is None and os.getenv("ABADION_PUENTE_FICTICIO") != "1":
         raise HTTPException(404, "Puente contable ficticio deshabilitado.")
     with transaccion_simulacion() as conexion:
         return leer_conciliacion(conexion)
