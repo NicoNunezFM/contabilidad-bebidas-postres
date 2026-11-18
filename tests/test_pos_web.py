@@ -90,11 +90,20 @@ def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket):
             ) as navegador:
                 try:
                     puerto = perfil / "DevToolsActivePort"
-                    esperar(puerto.is_file)
-                    urls = httpx.get(
-                        f"http://127.0.0.1:{puerto.read_text().splitlines()[0]}/json/list"
-                    ).json()
-                    pagina = next(url for url in urls if url["type"] == "page")
+
+                    def pagina_disponible():
+                        # Edge puede bloquear el archivo mientras publica el puerto de depuración.
+                        try:
+                            lineas = puerto.read_text().splitlines()
+                            if not lineas:
+                                return None
+                            respuesta = httpx.get(f"http://127.0.0.1:{lineas[0]}/json/list", timeout=1)
+                            respuesta.raise_for_status()
+                            return next((url for url in respuesta.json() if url["type"] == "page"), None)
+                        except (OSError, httpx.HTTPError, ValueError):
+                            return None
+
+                    pagina = esperar(pagina_disponible)
                     with closing(websocket.create_connection(
                         pagina["webSocketDebuggerUrl"], suppress_origin=True, timeout=10
                     )) as canal:
