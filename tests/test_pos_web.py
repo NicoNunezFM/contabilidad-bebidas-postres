@@ -483,3 +483,112 @@ def test_pos_web_contabilidad_ficticia_para_administracion(controles_pos):
     texto("#consultaPos", "Fiado pendiente")
     texto("#consultaPos", "Diezmo estimado")
     texto("#consultaPos", "Sin cobros en el período.")
+
+
+@pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
+def test_pos_web_entrenamiento_promocion_fiado_devolucion_y_cierre(controles_pos):
+    evaluar, clic, texto, _ = controles_pos
+
+    def ingresar(indice):
+        usuario, _, clave = USUARIOS[indice]
+        clic("#adminAccess")
+        evaluar(f"""
+            document.querySelector('#usuarioPos').value = {json.dumps(usuario)};
+            document.querySelector('#claveAdmin').value = {json.dumps(clave)};
+        """)
+        clic("#accept")
+        texto("#adminAccess", f"Cerrar sesión ({usuario})")
+        esperar(lambda: evaluar("document.querySelector('#overlay').hidden"))
+
+    def boton_por_texto(selector, etiqueta):
+        esperar(lambda: evaluar(f"""
+            (() => {{
+                const boton = [...document.querySelectorAll({json.dumps(selector)})]
+                    .find(b => b.textContent === {json.dumps(etiqueta)} && !b.disabled && b.getClientRects().length);
+                if (!boton) return false;
+                boton.click();
+                return true;
+            }})()
+        """))
+
+    caja = '[data-caja-diaria="bebidas_postres"]'
+    texto("#entrenamientoAviso", AVISO)
+    ingresar(0)
+    assert evaluar("document.querySelector('#contabilidadPos').hidden")
+    clic("#cajaDiariaPos")
+    boton_por_texto(caja + " button", "Abrir caja")
+    evaluar("document.querySelector('#importeCajaDiaria').value = '0'")
+    clic("#accept")
+    texto(caja, "Abierta")
+    clic("#accept")
+
+    for nombre in ("Chocotorta chica", "Oreo chico"):
+        esperar(lambda: evaluar(f"""
+            (() => {{
+                const tarjeta = [...document.querySelectorAll('#cardsReal article')]
+                    .find(t => t.querySelector('h3').textContent === {json.dumps(nombre)});
+                if (!tarjeta) return false;
+                tarjeta.querySelector('button').click();
+                return true;
+            }})()
+        """))
+        clic("#accept")
+    clic("#validarPedido")
+    texto("#estadoPedido", "5.000,00")
+    texto("#estadoPedido", "1.000,00")
+    clic("#payments button:nth-child(5)")
+    clic("#checkout")
+    evaluar("""
+        const datos = document.querySelector('#errorVentaPos').previousElementSibling;
+        datos.querySelector('input').value = 'Cliente entrenamiento Edge';
+        datos.querySelector('button').click();
+        const pago = document.querySelector('.filaPagoPos');
+        pago.querySelectorAll('select')[1].value = 'bebidas_postres_efectivo';
+        const importe = pago.querySelector('[data-importe-pago]');
+        importe.value = '2000';
+        importe.dispatchEvent(new Event('input', {bubbles: true}));
+    """)
+    texto('#dialogBody p[aria-live="polite"]', "3.000,00")
+    clic("#accept")
+    texto("#notice", "3.000,00")
+    clic("#historialSimulado")
+    clic("#dialogBody summary")
+    texto("#dialogBody details", "Cliente entrenamiento Edge")
+    assert evaluar("""![...document.querySelectorAll('#dialogBody details button')]
+        .some(b => b.textContent === 'Devolver productos')""")
+    boton_por_texto("#dialogBody details button", "Registrar abono")
+    evaluar("""
+        const [medio, receptor] = document.querySelector('.filaPagoPos').querySelectorAll('select');
+        medio.value = 'transferencia';
+        medio.dispatchEvent(new Event('change'));
+        receptor.value = 'comidas_banco';
+    """)
+    clic("#accept")
+    texto("#dialogBody", "Abono registrado")
+    clic("#accept")
+
+    clic("#adminAccess")
+    texto("#adminAccess", "Iniciar sesión")
+    ingresar(1)
+    clic("#historialSimulado")
+    clic("#dialogBody summary")
+    texto("#dialogBody summary", "Saldada")
+    boton_por_texto("#dialogBody details button", "Devolver productos")
+    evaluar("""
+        document.querySelector('#camposOperacionPos input[type="number"]').value = 1;
+        document.querySelector('#camposOperacionPos textarea').value = 'Devolución de postre Edge';
+    """)
+    clic("#accept")
+    texto("#dialogBody", "Devolución registrada en la venta #1")
+    clic("#dialogBody summary")
+    texto("#dialogBody details", "Devolución de postre Edge")
+    texto("#dialogBody details", "2.500,00")
+    clic("#accept")
+    clic("#cajaDiariaPos")
+    boton_por_texto(caja + " button", "Guardar arqueo")
+    evaluar("document.querySelector('#importeCajaDiaria').value = '2000'")
+    clic("#accept")
+    texto("#consultaPos", "Arqueo registrado")
+    boton_por_texto(caja + " button", "Cerrar caja")
+    clic("#accept")
+    texto(caja, "Cerrada")
