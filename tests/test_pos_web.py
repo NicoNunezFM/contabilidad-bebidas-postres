@@ -629,7 +629,7 @@ def test_pos_web_entrenamiento_promocion_fiado_devolucion_y_cierre(controles_pos
         importe.value = '2000';
         importe.dispatchEvent(new Event('input', {bubbles: true}));
     """)
-    texto('#dialogBody p[aria-live="polite"]', "3.000,00")
+    texto('#clienteElegidoPos ~ p[aria-live="polite"]', "3.000,00")
     clic("#accept")
     texto("#notice", "3.000,00")
     clic("#historialSimulado")
