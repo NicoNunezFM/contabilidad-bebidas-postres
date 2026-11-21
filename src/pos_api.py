@@ -1,3 +1,4 @@
+from typing import Literal
 
 
 from contextlib import closing
@@ -29,7 +30,10 @@ from pos_clientes import (
     AltaCliente, PagoCliente, abonar_cliente, alta_cliente, buscar_clientes, corregir_abono,
     ficha_cliente, prever_abono,
 )
+from pos_seguimiento import AltaPedido, TransicionPedido, alta_pedido, cambiar_estado_pedido, listar_seguimiento
+from pos_envios import MovimientoReparto, registrar_fondo_reparto
 from pos_cobros import (
+    RendicionEntrada, registrar_rendicion,
     AbonoEntrada, PagoPos, Centavos, CierreEntrada, DevolucionEntrada, ReversionEntrada,
     SolicitudContable, TransferenciaEntrada,
 )
@@ -43,6 +47,8 @@ from pos_simulacion import (
     consultar_cierre_simulado,
     consultar_cajas_simuladas,
     consultar_historial_simulado,
+    consultar_venta,
+    ConversionPedidoEntrada, convertir_pedido_simulado, cotizar_conversion,
     consultar_movimientos_simulados,
     registrar_venta_simulada,
     revertir_venta_simulada,
@@ -387,6 +393,62 @@ def simular_venta_pos(
     return {"ok": True, "simulacion": True, **registrar_venta_simulada(venta, usuario)}
 
 
+@router.post("/simulacion/pedidos", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
+def guardar_pedido_pos(
+    pedido: AltaPedido, usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return alta_pedido(db, pedido, usuario["id_usuario"])
+
+
+@router.get("/simulacion/pedidos/{id_pedido}/cotizacion", dependencies=[
+    Depends(exigir_simulacion_activa), Depends(evitar_cache_pos), Depends(exigir_usuario_pos),
+])
+def cotizar_pedido_pos(id_pedido: int = Path(gt=0, le=2**53 - 1)):
+    with transaccion_simulacion() as db:
+        return cotizar_conversion(db, id_pedido)
+
+
+@router.post("/simulacion/pedidos/{id_pedido}/venta", dependencies=[
+    Depends(comprobar_origen), Depends(exigir_simulacion_activa),
+])
+def convertir_pedido_pos(
+    datos: ConversionPedidoEntrada, id_pedido: int = Path(gt=0, le=2**53 - 1),
+    usuario: dict = Depends(exigir_usuario_pos), x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return {"ok": True, "simulacion": True, **convertir_pedido_simulado(id_pedido, datos, usuario)}
+
+
+@router.get("/simulacion/pedidos", dependencies=[
+    Depends(exigir_simulacion_activa), Depends(evitar_cache_pos),
+])
+def listar_pedidos_pos(
+    finalizados: bool = False,
+    antes_de: int | None = Query(default=None, gt=0, le=2**63 - 1),
+    limite: int = Query(default=25, ge=1, le=100),
+    usuario: dict = Depends(exigir_usuario_pos),
+):
+    with transaccion_simulacion() as db:
+        return listar_seguimiento(db, finalizados=finalizados, antes_de=antes_de, limite=limite)
+
+
+@router.post("/simulacion/pedidos/{id_pedido}/estado", dependencies=[
+    Depends(comprobar_origen), Depends(exigir_simulacion_activa),
+])
+def cambiar_pedido_pos(
+    cambio: TransicionPedido,
+    id_pedido: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return cambiar_estado_pedido(db, id_pedido, cambio, usuario)
+
+
 @router.get("/simulacion/ventas", dependencies=[Depends(exigir_simulacion_activa), Depends(evitar_cache_pos)])
 def consultar_historial_pos(
     antes_de: int | None = Query(default=None, gt=0, le=2**63 - 1),
@@ -427,6 +489,40 @@ def devolver_venta_pos(
 ):
     comprobar_usuario_simulacion(x_pos_usuario, usuario)
     return {"ok": True, "simulacion": True, **revertir_venta_simulada(id_venta, devolucion, usuario, tipo="devolucion")}
+
+
+@router.post(
+    "/simulacion/ventas/{id_venta}/fondos-reparto/{tipo}",
+    dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)],
+)
+def operar_fondo_reparto_pos(
+    movimiento: MovimientoReparto,
+    tipo: Literal["recepcion", "liquidacion", "reembolso", "directo"],
+    id_venta: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        pedido, anulada = consultar_venta(db, id_venta, usuario)
+        return {"ok": True, "simulacion": True, **registrar_fondo_reparto(
+            db, id_venta, pedido, movimiento, usuario, tipo=tipo, anulada=anulada,
+        )}
+
+
+@router.post(
+    "/simulacion/cobros/{id_cobro}/rendiciones",
+    dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)],
+)
+def rendir_efectivo_pos(
+    rendicion: RendicionEntrada,
+    id_cobro: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return {"ok": True, "simulacion": True, **registrar_rendicion(db, id_cobro, rendicion, usuario)}
 
 
 @router.post("/simulacion/cajas/transferencias", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])

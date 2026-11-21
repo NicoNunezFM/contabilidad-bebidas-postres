@@ -14,6 +14,9 @@ Receptor = Literal[
     "comidas_efectivo", "comidas_banco", "comidas_mercado_pago",
     "bebidas_postres_efectivo", "bebidas_postres_banco", "bebidas_postres_mercado_pago",
 ]
+ReceptorCobro = Receptor | Literal["comidas_efectivo_en_transito", "bebidas_postres_efectivo_en_transito"]
+SUFIJO_TRANSITO = "_en_transito"
+
 Centavos = Annotated[int, Field(strict=True, gt=0, le=310_000_000_000_000_000)]
 SECCIONES = ("comidas", "bebidas_postres")
 
@@ -21,14 +24,14 @@ SECCIONES = ("comidas", "bebidas_postres")
 class PagoPos(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    receptor: Receptor
+    receptor: ReceptorCobro
     medio_pago: Medio
     importe_centavos: Centavos
     referencia: str | None = Field(default=None, min_length=1, max_length=120)
 
     @model_validator(mode="after")
     def comprobar_receptor(self):
-        if self.receptor.endswith("_efectivo") != (self.medio_pago == "efectivo"):
+        if self.receptor.removesuffix(SUFIJO_TRANSITO).endswith("_efectivo") != (self.medio_pago == "efectivo"):
             raise ValueError("El efectivo requiere una caja y el pago digital una cuenta.")
         return self
 
@@ -61,6 +64,10 @@ class DevolucionEntrada(ReversionEntrada):
 class TransferenciaEntrada(ReversionEntrada):
     origen: Receptor
     destino: Receptor
+    importe_centavos: Centavos
+
+
+class RendicionEntrada(ReversionEntrada):
     importe_centavos: Centavos
 
 
@@ -145,8 +152,10 @@ def periodo_abierto(conexion):
     return conexion.execute("SELECT COALESCE(MAX(periodo), 0) + 1 FROM pos_cierres_simulados").fetchone()[0]
 
 
-def iniciar_evento(conexion, tipo, usuario, entrada, id_venta=None, *, usar_uuid=True):
+def iniciar_evento(conexion, tipo, usuario, entrada, id_venta=None, *, usar_uuid=True, contexto=None):
     solicitud = entrada.model_dump_json(exclude={"id_solicitud"})
+    if contexto is not None:
+        solicitud = json.dumps({**json.loads(solicitud), **contexto}, ensure_ascii=False)
     clave = str(entrada.id_solicitud) if usar_uuid and entrada.id_solicitud else None
     autor = usuario["id_usuario"]
     if clave:
@@ -182,12 +191,90 @@ def terminar_evento(conexion, id_evento, resultado, *, antes=None, despues=None)
 
 
 def registrar_movimiento(conexion, evento, venta, receptor, medio, importe, *, referencia=None, revierte=None):
+    if revierte is not None and receptor.endswith(SUFIJO_TRANSITO):
+        pendiente = efectivo_en_transito(conexion, revierte)
+        en_transito = min(pendiente, -importe)
+        en_caja = -importe - en_transito
+        if en_transito:
+            _insertar_movimiento(conexion, evento, venta, receptor, medio, -en_transito, referencia, revierte)
+        if en_caja:
+            _insertar_movimiento(
+                conexion, evento, venta, receptor.removesuffix(SUFIJO_TRANSITO),
+                medio, -en_caja, None, revierte,
+            )
+        return
+    return _insertar_movimiento(conexion, evento, venta, receptor, medio, importe, referencia, revierte)
+
+
+def _insertar_movimiento(conexion, evento, venta, receptor, medio, importe, referencia, revierte):
     cursor = conexion.execute("""
         INSERT INTO pos_movimientos_simulados
             (id_evento, id_venta, receptor, caja, medio_pago, importe_centavos, referencia, revierte)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (evento, venta, receptor, caja_receptora(receptor), medio, importe, referencia, revierte))
     vincular_movimiento_pos(conexion, cursor.lastrowid, evento, receptor, importe)
+
+
+def crear_rendiciones(conexion):
+    conexion.execute("""
+        CREATE TABLE IF NOT EXISTS pos_rendiciones_efectivo (
+            id_evento INTEGER PRIMARY KEY REFERENCES pos_eventos_simulados,
+            id_cobro INTEGER NOT NULL REFERENCES pos_movimientos_simulados,
+            importe_centavos INTEGER NOT NULL CHECK (importe_centavos > 0)
+        )
+    """)
+    conexion.execute("""
+        CREATE INDEX IF NOT EXISTS pos_rendiciones_por_cobro
+        ON pos_rendiciones_efectivo (id_cobro)
+    """)
+
+
+def efectivo_en_transito(conexion, id_cobro):
+    cobro = conexion.execute("""
+        SELECT receptor, importe_centavos
+        FROM pos_movimientos_simulados
+        WHERE id_movimiento = ? AND id_venta IS NOT NULL AND importe_centavos > 0
+    """, (id_cobro,)).fetchone()
+    if cobro is None or not cobro[0].endswith(SUFIJO_TRANSITO):
+        raise HTTPException(404, "Cobro en tránsito no encontrado.")
+    receptor, importe = cobro
+    reembolsado = conexion.execute("""
+        SELECT COALESCE(SUM(importe_centavos), 0)
+        FROM pos_movimientos_simulados WHERE revierte = ? AND receptor = ?
+    """, (id_cobro, receptor)).fetchone()[0]
+    existe = conexion.execute("""
+        SELECT 1 FROM sqlite_schema WHERE name = 'pos_rendiciones_efectivo'
+    """).fetchone()
+    rendido = 0
+    if existe:
+        rendido = conexion.execute("""
+            SELECT COALESCE(SUM(importe_centavos), 0)
+            FROM pos_rendiciones_efectivo WHERE id_cobro = ?
+        """, (id_cobro,)).fetchone()[0]
+    return importe + reembolsado - rendido
+
+
+def registrar_rendicion(conexion, id_cobro, entrada, usuario):
+    evento, previo = iniciar_evento(
+        conexion, "transferencia_interna", usuario, entrada, contexto={"id_cobro": id_cobro},
+    )
+    if previo is not None:
+        return previo
+    pendiente = efectivo_en_transito(conexion, id_cobro)
+    importe = entrada.importe_centavos
+    if importe > pendiente:
+        raise HTTPException(409, "La rendición supera el efectivo pendiente.")
+    receptor = conexion.execute("""
+        SELECT receptor FROM pos_movimientos_simulados WHERE id_movimiento = ?
+    """, (id_cobro,)).fetchone()[0]
+    crear_rendiciones(conexion)
+    conexion.execute("INSERT INTO pos_rendiciones_efectivo VALUES (?, ?, ?)", (evento, id_cobro, importe))
+    registrar_movimiento(conexion, evento, None, receptor, None, -importe)
+    registrar_movimiento(conexion, evento, None, receptor.removesuffix(SUFIJO_TRANSITO), None, importe)
+    return terminar_evento(conexion, evento, {
+        "id_evento": evento, "id_cobro": id_cobro,
+        "importe_centavos": importe, "pendiente_centavos": pendiente - importe,
+    })
 
 
 def registrar_pagos(conexion, evento, venta, pagos):
@@ -228,6 +315,12 @@ def estado_cuenta(conexion, venta, pedido, anulada=False):
             cantidad = item["cantidad"] - devueltas.get(linea, 0)
             devengado[item["seccion"]] += cantidad * item["precio_unitario_centavos"]
 
+    envio = pedido.get("envio")
+    envio_propio_vigente = 0
+    if envio and envio["titular"] == "negocio" and sum(devengado.values()):
+        envio_propio_vigente = envio["importe_centavos"]
+        devengado["comidas"] += envio_propio_vigente
+
     cobrado = conexion.execute("""
         SELECT COALESCE(SUM(importe_centavos), 0)
         FROM pos_movimientos_simulados WHERE id_venta = ?
@@ -246,6 +339,7 @@ def estado_cuenta(conexion, venta, pedido, anulada=False):
         "cobrado_atribuido_centavos": atribuido,
         "pendiente_por_seccion_centavos": {caja: devengado[caja] - atribuido[caja] for caja in SECCIONES},
         "unidades_devueltas": devueltas,
+        **({"envio_propio_vigente_centavos": envio_propio_vigente} if envio else {}),
     }
 
 

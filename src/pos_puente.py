@@ -44,6 +44,9 @@ def conciliar_pos(conexion, pos):
             cuenta = estado_cuenta(conexion, venta, pedido, anulada)
             cantidades = {n: item["cantidad"] for n, item in enumerate(pedido["items"], start=1)}
             total_original = sum(item["cantidad"] * item["precio_unitario_centavos"] for item in pedido["items"])
+            envio = pedido.get("envio")
+            if envio and envio["titular"] == "negocio":
+                total_original += envio["importe_centavos"]
         except (ValueError, TypeError, KeyError):
             diferencias.append({"codigo": "SNAPSHOT_POS_INVALIDO", "id_venta": venta})
             continue
@@ -58,15 +61,39 @@ def conciliar_pos(conexion, pos):
                 or (anulada and devueltas != cantidades)):
             diferencias.append({"codigo": "VENTA_POS_DESCUADRADA", "id_venta": venta})
 
-    for evento, in conexion.execute("""
+    tablas = {nombre for nombre, in conexion.execute(
+        "SELECT name FROM sqlite_schema WHERE type = 'table'"
+    )}
+    rendiciones = (
+        "SELECT id_evento, id_cobro, importe_centavos FROM pos_rendiciones_efectivo"
+        if "pos_rendiciones_efectivo" in tablas else "SELECT NULL, NULL, NULL WHERE 0"
+    )
+    fondos = (
+        "SELECT id_evento FROM pos_fondos_reparto"
+        if "pos_fondos_reparto" in tablas else "SELECT NULL WHERE 0"
+    )
+    for evento, in conexion.execute(f"""
+        WITH rendicion(id_evento, id_cobro, importe) AS ({rendiciones}),
+             reparto(id_evento) AS ({fondos})
         SELECT e.id_evento FROM pos_eventos_simulados AS e
         LEFT JOIN pos_movimientos_simulados AS m USING (id_evento)
+        LEFT JOIN rendicion AS r ON r.id_evento = e.id_evento
+        LEFT JOIN reparto AS f ON f.id_evento = e.id_evento
+        LEFT JOIN pos_movimientos_simulados AS origen ON origen.id_movimiento = r.id_cobro
         GROUP BY e.id_evento
         HAVING e.resultado IS NULL OR e.periodo > ?
             OR COALESCE(SUM(m.importe_centavos), 0) <> e.cobrado_comidas + e.cobrado_bebidas
             OR SUM(m.id_venta IS NOT e.id_venta AND m.id_movimiento IS NOT NULL) > 0
-            OR (e.tipo = 'transferencia_interna' AND (
-                COUNT(m.id_movimiento) <> 2 OR COUNT(DISTINCT m.caja) <> 2 OR COUNT(m.medio_pago) <> 0))
+            OR (e.tipo = 'transferencia_interna' AND NOT CASE
+                WHEN f.id_evento IS NOT NULL THEN COUNT(m.id_movimiento) = 0 AND r.id_evento IS NULL
+                WHEN r.id_evento IS NOT NULL THEN
+                    origen.id_movimiento IS NOT NULL AND origen.id_evento < e.id_evento
+                    AND origen.receptor IN ('comidas_efectivo_en_transito', 'bebidas_postres_efectivo_en_transito')
+                    AND COUNT(m.id_movimiento) = 2 AND COUNT(m.medio_pago) = 0
+                    AND SUM(m.receptor = origen.receptor AND m.importe_centavos = -r.importe) = 1
+                    AND SUM(m.receptor || '_en_transito' = origen.receptor AND m.importe_centavos = r.importe) = 1
+                ELSE COUNT(m.id_movimiento) = 2 AND COUNT(DISTINCT m.caja) = 2 AND COUNT(m.medio_pago) = 0
+            END)
             OR (e.id_venta IS NOT NULL AND COUNT(m.id_movimiento) <> COUNT(m.medio_pago))
             OR (e.id_venta IS NULL AND (e.devengado_comidas <> 0 OR e.devengado_bebidas <> 0
                 OR e.cobrado_comidas <> 0 OR e.cobrado_bebidas <> 0))
@@ -87,7 +114,11 @@ def conciliar_pos(conexion, pos):
             OR (m.importe_centavos < 0 AND (
                 original.id_movimiento IS NULL OR original.importe_centavos <= 0
                 OR original.id_evento >= m.id_evento OR original.id_venta IS NOT m.id_venta
-                OR original.receptor <> m.receptor OR original.medio_pago IS NOT m.medio_pago
+                OR (original.receptor <> m.receptor AND NOT (
+                    m.receptor IN ('comidas_efectivo', 'bebidas_postres_efectivo')
+                    AND original.receptor = m.receptor || '_en_transito'
+                ))
+                OR original.medio_pago IS NOT m.medio_pago
             ))
         )
         ORDER BY m.id_movimiento

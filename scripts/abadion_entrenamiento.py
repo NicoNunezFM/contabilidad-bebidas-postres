@@ -18,6 +18,9 @@ from database import inicializar_base_de_datos, obtener_conexion
 from pos_clientes import crear_esquema_clientes
 from pos_auth import generar_hash
 from pos_caja_diaria import crear_caja_diaria, caja_diaria_activa
+from pos_cobros import crear_rendiciones
+from pos_envios import crear_libro_reparto
+from pos_seguimiento import columnas_seguimiento, crear_seguimiento
 from pos_contabilidad import crear_integracion_contable, corte_contable
 from pos_entrenamiento_db import (
     clientes_activos, ARCHIVO_BASE, DESCUENTO_POSTRE_CENTAVOS, IDENTIDAD, abrir_base_entrenamiento, bloquear_entrenamiento,
@@ -259,6 +262,29 @@ def activar_clientes(carpeta):
             return respaldo
 
 
+def activar_fondos_envio(carpeta):
+    """Prepara los registros auxiliares de reparto a partir del PR #16."""
+    with bloquear_entrenamiento(carpeta):
+        ruta = carpeta / ARCHIVO_BASE
+        with closing(abrir_base_entrenamiento(ruta)) as db, db:
+            db.execute("PRAGMA foreign_keys = ON")
+            db.execute("BEGIN IMMEDIATE")
+            presentes = db.execute("""
+                SELECT COUNT(*) FROM sqlite_schema
+                WHERE type = 'table' AND name IN (
+                    'pos_rendiciones_efectivo', 'pos_fondos_reparto',
+                    'pos_seguimiento_pedidos', 'pos_historial_pedidos'
+                )
+            """).fetchone()[0]
+            if presentes == 4 and "id_pedido" in columnas_seguimiento(db):
+                return None
+            respaldo = respaldar_sqlite(ruta, "fondos-envio")
+            crear_rendiciones(db)
+            crear_libro_reparto(db)
+            crear_seguimiento(db)
+            return respaldo
+
+
 def activar_contabilidad(carpeta):
     """Incorpora etapa 7 a una base de práctica existente sin borrar transacciones."""
     with bloquear_entrenamiento(carpeta):
@@ -284,10 +310,16 @@ def main():
     comandos.add_parser("actualizar-catalogo", help="Aplicar el JSON local y conservar las prácticas")
     comandos.add_parser("activar-contabilidad", help="Activar etapa 7 conservando las prácticas anteriores")
     comandos.add_parser("activar-clientes", help="Activar Clientes con respaldo de la base")
+    comandos.add_parser("activar-fondos-envio", help="Preparar fondos de envío con respaldo previo")
     comandos.add_parser("reiniciar", help="Borrar las prácticas y recargar el catálogo JSON")
     args = parser.parse_args()
     try:
         carpeta = carpeta_local()
+        if args.comando == "activar-fondos-envio":
+            respaldo = activar_fondos_envio(carpeta)
+            print(f"Fondos de envío preparados. Respaldo previo: {respaldo}" if respaldo else
+                  "Los fondos de envío ya están preparados.")
+            return
         if args.comando == "activar-clientes":
             respaldo = activar_clientes(carpeta)
             print(f"Clientes activado. Respaldo previo: {respaldo}" if respaldo else "Clientes ya está activo.")

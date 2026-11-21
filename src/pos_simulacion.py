@@ -1,7 +1,7 @@
 import json
 import os
 from collections import Counter
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -11,12 +11,15 @@ from caja import CATEGORIAS_CAJA_BEBIDAS_POSTRES
 from database import RUTA_ENTRENAMIENTO, obtener_conexion, obtener_ruta_base
 from pos_caja_diaria import caja_diaria_activa
 from pos_cobros import (
-    Medio, PagoPos, caja_receptora, crear_libro, estado_cuenta, iniciar_evento,
+    Medio, PagoPos, SUFIJO_TRANSITO, caja_receptora, crear_libro, efectivo_en_transito,
+    estado_cuenta, iniciar_evento,
     pagos_reversibles, receptor_original, registrar_movimiento,
     registrar_pagos, resumen_libro, terminar_evento,
 )
+from pos_envios import CargoEnvio, resumen_fondos_reparto
 from pos_entrenamiento_db import clientes_activos
 from pos_pedidos import PedidoPos, calcular_pedido_pos
+from pos_seguimiento import AltaPedido, EntregaPedido, datos_conversion, estimar_pedido, iniciar_seguimiento
 
 
 ID_SQLITE_SIMULACION = 0x41425031
@@ -33,6 +36,9 @@ class VentaSimuladaEntrada(PedidoPos):
     fiado: bool = Field(default=False, strict=True)
     deudor: str | None = Field(default=None, min_length=1, max_length=120)
 
+    entrega: EntregaPedido | None = Field(default=None, exclude_if=lambda valor: valor is None)
+    envio: CargoEnvio | None = Field(default=None, exclude_if=lambda valor: valor is None)
+
     id_cliente: int | None = Field(default=None, strict=True, gt=0, le=2**53 - 1)
 
     @model_validator(mode="after")
@@ -42,9 +48,44 @@ class VentaSimuladaEntrada(PedidoPos):
         if not self.medio_pago and self.pagos is None:
             raise ValueError("Indicá los pagos de la venta, incluso si la lista está vacía.")
         identificadores = sum(campo is not None for campo in (self.deudor, self.id_cliente))
-        if identificadores != int(self.fiado):
+        if (self.fiado and identificadores != 1) or (not self.fiado and self.deudor is not None):
             raise ValueError("Indicá el cliente o identificador para registrar el fiado.")
+        if self.entrega and self.entrega.modalidad == "retiro" and self.envio:
+            raise ValueError("El cargo de envío requiere entrega a domicilio.")
         return self
+
+
+class ConversionPedidoEntrada(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_solicitud: UUID
+    total_esperado_centavos: int = Field(strict=True, gt=0, le=310_000_000_000_000_000)
+    medio_pago: Medio | None = None
+    pagos: list[PagoPos] | None = Field(default=None, max_length=20)
+    fiado: bool = Field(default=False, strict=True)
+    id_cliente: int | None = Field(default=None, strict=True, gt=0, le=2**53 - 1)
+
+
+def cotizar_conversion(db, numero):
+    venta, estado, datos = datos_conversion(db, numero)
+    if venta is not None or estado == "cancelado":
+        raise HTTPException(409, "El pedido ya se confirmó o fue cancelado.")
+    return estimar_pedido(db, AltaPedido.model_validate({**json.loads(datos),
+        "id_solicitud": "00000000-0000-0000-0000-000000000000"}))
+
+
+def convertir_pedido_simulado(numero, datos, usuario):
+    with transaccion_simulacion(escritura=True) as db:
+        _, estado, guardado = datos_conversion(db, numero)
+        if datos.fiado and datos.id_cliente is None:
+            raise HTTPException(422, "Seleccioná un cliente registrado para el fiado.")
+        from pydantic import ValidationError
+
+        try:
+            entrada = VentaSimuladaEntrada.model_validate({**json.loads(guardado), **datos.model_dump()})
+        except ValidationError as error:
+            raise HTTPException(422, error.errors(include_context=False, include_input=False)) from error
+        return registrar_venta_simulada(entrada, usuario, db=db, id_pedido=numero, estado_pedido=estado)
 
 
 class AnulacionSimuladaEntrada(BaseModel):
@@ -172,13 +213,15 @@ def transaccion_simulacion(*, escritura=False):
         conexion.close()
 
 
-def registrar_venta_simulada(entrada, usuario):
+def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estado_pedido=None):
     excluir = {"id_solicitud"}
     if entrada.id_cliente is None:
         excluir.add("id_cliente")
     solicitud = entrada.model_dump_json(exclude=excluir)
+    if id_pedido is not None:
+        solicitud = json.dumps({**json.loads(solicitud), "id_pedido": id_pedido}, ensure_ascii=False)
     clave = (usuario["id_usuario"], str(entrada.id_solicitud))
-    with transaccion_simulacion(escritura=True) as conexion:
+    with (nullcontext(db) if db is not None else transaccion_simulacion(escritura=True)) as conexion:
         existente = conexion.execute(
             """
             SELECT v.id_venta, v.solicitud, v.pedido, a.id_venta IS NOT NULL
@@ -196,18 +239,16 @@ def registrar_venta_simulada(entrada, usuario):
             return {"id_venta": id_venta, "anulada": bool(anulada), **pedido,
                     **estado_cuenta(conexion, id_venta, pedido, anulada)}
 
+        if id_pedido is not None:
+            venta_vinculada, _, _ = datos_conversion(conexion, id_pedido)
+            if venta_vinculada is not None or estado_pedido == "cancelado":
+                raise HTTPException(409, "El pedido ya se confirmó o fue cancelado.")
+
         try:
             pedido = calcular_pedido_pos(conexion, entrada)
         except HTTPException as error:
             error.headers = {**(error.headers or {}), "X-POS-Resultado": "PEDIDO_RECHAZADO"}
             raise
-        if pedido["total_centavos"] != entrada.total_esperado_centavos:
-            raise HTTPException(409, {
-                "codigo": "TOTAL_MODIFICADO",
-                "mensaje": "Cambió el total. Volvé a validar el pedido.",
-                "total_centavos": pedido["total_centavos"],
-            })
-
         subtotales = Counter()
         stock = Counter()
         for item in pedido["items"]:
@@ -216,6 +257,20 @@ def registrar_venta_simulada(entrada, usuario):
             subtotales[seccion] += item["subtotal_centavos"]
             if item["controla_stock"]:
                 stock[item["id_producto"]] += item["cantidad"]
+        if entrada.entrega:
+            pedido["entrega"] = entrada.entrega.model_dump()
+        if entrada.envio:
+            pedido["envio"] = entrada.envio.model_dump()
+            if entrada.envio.titular == "negocio":
+                pedido["total_centavos"] += entrada.envio.importe_centavos
+                subtotales["comidas"] += entrada.envio.importe_centavos
+        if pedido["total_centavos"] != entrada.total_esperado_centavos:
+            raise HTTPException(409, {
+                "codigo": "TOTAL_MODIFICADO",
+                "mensaje": "Cambió el total. Volvé a validar el pedido.",
+                "total_centavos": pedido["total_centavos"],
+            })
+
         pedido["cajas_centavos"] = dict(subtotales)
         pedido["deudor"] = entrada.deudor
         modulo = RUTA_ENTRENAMIENTO.get() is not None and clientes_activos(conexion)
@@ -250,6 +305,15 @@ def registrar_venta_simulada(entrada, usuario):
             (*clave, solicitud, json.dumps(pedido, ensure_ascii=False)),
         )
         id_venta = cursor.lastrowid
+        if id_pedido is not None:
+            conexion.execute("UPDATE pos_seguimiento_pedidos SET id_venta = ? WHERE id_pedido = ?",
+                             (id_venta, id_pedido))
+        elif entrada.entrega:
+            id_pedido = iniciar_seguimiento(conexion, id_venta, usuario["id_usuario"])
+        if id_pedido is not None:
+            pedido["id_pedido"] = id_pedido
+            conexion.execute("UPDATE pos_ventas_simuladas SET pedido = ? WHERE id_venta = ?",
+                             (json.dumps(pedido, ensure_ascii=False), id_venta))
         if entrada.id_cliente is not None:
             conexion.execute("INSERT INTO pos_ventas_clientes VALUES (?, ?)", (id_venta, entrada.id_cliente))
         evento, _ = iniciar_evento(conexion, "venta", usuario, entrada, id_venta, usar_uuid=False)
@@ -314,14 +378,12 @@ def revertir_venta_simulada(id_venta, entrada, usuario, *, tipo):
 
         if not reversas:
             raise HTTPException(409, "La venta ya fue devuelta por completo.")
-        valor_devuelto = 0
         for linea, cantidad in reversas.items():
             if linea > len(pedido["items"]):
                 raise HTTPException(422, "La línea seleccionada no existe en la venta.")
             item = pedido["items"][linea - 1]
             if cantidad > item["cantidad"] - antes["unidades_devueltas"].get(linea, 0):
                 raise HTTPException(409, "La devolución supera las unidades disponibles.")
-            valor_devuelto += cantidad * item["precio_unitario_centavos"]
             if item["controla_stock"]:
                 stock[item["id_producto"]] += cantidad
         conexion.executemany("""
@@ -334,7 +396,8 @@ def revertir_venta_simulada(id_venta, entrada, usuario, *, tipo):
         if cursor.rowcount != len(stock):
             raise HTTPException(409, "Falta un producto cuyo stock debe restaurarse.")
 
-        a_reembolsar = max(0, valor_devuelto - antes["saldo_pendiente_centavos"])
+        devengado_restante = sum(estado_cuenta(conexion, id_venta, pedido)["devengado_centavos"].values())
+        a_reembolsar = max(0, antes["cobrado_centavos"] - devengado_restante)
         reembolsado = a_reembolsar
         for movimiento, receptor, medio, disponible in pagos_reversibles(conexion, id_venta):
             if not a_reembolsar:
@@ -452,12 +515,22 @@ def consultar_historial_simulado(usuario, antes_de, limite):
         ventas = []
         for id_venta, fecha, autor, pedido_json, anulador, fecha_anulacion, motivo in filas[:limite]:
             pedido = json.loads(pedido_json)
+            historial = eventos_venta(conexion, id_venta)
+            if usuario["rol"] == "admin":
+                for evento in historial:
+                    for cobro in evento["movimientos"]:
+                        if cobro["importe_centavos"] > 0 and cobro["receptor"].endswith(SUFIJO_TRANSITO):
+                            cobro["pendiente_rendicion_centavos"] = efectivo_en_transito(
+                                conexion, cobro["id_movimiento"],
+                            )
+            fondos = ({"fondos_reparto": resumen_fondos_reparto(conexion, id_venta=id_venta)}
+                      if pedido.get("envio", {}).get("titular") == "repartidor" else {})
             ventas.append({
-                "id_venta": id_venta, "fecha": fecha, "id_usuario": autor, "anulada": anulador is not None,
+                **fondos, "id_venta": id_venta, "fecha": fecha, "id_usuario": autor, "anulada": anulador is not None,
                 "fiado_historico": bool(pedido.get("deudor") and not pedido.get("id_cliente")),
                 "anulacion": {"id_usuario": anulador, "fecha": fecha_anulacion, "motivo": motivo} if anulador else None,
                 **pedido, **estado_cuenta(conexion, id_venta, pedido, anulador is not None),
-                "historial": eventos_venta(conexion, id_venta),
+                "historial": historial,
             })
     return {"ventas": ventas, "siguiente_antes_de": ventas[-1]["id_venta"] if len(filas) > limite else None}
 
@@ -473,8 +546,10 @@ def consultar_cajas_simuladas(conexion=None, *, hasta_periodo=None):
         WHERE medio_pago IS NOT NULL AND periodo <= ?
         GROUP BY caja, medio_pago ORDER BY caja, medio_pago
     """, (resumen["periodo_abierto"],)).fetchall()
+    fondos_reparto = resumen_fondos_reparto(conexion, periodo=resumen["periodo_abierto"])
     return {
         **resumen,
+        **({"fondos_reparto": fondos_reparto} if fondos_reparto else {}),
         "saldos": [{"caja": caja, "medio_pago": medio, "saldo_centavos": saldo} for caja, medio, saldo in filas],
     }
 
