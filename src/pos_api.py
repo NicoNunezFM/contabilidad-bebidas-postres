@@ -467,7 +467,7 @@ def devolver_venta_pos(
 )
 def operar_fondo_reparto_pos(
     movimiento: MovimientoReparto,
-    tipo: Literal["recepcion", "liquidacion", "reembolso"],
+    tipo: Literal["recepcion", "liquidacion", "reembolso", "directo"],
     id_venta: int = Path(gt=0, le=2**63 - 1),
     usuario: dict = Depends(exigir_administrador_pos),
     x_pos_usuario: int | None = Header(default=None),

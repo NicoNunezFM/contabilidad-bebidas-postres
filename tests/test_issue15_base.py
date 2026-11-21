@@ -50,6 +50,14 @@ def test_transferencia_de_terceros_no_aumenta_ingreso_ni_saldo_del_cliente():
         recibido = registrar_fondo_reparto(db, 1, pedido, entrada, usuario, tipo="recepcion")
         assert recibido["fondos_reparto"][0]["obligacion_centavos"] == 100_000
         assert registrar_fondo_reparto(db, 1, pedido, entrada, usuario, tipo="recepcion") == recibido
+        directo = entrada.model_copy(update={
+            "id_solicitud": uuid4(), "referencia": "entrega-ficticia", "receptor": "repartidor_directo",
+        })
+        pedido["envio"]["importe_centavos"] = 200_000
+        constancia = registrar_fondo_reparto(db, 1, pedido, directo, usuario, tipo="directo")
+        fila = next(f for f in constancia["fondos_reparto"] if f["receptor"] == "repartidor_directo")
+        assert fila["pagado_directo_centavos"] == 100_000
+        assert fila["obligacion_centavos"] == 0
         liquidacion = entrada.model_copy(update={"id_solicitud": uuid4(), "referencia": "liquidacion-ficticia"})
         registrar_fondo_reparto(db, 1, pedido, liquidacion, usuario, tipo="liquidacion")
         assert resumen_fondos_reparto(db)[0]["obligacion_centavos"] == 0

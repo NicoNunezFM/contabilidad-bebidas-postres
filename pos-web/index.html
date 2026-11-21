@@ -2269,24 +2269,30 @@ if (modoReal) {
     }
     if (venta.envio?.titular !== 'repartidor') return;
     for (const saldo of venta.fondos_reparto) {
+      if (saldo.receptor === 'repartidor_directo') {
+        detalle.append(nodoPos('p', 'Pagado directamente al repartidor · ' + importePos(saldo.pagado_directo_centavos)));
+        continue;
+      }
       detalle.append(nodoPos('p', 'Obligación de reparto · ' + nombreReceptorPos(saldo.receptor)
         + ' · ' + importePos(saldo.obligacion_centavos)));
     }
     const acciones = {recepcion: 'Registrar transferencia de reparto', liquidacion: 'Liquidar al repartidor',
-      reembolso: 'Reembolsar importe de reparto'};
+      reembolso: 'Reembolsar importe de reparto', directo: 'Confirmar pago al repartidor'};
     for (const [tipo, texto] of Object.entries(acciones)) {
       const boton = nodoPos('button', texto);
       boton.onclick = () => abrirOperacionPos(texto, '/simulacion/ventas/' + venta.id_venta
         + '/fondos-reparto/' + tipo, usuario, campos => {
-          const cuenta = selectorPos('Cuenta receptora original', receptoresPos('transferencia'));
+          const cuenta = tipo === 'directo' ? null
+            : selectorPos('Cuenta receptora original', receptoresPos('transferencia'));
           const monto = importeEntradaPos('Importe');
           const label = nodoPos('label', 'Referencia ');
           const referencia = nodoPos('input');
           referencia.maxLength = 120;
           label.append(referencia);
-          campos.append(cuenta.label, monto.label, label);
+          if (cuenta) campos.append(cuenta.label);
+          campos.append(monto.label, label);
           const motivo = motivoOperacionPos(campos);
-          return () => ({receptor: cuenta.select.value, importe_centavos: leerCentavosPos(monto.input.value),
+          return () => ({receptor: cuenta?.select.value || 'repartidor_directo', importe_centavos: leerCentavosPos(monto.input.value),
             referencia: referencia.value.trim(), motivo: motivo()});
         }, () => mostrarHistorialPos('Operación de reparto registrada.'));
       detalle.append(boton);
@@ -2961,9 +2967,10 @@ if (modoReal) {
     return buscar;
   }
 
-  function elegirClienteFiadoPos(campos, usuario) {
+  function elegirClienteFiadoPos(campos, usuario, obligatorio = true) {
     let cliente;
-    const elegido = nodoPos('p', 'Seleccioná o registrá un cliente para confirmar la deuda.');
+    const elegido = nodoPos('p', obligatorio ? 'Seleccioná o registrá un cliente para confirmar la deuda.'
+      : 'Seleccioná un cliente para vincularlo con la venta.');
     elegido.id = 'clienteElegidoPos';
     elegido.setAttribute('aria-live', 'polite');
     campos.append(elegido);
@@ -3000,8 +3007,8 @@ if (modoReal) {
     alta.append(registrar, errorEl);
     campos.append(alta);
     return () => {
-      if (!cliente) throw new Error('Seleccioná un cliente registrado.');
-      return cliente.id_cliente;
+      if (obligatorio && !cliente) throw new Error('Seleccioná un cliente registrado.');
+      return cliente?.id_cliente;
     };
   }
 
@@ -3252,6 +3259,12 @@ if (modoReal) {
       receptor = selectorPos('Receptor', {'': 'Distribuir según la sección de cada producto', ...receptoresPos(medio)});
       campos.append(receptor.label);
     }
+    if (medio !== 'fiado' && clientesActivos && el('entrenamientoAviso')) {
+      const clienteOpcional = nodoPos('details');
+      clienteOpcional.append(nodoPos('summary', 'Asociar cliente (opcional)'));
+      leerCliente = elegirClienteFiadoPos(clienteOpcional, usuario, false);
+      campos.append(clienteOpcional);
+    }
     el('accept').onclick = function () {
       if (enviandoVenta || ventaPendiente || sesionPos !== usuario || validacionPos !== validacion) return;
       try {
@@ -3272,6 +3285,7 @@ if (modoReal) {
         } else if (receptor.select.value) {
           modalidad = {pagos: [{medio_pago: medio, receptor: receptor.select.value, importe_centavos: totalVenta}]};
         }
+        if (medio !== 'fiado' && leerCliente) modalidad.id_cliente = leerCliente();
         var pendiente = {
           pedido: pedidoReal,
           datos: {

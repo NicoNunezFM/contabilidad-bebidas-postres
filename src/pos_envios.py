@@ -20,7 +20,7 @@ class CargoEnvio(BaseModel):
 
 
 class MovimientoReparto(ReversionEntrada):
-    receptor: ReceptorDigital
+    receptor: ReceptorDigital | Literal["repartidor_directo"]
     importe_centavos: Centavos
     referencia: str = Field(min_length=1, max_length=120)
 
@@ -33,8 +33,9 @@ def crear_libro_reparto(db):
             receptor TEXT NOT NULL,
             importe_centavos INTEGER NOT NULL CHECK (importe_centavos <> 0),
             referencia TEXT NOT NULL,
-            tipo TEXT NOT NULL CHECK (tipo IN ('recepcion', 'liquidacion', 'reembolso')),
-            CHECK ((tipo = 'recepcion') = (importe_centavos > 0)),
+            tipo TEXT NOT NULL CHECK (tipo IN ('recepcion', 'liquidacion', 'reembolso', 'directo')),
+            CHECK ((tipo IN ('recepcion', 'directo')) = (importe_centavos > 0)),
+            CHECK ((tipo = 'directo') = (receptor = 'repartidor_directo')),
             UNIQUE (receptor, tipo, referencia)
         )
     """)
@@ -50,13 +51,15 @@ def resumen_fondos_reparto(db, *, periodo=None, id_venta=None):
         return []
     return [
         {"receptor": receptor, "recibido_centavos": recibido, "liquidado_centavos": liquidado,
-         "reembolsado_centavos": reembolsado, "obligacion_centavos": saldo}
-        for receptor, recibido, liquidado, reembolsado, saldo in db.execute("""
+         "reembolsado_centavos": reembolsado, "obligacion_centavos": saldo,
+         **({"pagado_directo_centavos": directo} if receptor == "repartidor_directo" else {})}
+        for receptor, recibido, liquidado, reembolsado, saldo, directo in db.execute("""
             SELECT r.receptor,
                    SUM(CASE WHEN r.tipo = 'recepcion' THEN r.importe_centavos ELSE 0 END),
                    -SUM(CASE WHEN r.tipo = 'liquidacion' THEN r.importe_centavos ELSE 0 END),
                    -SUM(CASE WHEN r.tipo = 'reembolso' THEN r.importe_centavos ELSE 0 END),
-                   SUM(r.importe_centavos)
+                   SUM(CASE WHEN r.tipo <> 'directo' THEN r.importe_centavos ELSE 0 END),
+                   SUM(CASE WHEN r.tipo = 'directo' THEN r.importe_centavos ELSE 0 END)
             FROM pos_fondos_reparto AS r JOIN pos_eventos_simulados AS e USING (id_evento)
             WHERE (:periodo IS NULL OR e.periodo <= :periodo)
               AND (:venta IS NULL OR r.id_venta = :venta)
@@ -78,8 +81,11 @@ def registrar_fondo_reparto(db, id_venta, pedido, entrada, usuario, *, tipo, anu
     crear_libro_reparto(db)
     fondos = resumen_fondos_reparto(db, id_venta=id_venta)
     importe = entrada.importe_centavos
-    if tipo == "recepcion":
-        cobrado = sum(r["recibido_centavos"] - r["reembolsado_centavos"] for r in fondos)
+    if (tipo == "directo") != (entrada.receptor == "repartidor_directo"):
+        raise HTTPException(422, "El receptor no corresponde a la operación de reparto.")
+    if tipo in ("recepcion", "directo"):
+        cobrado = sum(r["recibido_centavos"] - r["reembolsado_centavos"]
+                      + r.get("pagado_directo_centavos", 0) for r in fondos)
         if anulada or importe > envio["importe_centavos"] - cobrado:
             raise HTTPException(409, "La recepción supera el importe de envío disponible.")
     else:
@@ -92,7 +98,7 @@ def registrar_fondo_reparto(db, id_venta, pedido, entrada, usuario, *, tipo, anu
         raise HTTPException(409, "La referencia de reparto ya fue registrada.")
     db.execute("""
         INSERT INTO pos_fondos_reparto VALUES (?, ?, ?, ?, ?, ?)
-    """, (evento, id_venta, entrada.receptor, importe if tipo == "recepcion" else -importe,
+    """, (evento, id_venta, entrada.receptor, importe if tipo in ("recepcion", "directo") else -importe,
           entrada.referencia, tipo))
     return terminar_evento(db, evento, {
         "id_evento": evento, "id_venta": id_venta, "tipo": tipo,
