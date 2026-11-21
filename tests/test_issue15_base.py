@@ -129,3 +129,70 @@ def test_envio_propio_se_devenga_por_separado_y_revierte_en_devolucion_total():
         estado = estado_cuenta(db, 1, pedido)
         assert estado["importe_vigente_centavos"] == 0
         assert estado["envio_propio_vigente_centavos"] == 0
+
+
+def test_envio_de_terceros_pago_mixto_rendicion_concurrente_y_diezmo(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from pos_caja_diaria import ahora_local
+    from scripts.abadion_entrenamiento import preparar_base
+    from tests.test_pos_qa_integrado import SIM, catalogo, cliente, post, solicitud
+
+    preparar_base(tmp_path)
+    ventas, admin, otro_admin = cliente(tmp_path, 0), cliente(tmp_path, 1), cliente(tmp_path, 1)
+    producto = catalogo(ventas)["Clásica doble"]
+    mercaderia = round(producto["precio_venta"] * 100)
+    envio, efectivo = 100_000, 200_000
+    venta = post(ventas, SIM + "/ventas", solicitud(
+        items=[{"id_producto": producto["id_producto"], "cantidad": 1}],
+        total_esperado_centavos=mercaderia,
+        envio={"titular": "repartidor", "importe_centavos": envio},
+        pagos=[
+            {"receptor": "comidas_banco", "medio_pago": "transferencia",
+             "importe_centavos": mercaderia - efectivo, "referencia": "mixto-ficticio"},
+            {"receptor": "comidas_efectivo_en_transito", "medio_pago": "efectivo",
+             "importe_centavos": efectivo},
+        ],
+    ))
+    assert venta["saldo_pendiente_centavos"] == 0
+    raiz = SIM + f"/ventas/{venta['id_venta']}/fondos-reparto"
+    recepcion = solicitud(receptor="comidas_banco", importe_centavos=envio,
+                          referencia="mixto-ficticio", motivo="Envío ajeno")
+    assert ventas.post(raiz + "/recepcion", json=recepcion).status_code == 403
+    raiz_cierres = SIM + "/cierres"
+    ingreso = post(admin, raiz + "/recepcion", recepcion)
+    assert post(admin, raiz + "/recepcion", recepcion) == ingreso
+    informe = admin.get(SIM + "/contabilidad").json()
+    assert informe["cobrado_neto_centavos"] == mercaderia
+    assert informe["diezmo_centavos"] == mercaderia // 10
+
+    historia = admin.get(SIM + "/ventas").json()["ventas"][0]["historial"]
+    cobro = next(m["id_movimiento"] for m in historia[0]["movimientos"]
+                 if m["receptor"] == "comidas_efectivo_en_transito")
+    ruta_rendicion = SIM + f"/cobros/{cobro}/rendiciones"
+    rendicion = solicitud(importe_centavos=efectivo, motivo="Recepción en caja")
+    assert admin.post(ruta_rendicion, json=rendicion).status_code == 409
+    post(admin, SIM + "/caja-diaria/comidas/apertura",
+         solicitud(fecha=ahora_local()[:10], inicial_centavos=0))
+    assert post(admin, ruta_rendicion, rendicion)["pendiente_centavos"] == 0
+    assert post(admin, ruta_rendicion, rendicion)["pendiente_centavos"] == 0
+
+    cierre = post(admin, raiz_cierres, solicitud(periodo=1, motivo="Cierre ficticio"))
+    assert cierre["resumen"]["fondos_reparto"][0]["obligacion_centavos"] == envio
+    barrera = Barrier(2, timeout=10)
+
+    def liquidar(navegador, referencia):
+        barrera.wait()
+        return navegador.post(raiz + "/liquidacion", json=solicitud(
+            receptor="comidas_banco", importe_centavos=envio, motivo="Liquidación ficticia",
+            referencia=referencia,
+        )).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        primera = pool.submit(liquidar, admin, "liq-a")
+        segunda = pool.submit(liquidar, otro_admin, "liq-b")
+        assert sorted((primera.result(), segunda.result())) == [200, 409]
+    assert admin.get(raiz_cierres + "/1").json()["resumen"] == cierre["resumen"]
+    assert admin.get(SIM + "/cajas").json()["fondos_reparto"][0]["obligacion_centavos"] == 0
+    assert admin.get(SIM + "/conciliacion").json()["cuadrado"] is True
