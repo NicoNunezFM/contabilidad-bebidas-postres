@@ -196,3 +196,48 @@ def test_envio_de_terceros_pago_mixto_rendicion_concurrente_y_diezmo(tmp_path):
     assert admin.get(raiz_cierres + "/1").json()["resumen"] == cierre["resumen"]
     assert admin.get(SIM + "/cajas").json()["fondos_reparto"][0]["obligacion_centavos"] == 0
     assert admin.get(SIM + "/conciliacion").json()["cuadrado"] is True
+
+
+def test_preparacion_fondos_con_respaldo_e_idempotencia(tmp_path):
+    from scripts.abadion_entrenamiento import activar_fondos_envio, preparar_base
+
+    ruta = preparar_base(tmp_path)
+    respaldo = activar_fondos_envio(tmp_path)
+    assert respaldo.is_file()
+    assert activar_fondos_envio(tmp_path) is None
+    with closing(sqlite3.connect(respaldo)) as antes, closing(sqlite3.connect(ruta)) as despues:
+        assert antes.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        assert despues.execute("PRAGMA foreign_key_check").fetchall() == []
+        for tabla in ("productos", "pos_ventas_simuladas", "pos_movimientos_simulados", "pos_clientes"):
+            assert antes.execute(f"SELECT * FROM {tabla}").fetchall() == despues.execute(
+                f"SELECT * FROM {tabla}"
+            ).fetchall()
+
+
+def test_fiado_con_envio_propio_y_abono_fifo_fuera_del_local(tmp_path):
+    from scripts.abadion_entrenamiento import preparar_base
+    from tests.test_pos_clientes import CLIENTES, fiar, preparar_abono
+    from tests.test_pos_entrenamiento import registrar_cliente_prueba
+    from tests.test_pos_qa_integrado import SIM, cliente, post
+
+    preparar_base(tmp_path)
+    ventas, admin = cliente(tmp_path, 0), cliente(tmp_path, 1)
+    cliente_id = registrar_cliente_prueba(ventas, "Cliente ficticio de reparto")
+    primero = fiar(ventas, cliente_id, "Clásica doble")
+    primero["total_esperado_centavos"] += 100_000
+    primero["envio"] = {"titular": "negocio", "importe_centavos": 100_000}
+    venta = post(ventas, SIM + "/ventas", primero)
+    segunda = post(ventas, SIM + "/ventas", fiar(ventas, cliente_id, "Manaos Cola 600ml"))
+    ruta = f"{CLIENTES}/{cliente_id}"
+    monto = primero["total_esperado_centavos"] + 50_000
+    previa, abono = preparar_abono(ventas, ruta, {
+        "receptor": "comidas_efectivo_en_transito", "medio_pago": "efectivo", "importe_centavos": monto,
+    })
+    assert [(i["id_venta"], i["importe_centavos"]) for i in previa["imputaciones"]] == [
+        (venta["id_venta"], primero["total_esperado_centavos"]), (segunda["id_venta"], 50_000),
+    ]
+    cobro = post(ventas, ruta + "/abonos", abono)
+    assert post(ventas, ruta + "/abonos", abono) == cobro
+    assert ventas.get(ruta).json()["saldo_centavos"] == segunda["importe_original_centavos"] - 50_000
+    assert admin.get(SIM + "/contabilidad").json()["diezmo_centavos"] == monto // 10
+    assert admin.get(SIM + "/conciliacion").json()["cuadrado"] is True

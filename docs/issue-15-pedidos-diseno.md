@@ -69,3 +69,9 @@ El importe de envío propio queda en la venta como concepto separado, devenga en
 | Envío propio, devengado separado y devolución total | Aprobada en SQLite ficticia |
 
 Quedan pendientes pruebas integradas de API, abonos FIFO, pagos mixtos, devoluciones y liquidaciones concurrentes, arqueo al cierre y comprobación directa del diezmo. También quedan pendientes el flujo de pedidos, la conciliación de pagos al repartidor fuera de las cuentas del negocio y el ensayo completo de actualización y recuperación.
+
+### Ensayo de la preparación contable
+
+En la copia ficticia y con el servidor detenido, ejecutar `python scripts/abadion_entrenamiento.py activar-fondos-envio` antes de practicar los flujos nuevos. El comando bloquea Entrenamiento, reserva escritura, crea un respaldo SQLite y agrega las tablas auxiliares. Repetir el comando devuelve que los fondos ya están preparados. La comprobación local compara tablas históricas con el respaldo y verifica integridad y claves foráneas. La recuperación sigue el procedimiento de carpeta completa y retorno al SHA del PR #16.
+
+GitHub Actions aprobó SQLite/API y Edge en el commit de separación de fondos (`e323975`). El primer ensayo integrado de pago mixto, concurrencia y diezmo pasó sus comprobaciones hasta la conciliación. La conciliación exigía dos secciones diferentes para todo evento de transferencia y marcaba incorrectamente una rendición de la misma sección y los eventos del libro auxiliar. La corrección valida cada estructura de acuerdo con su registro auxiliar y conserva la regla anterior para transferencias entre cajas. Se agregaron casos API para esa conciliación y para el abono FIFO en tránsito. Los pedidos y su interfaz siguen pendientes.
