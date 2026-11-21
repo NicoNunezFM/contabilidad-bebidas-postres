@@ -30,6 +30,7 @@ from pos_clientes import (
     ficha_cliente, prever_abono,
 )
 from pos_cobros import (
+    RendicionEntrada, registrar_rendicion,
     AbonoEntrada, PagoPos, Centavos, CierreEntrada, DevolucionEntrada, ReversionEntrada,
     SolicitudContable, TransferenciaEntrada,
 )
@@ -427,6 +428,21 @@ def devolver_venta_pos(
 ):
     comprobar_usuario_simulacion(x_pos_usuario, usuario)
     return {"ok": True, "simulacion": True, **revertir_venta_simulada(id_venta, devolucion, usuario, tipo="devolucion")}
+
+
+@router.post(
+    "/simulacion/cobros/{id_cobro}/rendiciones",
+    dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)],
+)
+def rendir_efectivo_pos(
+    rendicion: RendicionEntrada,
+    id_cobro: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return {"ok": True, "simulacion": True, **registrar_rendicion(db, id_cobro, rendicion, usuario)}
 
 
 @router.post("/simulacion/cajas/transferencias", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
