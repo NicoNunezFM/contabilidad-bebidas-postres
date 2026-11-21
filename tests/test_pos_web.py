@@ -683,3 +683,46 @@ def test_pos_web_entrenamiento_promocion_fiado_devolucion_y_cierre(controles_pos
     boton_por_texto(caja + " button", "Cerrar caja")
     clic("#accept")
     texto(caja, "Cerrada")
+
+
+@pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
+def test_pos_web_seguimiento_retiro_de_mostrador(controles_pos):
+    evaluar, clic, texto, _ = controles_pos
+    texto("#cardsReal", "Oreo chico")
+    clic("#adminAccess")
+    usuario, _, clave = USUARIOS[0]
+    evaluar(f"""
+        document.querySelector('#usuarioPos').value = {json.dumps(usuario)};
+        document.querySelector('#claveAdmin').value = {json.dumps(clave)};
+    """)
+    clic("#accept")
+    texto("#adminAccess", usuario)
+    evaluar("""
+        [...document.querySelectorAll('#cardsReal article')]
+            .find(t => t.querySelector('h3')?.textContent === 'Oreo chico').querySelector('button').click();
+    """)
+    clic("#accept")
+    clic("#validarPedido")
+    texto("#estadoPedido", "3.000")
+    evaluar("""
+        [...document.querySelectorAll('#payments button')]
+            .find(b => b.textContent.includes('Transferencia')).click();
+    """)
+    clic("#checkout")
+    evaluar("""
+        const modo = document.querySelector('#dialogBody select');
+        modo.value = 'retiro';
+        modo.dispatchEvent(new Event('change', {bubbles: true}));
+    """)
+    clic("#accept")
+    texto("#notice", "registrada")
+    clic("#seguimientoPos")
+    texto("#consultaPos", "Mostrador")
+    clic("#consultaPos details summary")
+    texto("#consultaPos details", "Oreo chico")
+    evaluar("""
+        [...document.querySelectorAll('#consultaPos button')]
+            .find(b => b.textContent === 'En preparación').click();
+    """)
+    clic("#accept")
+    texto("#consultaPos", "En preparación")

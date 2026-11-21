@@ -30,6 +30,7 @@ from pos_clientes import (
     AltaCliente, PagoCliente, abonar_cliente, alta_cliente, buscar_clientes, corregir_abono,
     ficha_cliente, prever_abono,
 )
+from pos_seguimiento import TransicionPedido, cambiar_estado_pedido, listar_seguimiento
 from pos_envios import MovimientoReparto, registrar_fondo_reparto
 from pos_cobros import (
     RendicionEntrada, registrar_rendicion,
@@ -389,6 +390,33 @@ def simular_venta_pos(
 ):
     comprobar_usuario_simulacion(x_pos_usuario, usuario)
     return {"ok": True, "simulacion": True, **registrar_venta_simulada(venta, usuario)}
+
+
+@router.get("/simulacion/pedidos", dependencies=[
+    Depends(exigir_simulacion_activa), Depends(evitar_cache_pos),
+])
+def listar_pedidos_pos(
+    finalizados: bool = False,
+    antes_de: int | None = Query(default=None, gt=0, le=2**63 - 1),
+    limite: int = Query(default=25, ge=1, le=100),
+    usuario: dict = Depends(exigir_usuario_pos),
+):
+    with transaccion_simulacion() as db:
+        return listar_seguimiento(db, finalizados=finalizados, antes_de=antes_de, limite=limite)
+
+
+@router.post("/simulacion/pedidos/{id_pedido}/estado", dependencies=[
+    Depends(comprobar_origen), Depends(exigir_simulacion_activa),
+])
+def cambiar_pedido_pos(
+    cambio: TransicionPedido,
+    id_pedido: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return cambiar_estado_pedido(db, id_pedido, cambio, usuario)
 
 
 @router.get("/simulacion/ventas", dependencies=[Depends(exigir_simulacion_activa), Depends(evitar_cache_pos)])

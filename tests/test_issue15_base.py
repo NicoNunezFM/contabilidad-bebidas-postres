@@ -241,3 +241,40 @@ def test_fiado_con_envio_propio_y_abono_fifo_fuera_del_local(tmp_path):
     assert ventas.get(ruta).json()["saldo_centavos"] == segunda["importe_original_centavos"] - 50_000
     assert admin.get(SIM + "/contabilidad").json()["diezmo_centavos"] == monto // 10
     assert admin.get(SIM + "/conciliacion").json()["cuadrado"] is True
+
+
+def test_pedido_whatsapp_fiado_entrega_confirmada_y_cancelacion_auditada(tmp_path):
+    from scripts.abadion_entrenamiento import preparar_base
+    from tests.test_pos_clientes import fiar
+    from tests.test_pos_entrenamiento import registrar_cliente_prueba
+    from tests.test_pos_qa_integrado import SIM, cliente, post, solicitud
+
+    preparar_base(tmp_path)
+    ventas, admin = cliente(tmp_path, 0), cliente(tmp_path, 1)
+    cliente_id = registrar_cliente_prueba(ventas, "Cliente ficticio")
+    payload = fiar(ventas, cliente_id, "Clásica doble")
+    payload["entrega"] = {"origen": "whatsapp", "modalidad": "envio", "direccion": "Calle ficticia 123"}
+    venta = post(ventas, SIM + "/ventas", payload)
+    assert post(ventas, SIM + "/ventas", payload)["id_venta"] == venta["id_venta"]
+    lista = ventas.get(SIM + "/pedidos").json()["pedidos"]
+    assert len(lista) == 1 and lista[0]["estado"] == "pendiente"
+    ruta = SIM + f"/pedidos/{venta['id_venta']}/estado"
+    assert ventas.post(ruta, json=solicitud(estado="cancelado", version=1, motivo="Prueba")).status_code == 403
+    for version, estado in enumerate(("preparacion", "listo", "en_camino"), start=1):
+        datos = solicitud(estado=estado, version=version)
+        paso = post(ventas, ruta, datos)
+        assert post(ventas, ruta, datos) == paso
+    assert ventas.post(ruta, json=solicitud(estado="entregado", version=4)).status_code == 409
+    pedido = post(ventas, ruta, solicitud(estado="entregado", version=4, confirmar_pendiente=True))
+    assert pedido["saldo_pendiente_centavos"] == venta["saldo_pendiente_centavos"]
+    assert len(pedido["historial"]) == 5
+    assert ventas.get(SIM + "/pedidos").json()["pedidos"] == []
+    assert ventas.get(SIM + "/pedidos?finalizados=true").json()["pedidos"][0]["estado"] == "entregado"
+
+    retiro = fiar(ventas, cliente_id, "Clásica doble")
+    retiro["entrega"] = {"origen": "mostrador", "modalidad": "retiro"}
+    segunda = post(ventas, SIM + "/ventas", retiro)
+    cancelado = post(admin, SIM + f"/pedidos/{segunda['id_venta']}/estado",
+                     solicitud(estado="cancelado", version=1, motivo="Pedido duplicado ficticio"))
+    assert cancelado["saldo_pendiente_centavos"] == segunda["saldo_pendiente_centavos"]
+    assert cancelado["historial"][-1]["motivo"] == "Pedido duplicado ficticio"

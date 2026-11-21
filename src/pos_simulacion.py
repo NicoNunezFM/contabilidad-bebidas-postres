@@ -18,6 +18,7 @@ from pos_cobros import (
 from pos_envios import CargoEnvio, resumen_fondos_reparto
 from pos_entrenamiento_db import clientes_activos
 from pos_pedidos import PedidoPos, calcular_pedido_pos
+from pos_seguimiento import EntregaPedido, iniciar_seguimiento
 
 
 ID_SQLITE_SIMULACION = 0x41425031
@@ -34,6 +35,7 @@ class VentaSimuladaEntrada(PedidoPos):
     fiado: bool = Field(default=False, strict=True)
     deudor: str | None = Field(default=None, min_length=1, max_length=120)
 
+    entrega: EntregaPedido | None = Field(default=None, exclude_if=lambda valor: valor is None)
     envio: CargoEnvio | None = Field(default=None, exclude_if=lambda valor: valor is None)
 
     id_cliente: int | None = Field(default=None, strict=True, gt=0, le=2**53 - 1)
@@ -45,8 +47,10 @@ class VentaSimuladaEntrada(PedidoPos):
         if not self.medio_pago and self.pagos is None:
             raise ValueError("Indicá los pagos de la venta, incluso si la lista está vacía.")
         identificadores = sum(campo is not None for campo in (self.deudor, self.id_cliente))
-        if identificadores != int(self.fiado):
+        if (self.fiado and identificadores != 1) or (not self.fiado and self.deudor is not None):
             raise ValueError("Indicá el cliente o identificador para registrar el fiado.")
+        if self.entrega and self.entrega.modalidad == "retiro" and self.envio:
+            raise ValueError("El cargo de envío requiere entrega a domicilio.")
         return self
 
 
@@ -212,6 +216,8 @@ def registrar_venta_simulada(entrada, usuario):
             subtotales[seccion] += item["subtotal_centavos"]
             if item["controla_stock"]:
                 stock[item["id_producto"]] += item["cantidad"]
+        if entrada.entrega:
+            pedido["entrega"] = entrada.entrega.model_dump()
         if entrada.envio:
             pedido["envio"] = entrada.envio.model_dump()
             if entrada.envio.titular == "negocio":
@@ -258,6 +264,8 @@ def registrar_venta_simulada(entrada, usuario):
             (*clave, solicitud, json.dumps(pedido, ensure_ascii=False)),
         )
         id_venta = cursor.lastrowid
+        if entrada.entrega:
+            iniciar_seguimiento(conexion, id_venta, usuario["id_usuario"])
         if entrada.id_cliente is not None:
             conexion.execute("INSERT INTO pos_ventas_clientes VALUES (?, ?)", (id_venta, entrada.id_cliente))
         evento, _ = iniciar_evento(conexion, "venta", usuario, entrada, id_venta, usar_uuid=False)
