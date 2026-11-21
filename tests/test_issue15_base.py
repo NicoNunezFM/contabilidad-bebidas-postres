@@ -317,7 +317,7 @@ def test_pedido_anonimo_conversion_concurrente_con_reprecio_y_restauracion(tmp_p
 
     ruta_db = preparar_base(tmp_path)
     operador, otro, admin = cliente(tmp_path, 0), cliente(tmp_path, 0), cliente(tmp_path, 1)
-    producto = catalogo(operador)["Oreo chico"]
+    producto = catalogo(operador)["Clásica doble"]
     id_producto = producto["id_producto"]
     with closing(sqlite3.connect(ruta_db)) as db, db:
         db.execute("UPDATE productos SET controla_stock=1, stock=2 WHERE id_producto=?", (id_producto,))
@@ -338,12 +338,12 @@ def test_pedido_anonimo_conversion_concurrente_con_reprecio_y_restauracion(tmp_p
         for tabla in ("pos_ventas_simuladas", "pos_movimientos_simulados", "pos_diario_caja"):
             assert db.execute(f"SELECT COUNT(*) FROM {tabla}").fetchone() == (0,)
         assert db.execute("SELECT stock FROM productos WHERE id_producto=?", (id_producto,)).fetchone() == (2,)
-        db.execute("UPDATE productos SET precio_venta=3500, stock=0 WHERE id_producto=?", (id_producto,))
-    original = solicitud(total_esperado_centavos=300_000, medio_pago="transferencia")
+        db.execute("UPDATE productos SET precio_venta=9500, stock=0 WHERE id_producto=?", (id_producto,))
+    original = solicitud(total_esperado_centavos=900_000, medio_pago="transferencia")
     assert operador.post(detalle + "/venta", json=original).status_code == 409
     with closing(sqlite3.connect(ruta_db)) as db, db:
         db.execute("UPDATE productos SET stock=2 WHERE id_producto=?", (id_producto,))
-    assert operador.get(detalle + "/cotizacion").json()["total_centavos"] == 350_000
+    assert operador.get(detalle + "/cotizacion").json()["total_centavos"] == 950_000
     precio = operador.post(detalle + "/venta", json=original)
     assert precio.status_code == 409 and precio.json()["detail"]["codigo"] == "TOTAL_MODIFICADO"
 
@@ -353,7 +353,7 @@ def test_pedido_anonimo_conversion_concurrente_con_reprecio_y_restauracion(tmp_p
         barrera.wait()
         return navegador.post(detalle + "/venta", json=datos)
 
-    pagos = [solicitud(total_esperado_centavos=350_000, medio_pago="transferencia") for _ in range(2)]
+    pagos = [solicitud(total_esperado_centavos=950_000, medio_pago="transferencia") for _ in range(2)]
     with ThreadPoolExecutor(max_workers=2) as pool:
         tareas = [pool.submit(confirmar, navegador, datos) for navegador, datos in zip((operador, otro), pagos)]
         respuestas = [tarea.result() for tarea in tareas]
@@ -362,7 +362,7 @@ def test_pedido_anonimo_conversion_concurrente_con_reprecio_y_restauracion(tmp_p
     venta = respuestas[ganadora].json()
     assert post(operador, detalle + "/venta", pagos[ganadora]) == venta
     assert venta["id_pedido"] == numero and venta["saldo_pendiente_centavos"] == 0
-    assert admin.get(SIM + "/contabilidad").json()["cobrado_neto_centavos"] == 350_000
+    assert admin.get(SIM + "/contabilidad").json()["cobrado_neto_centavos"] == 950_000
     assert admin.get(SIM + "/conciliacion").json()["cuadrado"]
     with closing(sqlite3.connect(ruta_db)) as db:
         assert db.execute("SELECT stock FROM productos WHERE id_producto=?", (id_producto,)).fetchone() == (1,)
@@ -403,3 +403,61 @@ def test_pedido_anonimo_cancelado_y_conversion_fiada(tmp_path):
     assert venta["id_venta"] != pedido["id_pedido"]
     assert venta["saldo_pendiente_centavos"] == 300_000
     assert operador.get(f"{SIM}/clientes/{identificador}").json()["saldo_centavos"] == 300_000
+
+
+def test_migra_identificador_historial_y_reintento_de_pedido_anterior(tmp_path):
+    import json
+
+    from pos_seguimiento import TransicionPedido, cambiar_estado_pedido, leer_pedido
+    from scripts.abadion_entrenamiento import activar_fondos_envio, preparar_base
+    from uuid import uuid4
+
+    ruta = preparar_base(tmp_path)
+    cambio = TransicionPedido(id_solicitud=uuid4(), version=1, estado="preparacion")
+    pedido = {
+        "items": [{"seccion": "comidas", "cantidad": 1, "precio_unitario_centavos": 500_000}],
+        "total_centavos": 500_000,
+        "entrega": {"origen": "mostrador", "modalidad": "retiro"},
+    }
+    respuesta_anterior = {"id_pedido": 9, "estado": "preparacion", "version": 2}
+    with closing(sqlite3.connect(ruta)) as db, db:
+        db.execute("PRAGMA foreign_keys = ON")
+        autor = db.execute("SELECT id_usuario FROM usuarios_pos WHERE rol = 'ventas'").fetchone()[0]
+        usuario = {"id_usuario": autor, "rol": "ventas"}
+        db.execute("""
+            INSERT INTO pos_ventas_simuladas (id_venta, id_usuario, id_solicitud, solicitud, pedido)
+            VALUES (9, ?, 'venta-prueba', '{}', ?)
+        """, (autor, json.dumps(pedido)))
+        db.execute("""
+            CREATE TABLE pos_seguimiento_pedidos (
+                id_venta INTEGER PRIMARY KEY REFERENCES pos_ventas_simuladas, estado TEXT, version INTEGER
+            )
+        """)
+        db.execute("""
+            CREATE TABLE pos_historial_pedidos (
+                id_venta INTEGER REFERENCES pos_seguimiento_pedidos, version INTEGER,
+                id_usuario INTEGER REFERENCES usuarios_pos, fecha TEXT, estado TEXT, motivo TEXT,
+                solicitud_id TEXT UNIQUE, solicitud TEXT, resultado TEXT, PRIMARY KEY(id_venta, version)
+            )
+        """)
+        db.execute("INSERT INTO pos_seguimiento_pedidos VALUES (9, 'preparacion', 2)")
+        db.execute("""
+            INSERT INTO pos_historial_pedidos VALUES (9, 1, ?, '2026-01-01 12:00:00', 'pendiente',
+                                                      NULL, NULL, NULL, NULL)
+        """, (autor,))
+        db.execute("""
+            INSERT INTO pos_historial_pedidos VALUES (9, 2, ?, '2026-01-01 12:01:00', 'preparacion',
+                                                      NULL, ?, ?, ?)
+        """, (autor, str(cambio.id_solicitud), cambio.model_dump_json(exclude={"id_solicitud"}),
+              json.dumps(respuesta_anterior)))
+
+    respaldo = activar_fondos_envio(tmp_path)
+    assert respaldo.is_file()
+    assert activar_fondos_envio(tmp_path) is None
+    with closing(sqlite3.connect(respaldo)) as anterior, closing(sqlite3.connect(ruta)) as db:
+        assert anterior.execute("SELECT id_venta FROM pos_seguimiento_pedidos").fetchone() == (9,)
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+        actual = leer_pedido(db, 9)
+        assert actual["id_pedido"] == actual["id_venta"] == 9
+        assert [paso["version"] for paso in actual["historial"]] == [1, 2]
+        assert cambiar_estado_pedido(db, 9, cambio, usuario) == respuesta_anterior
