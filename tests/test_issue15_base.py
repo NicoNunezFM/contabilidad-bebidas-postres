@@ -305,3 +305,101 @@ def test_pedido_whatsapp_fiado_entrega_confirmada_y_cancelacion_auditada(tmp_pat
     assert restaurado.get(SIM + "/pedidos?finalizados=true").json() == admin.get(
         SIM + "/pedidos?finalizados=true"
     ).json()
+
+
+def test_pedido_anonimo_conversion_concurrente_con_reprecio_y_restauracion(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from shutil import copy2
+    from threading import Barrier
+
+    from scripts.abadion_entrenamiento import ARCHIVO_CATALOGO, preparar_base, respaldar_sqlite
+    from tests.test_pos_qa_integrado import SIM, catalogo, cliente, post, solicitud
+
+    ruta_db = preparar_base(tmp_path)
+    operador, otro, admin = cliente(tmp_path, 0), cliente(tmp_path, 0), cliente(tmp_path, 1)
+    producto = catalogo(operador)["Oreo chico"]
+    id_producto = producto["id_producto"]
+    with closing(sqlite3.connect(ruta_db)) as db, db:
+        db.execute("UPDATE productos SET controla_stock=1, stock=2 WHERE id_producto=?", (id_producto,))
+    ruta = SIM + "/pedidos"
+    entrada = solicitud(items=[{"id_producto": id_producto, "cantidad": 1, "observacion": "Nota ficticia"}],
+                        entrega={"origen": "whatsapp", "modalidad": "envio", "direccion": "Calle ficticia 123"})
+    pedido = post(operador, ruta, entrada)
+    numero = pedido["id_pedido"]
+    assert post(operador, ruta, entrada)["id_pedido"] == numero
+    assert pedido["id_venta"] is None
+    assert pedido["items"][0]["observacion"] == "Nota ficticia"
+    detalle = f"{ruta}/{numero}"
+    paso = solicitud(estado="preparacion", version=1)
+    assert post(operador, detalle + "/estado", paso)["estado"] == "preparacion"
+    assert post(operador, detalle + "/estado", paso)["estado"] == "preparacion"
+    assert admin.get(SIM + "/contabilidad").json()["diezmo_centavos"] == 0
+    with closing(sqlite3.connect(ruta_db)) as db, db:
+        for tabla in ("pos_ventas_simuladas", "pos_movimientos_simulados", "pos_diario_caja"):
+            assert db.execute(f"SELECT COUNT(*) FROM {tabla}").fetchone() == (0,)
+        assert db.execute("SELECT stock FROM productos WHERE id_producto=?", (id_producto,)).fetchone() == (2,)
+        db.execute("UPDATE productos SET precio_venta=3500, stock=0 WHERE id_producto=?", (id_producto,))
+    original = solicitud(total_esperado_centavos=300_000, medio_pago="transferencia")
+    assert operador.post(detalle + "/venta", json=original).status_code == 409
+    with closing(sqlite3.connect(ruta_db)) as db, db:
+        db.execute("UPDATE productos SET stock=2 WHERE id_producto=?", (id_producto,))
+    assert operador.get(detalle + "/cotizacion").json()["total_centavos"] == 350_000
+    precio = operador.post(detalle + "/venta", json=original)
+    assert precio.status_code == 409 and precio.json()["detail"]["codigo"] == "TOTAL_MODIFICADO"
+
+    barrera = Barrier(2, timeout=10)
+
+    def confirmar(navegador, datos):
+        barrera.wait()
+        return navegador.post(detalle + "/venta", json=datos)
+
+    pagos = [solicitud(total_esperado_centavos=350_000, medio_pago="transferencia") for _ in range(2)]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        tareas = [pool.submit(confirmar, navegador, datos) for navegador, datos in zip((operador, otro), pagos)]
+        respuestas = [tarea.result() for tarea in tareas]
+    assert sorted(r.status_code for r in respuestas) == [200, 409]
+    ganadora = next(i for i, r in enumerate(respuestas) if r.status_code == 200)
+    venta = respuestas[ganadora].json()
+    assert post(operador, detalle + "/venta", pagos[ganadora]) == venta
+    assert venta["id_pedido"] == numero and venta["saldo_pendiente_centavos"] == 0
+    assert admin.get(SIM + "/contabilidad").json()["cobrado_neto_centavos"] == 350_000
+    assert admin.get(SIM + "/conciliacion").json()["cuadrado"]
+    with closing(sqlite3.connect(ruta_db)) as db:
+        assert db.execute("SELECT stock FROM productos WHERE id_producto=?", (id_producto,)).fetchone() == (1,)
+        assert db.execute("SELECT COUNT(*) FROM pos_ventas_simuladas").fetchone() == (1,)
+    copia = tmp_path / "recuperada"
+    copia.mkdir()
+    copy2(respaldar_sqlite(ruta_db, "anonimo"), copia / ruta_db.name)
+    copy2(tmp_path / ARCHIVO_CATALOGO, copia / ARCHIVO_CATALOGO)
+    assert cliente(copia, 0).get(ruta).json() == operador.get(ruta).json()
+
+
+def test_pedido_anonimo_cancelado_y_conversion_fiada(tmp_path):
+    from scripts.abadion_entrenamiento import preparar_base
+    from tests.test_pos_entrenamiento import registrar_cliente_prueba
+    from tests.test_pos_qa_integrado import SIM, catalogo, cliente, post, solicitud
+
+    preparar_base(tmp_path)
+    operador, admin = cliente(tmp_path, 0), cliente(tmp_path, 1)
+    producto = catalogo(operador)["Oreo chico"]
+    ruta = SIM + "/pedidos"
+    datos = {"items": [{"id_producto": producto["id_producto"], "cantidad": 1}],
+             "entrega": {"origen": "mostrador", "modalidad": "retiro"}}
+    cancelable = post(operador, ruta, solicitud(**datos))
+    cancel = f"{ruta}/{cancelable['id_pedido']}"
+    cambio = solicitud(estado="cancelado", motivo="Cancelación ficticia", version=1)
+    assert operador.post(cancel + "/estado", json=cambio).status_code == 403
+    assert post(admin, cancel + "/estado", cambio)["id_venta"] is None
+    assert operador.post(cancel + "/venta", json=solicitud(total_esperado_centavos=300_000,
+                         medio_pago="transferencia")).status_code == 409
+    assert admin.get(SIM + "/ventas").json()["ventas"] == []
+
+    pedido = post(operador, ruta, solicitud(**datos))
+    convertir = f"{ruta}/{pedido['id_pedido']}/venta"
+    pago = solicitud(fiado=True, pagos=[], total_esperado_centavos=300_000)
+    assert operador.post(convertir, json=pago).status_code == 422
+    identificador = registrar_cliente_prueba(operador, "Cliente ficticio de conversión")
+    venta = post(operador, convertir, {**pago, "id_cliente": identificador})
+    assert venta["id_venta"] != pedido["id_pedido"]
+    assert venta["saldo_pendiente_centavos"] == 300_000
+    assert operador.get(f"{SIM}/clientes/{identificador}").json()["saldo_centavos"] == 300_000

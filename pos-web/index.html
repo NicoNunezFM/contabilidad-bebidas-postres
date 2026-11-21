@@ -139,6 +139,7 @@ button:disabled{opacity:.55;cursor:default}
 <div class="split"><span>Caja bebidas y postres</span><strong id="otherTotal"></strong></div>
 <div class="total order-total"><span id="totalLabel">Total del pedido</span><strong id="total"></strong></div>
 <div id="paymentSection"><h3>Cobro simulado</h3><div id="payments" class="payments"></div></div>
+<button id="guardarPedidoAnonimo" type="button" class="wide" hidden>Guardar pedido sin venta</button>
 <button id="validarPedido" type="button" class="wide" hidden>Validar pedido de prueba</button>
 <p id="estadoPedido" class="notice" role="status" hidden></p>
 <button id="checkout" class="primary wide">Simular cobro →</button><p id="notice" class="notice" role="status"></p>
@@ -2438,7 +2439,16 @@ if (modoReal) {
     fila.append(nodoPos('summary', '#' + pedido.id_pedido + ' · ' + estadosPedidoPos[pedido.estado]
       + ' · ' + (pedido.origen === 'whatsapp' ? 'WhatsApp' : 'Mostrador')
       + ' · ' + (pedido.modalidad === 'envio' ? 'Envío' : 'Retiro')));
-    fila.append(nodoPos('p', fechaPos(pedido.fecha) + ' · Cobro: ' + pedido.estado_cobro
+    if (pedido.id_venta === null) fila.append(nodoPos('p', 'Sin venta · Estimado '
+      + importePos(pedido.total_estimado_centavos)));
+    if ((pedido.id_venta === null && pedido.estado !== 'cancelado')
+      || hayOperacionPos('/simulacion/pedidos/' + pedido.id_pedido + '/venta', usuario)) {
+      const convertir = nodoPos('button', 'Confirmar venta del pedido');
+      convertir.onclick = () => void prepararConversionPos(pedido, usuario);
+      fila.append(convertir);
+    }
+    const estadoCobro = pedido.estado_cobro === 'sin_venta' ? 'Sin registrar' : pedido.estado_cobro;
+    fila.append(nodoPos('p', fechaPos(pedido.fecha) + ' · Cobro: ' + estadoCobro
       + ' · Saldo ' + importePos(pedido.saldo_pendiente_centavos)));
     for (const linea of pedido.items) {
       fila.append(nodoPos('p', linea.cantidad + ' × ' + linea.producto
@@ -2469,7 +2479,8 @@ if (modoReal) {
           '/simulacion/pedidos/' + pedido.id_pedido + '/estado', usuario, campos => {
             const motivo = estado === 'cancelado' ? motivoOperacionPos(campos) : null;
             if (motivo) campos.append(nodoPos('p', 'La cancelación operativa conserva la venta y sus cobros.'));
-            const saldoEntrega = pedido.saldo_pendiente_centavos + pedido.saldo_reparto_centavos;
+            const saldoEntrega = (pedido.id_venta === null ? pedido.total_estimado_centavos
+              : pedido.saldo_pendiente_centavos) + pedido.saldo_reparto_centavos;
             const confirmar = estado === 'entregado' && saldoEntrega > 0;
             if (confirmar) campos.append(nodoPos('p', 'Confirmá la entrega con saldo pendiente de '
               + importePos(saldoEntrega) + '.'));
@@ -2792,6 +2803,8 @@ if (modoReal) {
   function actualizarPedidoSimulado() {
     var pendiente = Boolean(ventaPendiente);
     el('validarPedido').hidden = pendiente;
+    el('guardarPedidoAnonimo').hidden = !el('entrenamientoAviso') || !simulacionActiva || !sesionPos
+      || pendiente || (!validacionPos && !hayOperacionPos('/simulacion/pedidos', sesionPos));
     el('validarPedido').disabled = !pedidoReal.length || (simulacionActiva && !sesionPos)
       || validandoRevision === revisionPedidoReal;
     el('paymentSection').hidden = !simulacionActiva;
@@ -3147,8 +3160,9 @@ if (modoReal) {
   el('clientesPos').onclick = mostrarClientesPos;
 
 
-  function camposSeguimientoPos(contenedor) {
-    const modalidad = selectorPos('Seguimiento', {'': 'Venta rápida', retiro: 'Retiro en local', envio: 'Envío a domicilio'});
+  function camposSeguimientoPos(contenedor, obligatorio = false) {
+    const opciones = {retiro: 'Retiro en local', envio: 'Envío a domicilio'};
+    const modalidad = selectorPos('Seguimiento', obligatorio ? opciones : {'': 'Venta rápida', ...opciones});
     const origen = selectorPos('Origen', {mostrador: 'Mostrador', whatsapp: 'WhatsApp'});
     const titular = selectorPos('Importe del envío para', {repartidor: 'Repartidor', negocio: 'Negocio'});
     function texto(etiqueta, limite) {
@@ -3186,6 +3200,87 @@ if (modoReal) {
       const importe = leerCentavosPos(costo.input.value, true);
       return importe ? {entrega, envio: {titular: titular.select.value, importe_centavos: importe}} : {entrega};
     };
+  }
+
+  el('guardarPedidoAnonimo').onclick = function () {
+    const usuario = sesionPos;
+    const validacion = validacionPos;
+    if (!usuario || (!validacion && !hayOperacionPos('/simulacion/pedidos', usuario))) return;
+    abrirOperacionPos('Guardar pedido sin venta', '/simulacion/pedidos', usuario, campos => {
+      const leer = camposSeguimientoPos(campos, true);
+      return () => {
+        if (validacion !== validacionPos) throw new Error('El carrito cambió. Volvé a validarlo.');
+        return {items: validacion.items, ...leer()};
+      };
+    }, pedido => {
+      if (validacion === validacionPos) {
+        pedidoReal = [];
+        medioSimulado = '';
+        mostrarPedidoReal();
+      }
+      el('notice').textContent = 'Pedido #' + pedido.id_pedido + ' guardado sin venta.';
+    });
+  };
+
+  async function prepararConversionPos(pedido, usuario) {
+    const ruta = '/simulacion/pedidos/' + pedido.id_pedido + '/venta';
+    const consulta = el('consultaPos');
+    let total;
+    if (!hayOperacionPos(ruta, usuario)) {
+      try {
+        const respuesta = await fetch('/pos-api/simulacion/pedidos/' + pedido.id_pedido + '/cotizacion',
+          {cache: 'no-store', signal: AbortSignal.timeout(12000)});
+        const cuerpo = await respuesta.json();
+        if (!respuesta.ok) throw new Error(typeof cuerpo.detail === 'string' ? cuerpo.detail : 'Revisá el pedido.');
+        total = cuerpo.total_centavos;
+      } catch (error) {
+        if (consulta?.isConnected) consulta.prepend(nodoPos('p', error.message, 'notice'));
+        return;
+      }
+    }
+    if (!consulta?.isConnected || sesionPos !== usuario) return;
+    abrirOperacionPos('Confirmar venta · Pedido #' + pedido.id_pedido, ruta, usuario, campos => {
+      campos.append(nodoPos('p', 'Total vigente ' + importePos(total)));
+      if (total !== pedido.total_estimado_centavos) {
+        campos.append(nodoPos('p', 'Estimación original ' + importePos(pedido.total_estimado_centavos)));
+      }
+      const medio = selectorPos('Medio', {...mediosSimulados, combinado: 'Pago combinado', fiado: 'Fiado'});
+      const receptor = selectorPos('Receptor', {});
+      const combinado = nodoPos('div');
+      const cliente = nodoPos('div');
+      const leerPagos = editarPagosPos(combinado, 0, null, 0);
+      const leerCliente = clientesActivos ? elegirClienteFiadoPos(cliente, usuario, false) : () => undefined;
+      campos.append(medio.label, receptor.label, combinado, cliente);
+      function actualizar() {
+        const valor = medio.select.value;
+        receptor.label.hidden = valor === 'combinado' || valor === 'fiado';
+        combinado.hidden = !receptor.label.hidden;
+        cliente.hidden = valor !== 'fiado';
+        receptor.select.replaceChildren(new Option('Por sección', ''), ...Object.entries(receptoresPos(valor))
+          .map(([clave, etiqueta]) => new Option(etiqueta, clave)));
+      }
+      medio.select.onchange = actualizar;
+      actualizar();
+      return () => {
+        const valor = medio.select.value;
+        const datos = {total_esperado_centavos: total};
+        if (valor === 'fiado' || valor === 'combinado') {
+          datos.pagos = leerPagos();
+          if (valor === 'fiado') {
+            datos.fiado = true;
+            datos.id_cliente = leerCliente();
+            if (!datos.id_cliente) throw new Error('Seleccioná un cliente registrado.');
+          }
+        } else if (receptor.select.value) {
+          datos.pagos = [{receptor: receptor.select.value, medio_pago: valor, importe_centavos: total}];
+        } else datos.medio_pago = valor;
+        return datos;
+      };
+    }, venta => {
+      void refrescarStockPos();
+      mostrarSeguimientoPos(pedido.estado === 'entregado');
+      el('notice').textContent = 'Venta #' + venta.id_venta + ' registrada para el pedido #' + pedido.id_pedido + '.';
+    });
   }
 
   function prepararVentaSimulada() {

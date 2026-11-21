@@ -30,7 +30,7 @@ from pos_clientes import (
     AltaCliente, PagoCliente, abonar_cliente, alta_cliente, buscar_clientes, corregir_abono,
     ficha_cliente, prever_abono,
 )
-from pos_seguimiento import TransicionPedido, cambiar_estado_pedido, listar_seguimiento
+from pos_seguimiento import AltaPedido, TransicionPedido, alta_pedido, cambiar_estado_pedido, listar_seguimiento
 from pos_envios import MovimientoReparto, registrar_fondo_reparto
 from pos_cobros import (
     RendicionEntrada, registrar_rendicion,
@@ -48,6 +48,7 @@ from pos_simulacion import (
     consultar_cajas_simuladas,
     consultar_historial_simulado,
     consultar_venta,
+    ConversionPedidoEntrada, convertir_pedido_simulado, cotizar_conversion,
     consultar_movimientos_simulados,
     registrar_venta_simulada,
     revertir_venta_simulada,
@@ -390,6 +391,35 @@ def simular_venta_pos(
 ):
     comprobar_usuario_simulacion(x_pos_usuario, usuario)
     return {"ok": True, "simulacion": True, **registrar_venta_simulada(venta, usuario)}
+
+
+@router.post("/simulacion/pedidos", dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)])
+def guardar_pedido_pos(
+    pedido: AltaPedido, usuario: dict = Depends(exigir_usuario_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return alta_pedido(db, pedido, usuario["id_usuario"])
+
+
+@router.get("/simulacion/pedidos/{id_pedido}/cotizacion", dependencies=[
+    Depends(exigir_simulacion_activa), Depends(evitar_cache_pos), Depends(exigir_usuario_pos),
+])
+def cotizar_pedido_pos(id_pedido: int = Path(gt=0, le=2**53 - 1)):
+    with transaccion_simulacion() as db:
+        return cotizar_conversion(db, id_pedido)
+
+
+@router.post("/simulacion/pedidos/{id_pedido}/venta", dependencies=[
+    Depends(comprobar_origen), Depends(exigir_simulacion_activa),
+])
+def convertir_pedido_pos(
+    datos: ConversionPedidoEntrada, id_pedido: int = Path(gt=0, le=2**53 - 1),
+    usuario: dict = Depends(exigir_usuario_pos), x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    return {"ok": True, "simulacion": True, **convertir_pedido_simulado(id_pedido, datos, usuario)}
 
 
 @router.get("/simulacion/pedidos", dependencies=[

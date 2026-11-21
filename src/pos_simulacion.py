@@ -1,7 +1,7 @@
 import json
 import os
 from collections import Counter
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -19,7 +19,7 @@ from pos_cobros import (
 from pos_envios import CargoEnvio, resumen_fondos_reparto
 from pos_entrenamiento_db import clientes_activos
 from pos_pedidos import PedidoPos, calcular_pedido_pos
-from pos_seguimiento import EntregaPedido, iniciar_seguimiento
+from pos_seguimiento import AltaPedido, EntregaPedido, datos_conversion, estimar_pedido, iniciar_seguimiento
 
 
 ID_SQLITE_SIMULACION = 0x41425031
@@ -53,6 +53,39 @@ class VentaSimuladaEntrada(PedidoPos):
         if self.entrega and self.entrega.modalidad == "retiro" and self.envio:
             raise ValueError("El cargo de envío requiere entrega a domicilio.")
         return self
+
+
+class ConversionPedidoEntrada(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id_solicitud: UUID
+    total_esperado_centavos: int = Field(strict=True, gt=0, le=310_000_000_000_000_000)
+    medio_pago: Medio | None = None
+    pagos: list[PagoPos] | None = Field(default=None, max_length=20)
+    fiado: bool = Field(default=False, strict=True)
+    id_cliente: int | None = Field(default=None, strict=True, gt=0, le=2**53 - 1)
+
+
+def cotizar_conversion(db, numero):
+    venta, estado, datos = datos_conversion(db, numero)
+    if venta is not None or estado == "cancelado":
+        raise HTTPException(409, "El pedido ya se confirmó o fue cancelado.")
+    return estimar_pedido(db, AltaPedido.model_validate({**json.loads(datos),
+        "id_solicitud": "00000000-0000-0000-0000-000000000000"}))
+
+
+def convertir_pedido_simulado(numero, datos, usuario):
+    with transaccion_simulacion(escritura=True) as db:
+        _, estado, guardado = datos_conversion(db, numero)
+        if datos.fiado and datos.id_cliente is None:
+            raise HTTPException(422, "Seleccioná un cliente registrado para el fiado.")
+        from pydantic import ValidationError
+
+        try:
+            entrada = VentaSimuladaEntrada.model_validate({**json.loads(guardado), **datos.model_dump()})
+        except ValidationError as error:
+            raise HTTPException(422, error.errors(include_context=False, include_input=False)) from error
+        return registrar_venta_simulada(entrada, usuario, db=db, id_pedido=numero, estado_pedido=estado)
 
 
 class AnulacionSimuladaEntrada(BaseModel):
@@ -180,13 +213,15 @@ def transaccion_simulacion(*, escritura=False):
         conexion.close()
 
 
-def registrar_venta_simulada(entrada, usuario):
+def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estado_pedido=None):
     excluir = {"id_solicitud"}
     if entrada.id_cliente is None:
         excluir.add("id_cliente")
     solicitud = entrada.model_dump_json(exclude=excluir)
+    if id_pedido is not None:
+        solicitud = json.dumps({**json.loads(solicitud), "id_pedido": id_pedido}, ensure_ascii=False)
     clave = (usuario["id_usuario"], str(entrada.id_solicitud))
-    with transaccion_simulacion(escritura=True) as conexion:
+    with (nullcontext(db) if db is not None else transaccion_simulacion(escritura=True)) as conexion:
         existente = conexion.execute(
             """
             SELECT v.id_venta, v.solicitud, v.pedido, a.id_venta IS NOT NULL
@@ -203,6 +238,11 @@ def registrar_venta_simulada(entrada, usuario):
             pedido = json.loads(pedido_guardado)
             return {"id_venta": id_venta, "anulada": bool(anulada), **pedido,
                     **estado_cuenta(conexion, id_venta, pedido, anulada)}
+
+        if id_pedido is not None:
+            venta_vinculada, _, _ = datos_conversion(conexion, id_pedido)
+            if venta_vinculada is not None or estado_pedido == "cancelado":
+                raise HTTPException(409, "El pedido ya se confirmó o fue cancelado.")
 
         try:
             pedido = calcular_pedido_pos(conexion, entrada)
@@ -265,8 +305,15 @@ def registrar_venta_simulada(entrada, usuario):
             (*clave, solicitud, json.dumps(pedido, ensure_ascii=False)),
         )
         id_venta = cursor.lastrowid
-        if entrada.entrega:
-            iniciar_seguimiento(conexion, id_venta, usuario["id_usuario"])
+        if id_pedido is not None:
+            conexion.execute("UPDATE pos_seguimiento_pedidos SET id_venta = ? WHERE id_pedido = ?",
+                             (id_venta, id_pedido))
+        elif entrada.entrega:
+            id_pedido = iniciar_seguimiento(conexion, id_venta, usuario["id_usuario"])
+        if id_pedido is not None:
+            pedido["id_pedido"] = id_pedido
+            conexion.execute("UPDATE pos_ventas_simuladas SET pedido = ? WHERE id_venta = ?",
+                             (json.dumps(pedido, ensure_ascii=False), id_venta))
         if entrada.id_cliente is not None:
             conexion.execute("INSERT INTO pos_ventas_clientes VALUES (?, ?)", (id_venta, entrada.id_cliente))
         evento, _ = iniciar_evento(conexion, "venta", usuario, entrada, id_venta, usar_uuid=False)

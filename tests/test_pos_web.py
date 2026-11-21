@@ -726,3 +726,60 @@ def test_pos_web_seguimiento_retiro_de_mostrador(controles_pos):
     """)
     clic("#accept")
     texto("#consultaPos", "En preparación")
+
+
+@pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
+def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
+    evaluar, clic, texto, _ = controles_pos
+    texto("#cardsReal", "Oreo chico")
+    clic("#adminAccess")
+    usuario, _, clave = USUARIOS[0]
+    evaluar(f"""
+        document.querySelector('#usuarioPos').value = {json.dumps(usuario)};
+        document.querySelector('#claveAdmin').value = {json.dumps(clave)};
+    """)
+    clic("#accept")
+    texto("#adminAccess", usuario)
+    evaluar("""
+        [...document.querySelectorAll('#cardsReal article')]
+            .find(t => t.querySelector('h3')?.textContent === 'Oreo chico').querySelector('button').click();
+    """)
+    clic("#accept")
+    clic("#validarPedido")
+    texto("#estadoPedido", "3.000")
+    clic("#guardarPedidoAnonimo")
+    evaluar("""
+        const [modalidad, origen] = document.querySelectorAll('#camposOperacionPos select');
+        modalidad.value = 'envio';
+        modalidad.dispatchEvent(new Event('change'));
+        origen.value = 'whatsapp';
+        document.querySelector('#camposOperacionPos input').value = '';
+        [...document.querySelectorAll('#camposOperacionPos label')]
+          .find(l => l.textContent.trim() === 'Dirección').querySelector('input').value = 'Calle ficticia 43';
+    """)
+    clic("#accept")
+    texto("#notice", "guardado sin venta")
+    clic("#seguimientoPos")
+    texto("#consultaPos", "WhatsApp")
+    clic("#consultaPos details summary")
+    texto("#consultaPos details", "Sin venta")
+    evaluar("""
+        [...document.querySelectorAll('#consultaPos button')]
+            .find(b => b.textContent === 'En preparación').click();
+    """)
+    clic("#accept")
+    texto("#consultaPos", "En preparación")
+    clic("#consultaPos details summary")
+    evaluar("""
+        [...document.querySelectorAll('#consultaPos button')]
+            .find(b => b.textContent === 'Confirmar venta del pedido').click();
+    """)
+    texto("#camposOperacionPos", "Total vigente")
+    evaluar("""
+        const medio = document.querySelector('#camposOperacionPos select');
+        medio.value = 'transferencia';
+        medio.dispatchEvent(new Event('change'));
+    """)
+    clic("#accept")
+    texto("#consultaPos", "En preparación")
+    texto("#consultaPos", "saldado")
