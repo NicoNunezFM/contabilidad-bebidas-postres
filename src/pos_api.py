@@ -1,3 +1,4 @@
+from typing import Literal
 
 
 from contextlib import closing
@@ -29,6 +30,7 @@ from pos_clientes import (
     AltaCliente, PagoCliente, abonar_cliente, alta_cliente, buscar_clientes, corregir_abono,
     ficha_cliente, prever_abono,
 )
+from pos_envios import MovimientoReparto, registrar_fondo_reparto
 from pos_cobros import (
     RendicionEntrada, registrar_rendicion,
     AbonoEntrada, PagoPos, Centavos, CierreEntrada, DevolucionEntrada, ReversionEntrada,
@@ -44,6 +46,7 @@ from pos_simulacion import (
     consultar_cierre_simulado,
     consultar_cajas_simuladas,
     consultar_historial_simulado,
+    consultar_venta,
     consultar_movimientos_simulados,
     registrar_venta_simulada,
     revertir_venta_simulada,
@@ -428,6 +431,25 @@ def devolver_venta_pos(
 ):
     comprobar_usuario_simulacion(x_pos_usuario, usuario)
     return {"ok": True, "simulacion": True, **revertir_venta_simulada(id_venta, devolucion, usuario, tipo="devolucion")}
+
+
+@router.post(
+    "/simulacion/ventas/{id_venta}/fondos-reparto/{tipo}",
+    dependencies=[Depends(comprobar_origen), Depends(exigir_simulacion_activa)],
+)
+def operar_fondo_reparto_pos(
+    movimiento: MovimientoReparto,
+    tipo: Literal["recepcion", "liquidacion", "reembolso"],
+    id_venta: int = Path(gt=0, le=2**63 - 1),
+    usuario: dict = Depends(exigir_administrador_pos),
+    x_pos_usuario: int | None = Header(default=None),
+):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        pedido, anulada = consultar_venta(db, id_venta, usuario)
+        return {"ok": True, "simulacion": True, **registrar_fondo_reparto(
+            db, id_venta, pedido, movimiento, usuario, tipo=tipo, anulada=anulada,
+        )}
 
 
 @router.post(

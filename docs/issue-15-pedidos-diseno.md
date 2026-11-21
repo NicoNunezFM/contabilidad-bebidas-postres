@@ -54,3 +54,18 @@ Aplicar estos pasos cuando exista una implementación validada. Este borrador de
 | Migración y recuperación | Pendiente | Ensayar dos aplicaciones consecutivas y restauración al PR #16 con bases ficticias. |
 
 Los cambios de esta rama comprenden documentación y pruebas de diagnóstico. El diseño requiere implementar y validar primero la distinción entre cobro, custodia y obligación antes de habilitar el circuito de pedidos.
+
+## Avance posterior del PR #17
+
+La rama incorpora receptores de efectivo en tránsito por sección. El cobro reduce la deuda y queda fuera del diario físico. La rendición mueve custodia mediante dos movimientos sin medio de pago, enlaza el evento al cobro original y requiere caja abierta cuando está activo el arqueo. Un reembolso de ese cobro se distribuye entre la custodia pendiente y el efectivo rendido. La creación de tablas auxiliares es idempotente y ocurre dentro de la transacción de escritura ficticia.
+
+El importe de envío propio queda en la venta como concepto separado, devenga en Comidas y se revierte al devolver la totalidad de la mercadería. Para importes del repartidor, la recepción digital, la liquidación y el reembolso se registran en el libro auxiliar de fondos por receptor. La obligación se mantiene fuera del saldo del cliente, el ingreso propio y el diezmo. El resumen de cajas incluye esa obligación para conciliar el saldo digital. Los movimientos del libro auxiliar requieren Administración.
+
+| Prueba nueva | Resultado local |
+| --- | --- |
+| Validación de combinación receptor y medio | 2 casos aprobados |
+| Transferencia de terceros y liquidación idempotente | Aprobada en SQLite ficticia |
+| Efectivo en tránsito, rendición parcial, reintento, diario físico y devolución | Aprobada en SQLite ficticia |
+| Envío propio, devengado separado y devolución total | Aprobada en SQLite ficticia |
+
+Quedan pendientes pruebas integradas de API, abonos FIFO, pagos mixtos, devoluciones y liquidaciones concurrentes, arqueo al cierre y comprobación directa del diezmo. También quedan pendientes el flujo de pedidos, la conciliación de pagos al repartidor fuera de las cuentas del negocio y el ensayo completo de actualización y recuperación.

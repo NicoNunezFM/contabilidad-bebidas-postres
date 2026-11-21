@@ -15,6 +15,7 @@ from pos_cobros import (
     pagos_reversibles, receptor_original, registrar_movimiento,
     registrar_pagos, resumen_libro, terminar_evento,
 )
+from pos_envios import CargoEnvio, resumen_fondos_reparto
 from pos_entrenamiento_db import clientes_activos
 from pos_pedidos import PedidoPos, calcular_pedido_pos
 
@@ -32,6 +33,8 @@ class VentaSimuladaEntrada(PedidoPos):
     pagos: list[PagoPos] | None = Field(default=None, max_length=20)
     fiado: bool = Field(default=False, strict=True)
     deudor: str | None = Field(default=None, min_length=1, max_length=120)
+
+    envio: CargoEnvio | None = Field(default=None, exclude_if=lambda valor: valor is None)
 
     id_cliente: int | None = Field(default=None, strict=True, gt=0, le=2**53 - 1)
 
@@ -201,13 +204,6 @@ def registrar_venta_simulada(entrada, usuario):
         except HTTPException as error:
             error.headers = {**(error.headers or {}), "X-POS-Resultado": "PEDIDO_RECHAZADO"}
             raise
-        if pedido["total_centavos"] != entrada.total_esperado_centavos:
-            raise HTTPException(409, {
-                "codigo": "TOTAL_MODIFICADO",
-                "mensaje": "Cambió el total. Volvé a validar el pedido.",
-                "total_centavos": pedido["total_centavos"],
-            })
-
         subtotales = Counter()
         stock = Counter()
         for item in pedido["items"]:
@@ -216,6 +212,18 @@ def registrar_venta_simulada(entrada, usuario):
             subtotales[seccion] += item["subtotal_centavos"]
             if item["controla_stock"]:
                 stock[item["id_producto"]] += item["cantidad"]
+        if entrada.envio:
+            pedido["envio"] = entrada.envio.model_dump()
+            if entrada.envio.titular == "negocio":
+                pedido["total_centavos"] += entrada.envio.importe_centavos
+                subtotales["comidas"] += entrada.envio.importe_centavos
+        if pedido["total_centavos"] != entrada.total_esperado_centavos:
+            raise HTTPException(409, {
+                "codigo": "TOTAL_MODIFICADO",
+                "mensaje": "Cambió el total. Volvé a validar el pedido.",
+                "total_centavos": pedido["total_centavos"],
+            })
+
         pedido["cajas_centavos"] = dict(subtotales)
         pedido["deudor"] = entrada.deudor
         modulo = RUTA_ENTRENAMIENTO.get() is not None and clientes_activos(conexion)
@@ -314,14 +322,12 @@ def revertir_venta_simulada(id_venta, entrada, usuario, *, tipo):
 
         if not reversas:
             raise HTTPException(409, "La venta ya fue devuelta por completo.")
-        valor_devuelto = 0
         for linea, cantidad in reversas.items():
             if linea > len(pedido["items"]):
                 raise HTTPException(422, "La línea seleccionada no existe en la venta.")
             item = pedido["items"][linea - 1]
             if cantidad > item["cantidad"] - antes["unidades_devueltas"].get(linea, 0):
                 raise HTTPException(409, "La devolución supera las unidades disponibles.")
-            valor_devuelto += cantidad * item["precio_unitario_centavos"]
             if item["controla_stock"]:
                 stock[item["id_producto"]] += cantidad
         conexion.executemany("""
@@ -334,7 +340,8 @@ def revertir_venta_simulada(id_venta, entrada, usuario, *, tipo):
         if cursor.rowcount != len(stock):
             raise HTTPException(409, "Falta un producto cuyo stock debe restaurarse.")
 
-        a_reembolsar = max(0, valor_devuelto - antes["saldo_pendiente_centavos"])
+        devengado_restante = sum(estado_cuenta(conexion, id_venta, pedido)["devengado_centavos"].values())
+        a_reembolsar = max(0, antes["cobrado_centavos"] - devengado_restante)
         reembolsado = a_reembolsar
         for movimiento, receptor, medio, disponible in pagos_reversibles(conexion, id_venta):
             if not a_reembolsar:
@@ -473,8 +480,10 @@ def consultar_cajas_simuladas(conexion=None, *, hasta_periodo=None):
         WHERE medio_pago IS NOT NULL AND periodo <= ?
         GROUP BY caja, medio_pago ORDER BY caja, medio_pago
     """, (resumen["periodo_abierto"],)).fetchall()
+    fondos_reparto = resumen_fondos_reparto(conexion, periodo=resumen["periodo_abierto"])
     return {
         **resumen,
+        **({"fondos_reparto": fondos_reparto} if fondos_reparto else {}),
         "saldos": [{"caja": caja, "medio_pago": medio, "saldo_centavos": saldo} for caja, medio, saldo in filas],
     }
 

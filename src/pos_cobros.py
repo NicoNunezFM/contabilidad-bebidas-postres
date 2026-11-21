@@ -315,6 +315,12 @@ def estado_cuenta(conexion, venta, pedido, anulada=False):
             cantidad = item["cantidad"] - devueltas.get(linea, 0)
             devengado[item["seccion"]] += cantidad * item["precio_unitario_centavos"]
 
+    envio = pedido.get("envio")
+    envio_propio_vigente = 0
+    if envio and envio["titular"] == "negocio" and sum(devengado.values()):
+        envio_propio_vigente = envio["importe_centavos"]
+        devengado["comidas"] += envio_propio_vigente
+
     cobrado = conexion.execute("""
         SELECT COALESCE(SUM(importe_centavos), 0)
         FROM pos_movimientos_simulados WHERE id_venta = ?
@@ -333,6 +339,7 @@ def estado_cuenta(conexion, venta, pedido, anulada=False):
         "cobrado_atribuido_centavos": atribuido,
         "pendiente_por_seccion_centavos": {caja: devengado[caja] - atribuido[caja] for caja in SECCIONES},
         "unidades_devueltas": devueltas,
+        **({"envio_propio_vigente_centavos": envio_propio_vigente} if envio else {}),
     }
 
 
