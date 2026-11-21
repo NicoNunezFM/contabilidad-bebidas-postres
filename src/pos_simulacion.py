@@ -11,7 +11,8 @@ from caja import CATEGORIAS_CAJA_BEBIDAS_POSTRES
 from database import RUTA_ENTRENAMIENTO, obtener_conexion, obtener_ruta_base
 from pos_caja_diaria import caja_diaria_activa
 from pos_cobros import (
-    Medio, PagoPos, caja_receptora, crear_libro, estado_cuenta, iniciar_evento,
+    Medio, PagoPos, SUFIJO_TRANSITO, caja_receptora, crear_libro, efectivo_en_transito,
+    estado_cuenta, iniciar_evento,
     pagos_reversibles, receptor_original, registrar_movimiento,
     registrar_pagos, resumen_libro, terminar_evento,
 )
@@ -467,12 +468,22 @@ def consultar_historial_simulado(usuario, antes_de, limite):
         ventas = []
         for id_venta, fecha, autor, pedido_json, anulador, fecha_anulacion, motivo in filas[:limite]:
             pedido = json.loads(pedido_json)
+            historial = eventos_venta(conexion, id_venta)
+            if usuario["rol"] == "admin":
+                for evento in historial:
+                    for cobro in evento["movimientos"]:
+                        if cobro["importe_centavos"] > 0 and cobro["receptor"].endswith(SUFIJO_TRANSITO):
+                            cobro["pendiente_rendicion_centavos"] = efectivo_en_transito(
+                                conexion, cobro["id_movimiento"],
+                            )
+            fondos = ({"fondos_reparto": resumen_fondos_reparto(conexion, id_venta=id_venta)}
+                      if pedido.get("envio", {}).get("titular") == "repartidor" else {})
             ventas.append({
-                "id_venta": id_venta, "fecha": fecha, "id_usuario": autor, "anulada": anulador is not None,
+                **fondos, "id_venta": id_venta, "fecha": fecha, "id_usuario": autor, "anulada": anulador is not None,
                 "fiado_historico": bool(pedido.get("deudor") and not pedido.get("id_cliente")),
                 "anulacion": {"id_usuario": anulador, "fecha": fecha_anulacion, "motivo": motivo} if anulador else None,
                 **pedido, **estado_cuenta(conexion, id_venta, pedido, anulador is not None),
-                "historial": eventos_venta(conexion, id_venta),
+                "historial": historial,
             })
     return {"ventas": ventas, "siguiente_antes_de": ventas[-1]["id_venta"] if len(filas) > limite else None}
 

@@ -75,3 +75,21 @@ Quedan pendientes pruebas integradas de API, abonos FIFO, pagos mixtos, devoluci
 En la copia ficticia y con el servidor detenido, ejecutar `python scripts/abadion_entrenamiento.py activar-fondos-envio` antes de practicar los flujos nuevos. El comando bloquea Entrenamiento, reserva escritura, crea un respaldo SQLite y agrega las tablas auxiliares. Repetir el comando devuelve que los fondos ya están preparados. La comprobación local compara tablas históricas con el respaldo y verifica integridad y claves foráneas. La recuperación sigue el procedimiento de carpeta completa y retorno al SHA del PR #16.
 
 GitHub Actions aprobó SQLite/API y Edge en el commit de separación de fondos (`e323975`). El primer ensayo integrado de pago mixto, concurrencia y diezmo pasó sus comprobaciones hasta la conciliación. La conciliación exigía dos secciones diferentes para todo evento de transferencia y marcaba incorrectamente una rendición de la misma sección y los eventos del libro auxiliar. La corrección valida cada estructura de acuerdo con su registro auxiliar y conserva la regla anterior para transferencias entre cajas. Se agregaron casos API para esa conciliación y para el abono FIFO en tránsito. Los pedidos y su interfaz siguen pendientes.
+
+## Circuito de pedidos implementado en el POS
+
+En el checkout de Entrenamiento, elegí Retiro en local o Envío a domicilio. Para envíos, cargá dirección y, si corresponde, importe y titular. El envío propio se suma al importe contable de la venta. El importe del repartidor se muestra por separado. La venta rápida sigue disponible. El menú, el stock y las personalizaciones siguen siendo los de la venta.
+
+Pedidos muestra el trabajo activo y el historial finalizado. El seguimiento nace en la misma transacción que la venta, con su mismo identificador. La entrega con saldo requiere confirmación. Las transiciones tienen versión, UUID, autor y hora. Administración puede cancelar con motivo. La cancelación operativa preserva los efectos de la venta. Desde el historial de ventas, Administración puede rendir efectivo y registrar recepciones digitales, liquidaciones o reembolsos de fondos de reparto.
+
+### Cobertura y pendientes
+
+| Área | Evidencia |
+| --- | --- |
+| Contabilidad, pagos mixtos, FIFO, diezmo, concurrencia, reversión, arqueo y cierres | Aprobada en GitHub Actions, ejecución [44919829525](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/44919829525). |
+| Preparación con respaldo e idempotencia | Aprobada en SQLite ficticia y en la misma ejecución. |
+| Preparación, entrega con saldo, reintento, permiso de cancelación e historial | Caso nuevo de API en la suite del PR. |
+| Registro y avance de retiro de mostrador | Caso nuevo de Edge en la suite del PR. |
+| Sintaxis JavaScript | Aprobada localmente con Node 20. |
+
+El registro de un pedido todavía requiere confirmar una venta. El saldo pendiente sigue el flujo de fiados del PR #16 y exige cliente. Quedan pendientes el alta de pedidos anónimos antes de confirmar la venta, la constancia de pago directo del envío al repartidor, la asociación de un cliente a una venta saldada desde la interfaz y el ensayo de restauración con pedidos ya registrados.

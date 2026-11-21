@@ -2245,6 +2245,54 @@ if (modoReal) {
       });
   }
 
+  function agregarOperacionesEnvioPos(venta, usuario, detalle) {
+    if (!el('entrenamientoAviso')) return;
+    if (venta.envio) {
+      detalle.append(nodoPos('p', 'Importe de envío para ' + venta.envio.titular
+        + ' · ' + importePos(venta.envio.importe_centavos)));
+    }
+    if (usuario.rol !== 'admin') return;
+    for (const evento of venta.historial) {
+      for (const cobro of evento.movimientos) {
+        if (!(cobro.pendiente_rendicion_centavos > 0)) continue;
+        const boton = nodoPos('button', 'Rendir efectivo · ' + importePos(cobro.pendiente_rendicion_centavos));
+        boton.onclick = () => abrirOperacionPos('Confirmar recepción en caja física',
+          '/simulacion/cobros/' + cobro.id_movimiento + '/rendiciones', usuario, campos => {
+            const monto = importeEntradaPos('Importe recibido');
+            monto.input.value = (cobro.pendiente_rendicion_centavos / 100).toFixed(2);
+            campos.append(monto.label);
+            const motivo = motivoOperacionPos(campos);
+            return () => ({importe_centavos: leerCentavosPos(monto.input.value), motivo: motivo()});
+          }, () => mostrarHistorialPos('Rendición registrada.'));
+        detalle.append(boton);
+      }
+    }
+    if (venta.envio?.titular !== 'repartidor') return;
+    for (const saldo of venta.fondos_reparto) {
+      detalle.append(nodoPos('p', 'Obligación de reparto · ' + nombreReceptorPos(saldo.receptor)
+        + ' · ' + importePos(saldo.obligacion_centavos)));
+    }
+    const acciones = {recepcion: 'Registrar transferencia de reparto', liquidacion: 'Liquidar al repartidor',
+      reembolso: 'Reembolsar importe de reparto'};
+    for (const [tipo, texto] of Object.entries(acciones)) {
+      const boton = nodoPos('button', texto);
+      boton.onclick = () => abrirOperacionPos(texto, '/simulacion/ventas/' + venta.id_venta
+        + '/fondos-reparto/' + tipo, usuario, campos => {
+          const cuenta = selectorPos('Cuenta receptora original', receptoresPos('transferencia'));
+          const monto = importeEntradaPos('Importe');
+          const label = nodoPos('label', 'Referencia ');
+          const referencia = nodoPos('input');
+          referencia.maxLength = 120;
+          label.append(referencia);
+          campos.append(cuenta.label, monto.label, label);
+          const motivo = motivoOperacionPos(campos);
+          return () => ({receptor: cuenta.select.value, importe_centavos: leerCentavosPos(monto.input.value),
+            referencia: referencia.value.trim(), motivo: motivo()});
+        }, () => mostrarHistorialPos('Operación de reparto registrada.'));
+      detalle.append(boton);
+    }
+  }
+
   function filaVentaPos(venta, usuario, anular) {
     var fila = nodoPos('article', undefined, 'row');
     var detalle = nodoPos('details');
@@ -2286,6 +2334,7 @@ if (modoReal) {
       eventos.append(movimiento);
     });
     detalle.append(eventos);
+    agregarOperacionesEnvioPos(venta, usuario, detalle);
     var ruta = '/simulacion/ventas/' + venta.id_venta;
     if (venta.saldo_pendiente_centavos > 0 || hayOperacionPos(ruta + '/abonos', usuario)) {
       var abono = nodoPos('button', 'Registrar abono');
@@ -3148,6 +3197,21 @@ if (modoReal) {
     var campos = nodoPos('div');
     errorVenta.before(campos);
     const leerSeguimiento = el('entrenamientoAviso') ? camposSeguimientoPos(campos) : () => ({});
+    function cargoEnvio() {
+      try {
+        return leerSeguimiento().envio;
+      } catch (_) {
+        return undefined;
+      }
+    }
+    campos.addEventListener('input', actualizarTotalEnvio);
+    campos.addEventListener('change', actualizarTotalEnvio);
+    function actualizarTotalEnvio() {
+      const envio = cargoEnvio();
+      const adicional = envio ? ' · Envío para ' + envio.titular + ': ' + importePos(envio.importe_centavos) : '';
+      el('resumenVentaPos').textContent = importePos(validacion.total + (envio?.importe_centavos || 0))
+        + ' · ' + modalidadesSimuladas[medio] + adicional;
+    }
     var leerPagos;
     var deudor;
     var leerCliente;
@@ -3174,8 +3238,10 @@ if (modoReal) {
         try {
           var pagos = leerPagos ? leerPagos() : [];
           var cobrado = pagos.reduce((total, pago) => total + pago.importe_centavos, 0);
-          resumen.textContent = cobrado > validacion.total ? 'Los pagos superan el total.'
-            : 'Cobrado ' + importePos(cobrado) + ' · Saldo ' + importePos(validacion.total - cobrado);
+          const envio = cargoEnvio();
+          const totalPropio = validacion.total + (envio?.titular === 'negocio' ? envio.importe_centavos : 0);
+          resumen.textContent = cobrado > totalPropio ? 'Los pagos superan el total.'
+            : 'Cobrado ' + importePos(cobrado) + ' · Saldo ' + importePos(totalPropio - cobrado);
         } catch (error) {
           resumen.textContent = 'Completá los importes para calcular el saldo.';
         }
