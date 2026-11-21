@@ -92,6 +92,8 @@ Pedidos muestra el trabajo activo y el historial finalizado. El seguimiento nace
 | Registro y avance de retiro de mostrador | Caso nuevo de Edge en la suite del PR. |
 | Sintaxis JavaScript | Aprobada localmente con Node 20. |
 
-El registro de un pedido todavía requiere confirmar una venta. El saldo pendiente sigue el flujo de fiados del PR #16 y exige cliente. El checkout permite asociar un cliente a la venta saldada. El historial permite confirmar un pago directo al repartidor, con constancia sin saldo bancario ni obligación. Quedan pendientes el alta de pedidos anónimos antes de confirmar la venta y el ensayo de restauración con pedidos ya registrados.
+El registro de un pedido todavía requiere confirmar una venta. El saldo pendiente sigue el flujo de fiados del PR #16 y exige cliente. El checkout permite asociar un cliente a la venta saldada. El historial permite confirmar un pago directo al repartidor, con constancia sin saldo bancario ni obligación. Queda pendiente el alta de pedidos anónimos antes de confirmar la venta. La prueba API restaura una copia de Entrenamiento con pedidos ya registrados y compara sus historiales finalizados.
 
 Los casos nuevos de seguimiento pasaron SQLite/API y Edge en la [ejecución 44920199208](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/44920199208). Esa ejecución es anterior a la constancia de pago directo y a la asociación opcional en la interfaz.
+
+El comando `activar-fondos-envio` también prepara las tablas de historial operativo. La recuperación al PR #16 usa el respaldo anterior a la activación. Para recuperar pedidos ya guardados, restaurá un respaldo posterior y abrilo con la misma versión del PR #17 que lo generó.

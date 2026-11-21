@@ -252,12 +252,14 @@ def test_fiado_con_envio_propio_y_abono_fifo_fuera_del_local(tmp_path):
 
 
 def test_pedido_whatsapp_fiado_entrega_confirmada_y_cancelacion_auditada(tmp_path):
-    from scripts.abadion_entrenamiento import preparar_base
+    import shutil
+
+    from scripts.abadion_entrenamiento import ARCHIVO_CATALOGO, preparar_base, respaldar_sqlite
     from tests.test_pos_clientes import fiar
     from tests.test_pos_entrenamiento import registrar_cliente_prueba
     from tests.test_pos_qa_integrado import SIM, cliente, post, solicitud
 
-    preparar_base(tmp_path)
+    ruta_db = preparar_base(tmp_path)
     ventas, admin = cliente(tmp_path, 0), cliente(tmp_path, 1)
     cliente_id = registrar_cliente_prueba(ventas, "Cliente ficticio")
     payload = fiar(ventas, cliente_id, "Clásica doble")
@@ -286,3 +288,14 @@ def test_pedido_whatsapp_fiado_entrega_confirmada_y_cancelacion_auditada(tmp_pat
                      solicitud(estado="cancelado", version=1, motivo="Pedido duplicado ficticio"))
     assert cancelado["saldo_pendiente_centavos"] == segunda["saldo_pendiente_centavos"]
     assert cancelado["historial"][-1]["motivo"] == "Pedido duplicado ficticio"
+
+
+    respaldo = respaldar_sqlite(ruta_db, "pedido-ficticio")
+    restaurada = tmp_path / "restaurada"
+    restaurada.mkdir()
+    shutil.copy2(respaldo, restaurada / ruta_db.name)
+    shutil.copy2(tmp_path / ARCHIVO_CATALOGO, restaurada / ARCHIVO_CATALOGO)
+    restaurado = cliente(restaurada, 1)
+    assert restaurado.get(SIM + "/pedidos?finalizados=true").json() == admin.get(
+        SIM + "/pedidos?finalizados=true"
+    ).json()

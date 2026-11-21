@@ -20,6 +20,7 @@ from pos_auth import generar_hash
 from pos_caja_diaria import crear_caja_diaria, caja_diaria_activa
 from pos_cobros import crear_rendiciones
 from pos_envios import crear_libro_reparto
+from pos_seguimiento import crear_seguimiento
 from pos_contabilidad import crear_integracion_contable, corte_contable
 from pos_entrenamiento_db import (
     clientes_activos, ARCHIVO_BASE, DESCUENTO_POSTRE_CENTAVOS, IDENTIDAD, abrir_base_entrenamiento, bloquear_entrenamiento,
@@ -270,13 +271,17 @@ def activar_fondos_envio(carpeta):
             db.execute("BEGIN IMMEDIATE")
             presentes = db.execute("""
                 SELECT COUNT(*) FROM sqlite_schema
-                WHERE type = 'table' AND name IN ('pos_rendiciones_efectivo', 'pos_fondos_reparto')
+                WHERE type = 'table' AND name IN (
+                    'pos_rendiciones_efectivo', 'pos_fondos_reparto',
+                    'pos_seguimiento_pedidos', 'pos_historial_pedidos'
+                )
             """).fetchone()[0]
-            if presentes == 2:
+            if presentes == 4:
                 return None
             respaldo = respaldar_sqlite(ruta, "fondos-envio")
             crear_rendiciones(db)
             crear_libro_reparto(db)
+            crear_seguimiento(db)
             return respaldo
 
 
