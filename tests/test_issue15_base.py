@@ -23,11 +23,11 @@ def test_pr16_suma_el_movimiento_de_terceros_como_cobro_de_venta():
         "items": [{"seccion": "comidas", "cantidad": 1, "precio_unitario_centavos": 1_000_000}],
     }
     with closing(sqlite3.connect(":memory:")) as db:
+        db.execute("PRAGMA foreign_keys = ON")
         db.execute("CREATE TABLE usuarios_pos (id_usuario INTEGER PRIMARY KEY)")
         db.execute("CREATE TABLE pos_ventas_simuladas (id_venta INTEGER PRIMARY KEY)")
         db.execute("INSERT INTO usuarios_pos VALUES (1)")
         db.execute("INSERT INTO pos_ventas_simuladas VALUES (1)")
-        db.execute("PRAGMA foreign_keys = ON")
         crear_libro(db)
         db.execute("""
             INSERT INTO pos_eventos_simulados (id_evento, id_venta, id_usuario, solicitud, tipo, periodo)
