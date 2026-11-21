@@ -41,6 +41,7 @@ Aplicar estos pasos cuando exista una implementación validada. Este borrador de
 | Receptor para efectivo en tránsito | Confirmado en la base | `PagoPos` rechaza el receptor propuesto. |
 | Obligación por transferencia ajena | Confirmado en la base | `PagoPos` rechaza el receptor y el libro atribuye el importe a la venta si se imputa en banco. |
 | Venta de $10.000 con $1.000 de terceros | Confirmado en SQLite ficticia | Imputación directa deja saldo del cliente de −$1.000. Las tres comprobaciones de diagnóstico pasan con `python -m pytest -q tests/test_issue15_base.py`. |
+| Regresión API y contable del PR #16 | Bloqueada durante preparación | `TestClient` queda esperando en `socket._fallback_socketpair` al inicializar el bucle de Windows. No hay validación completa de la suite. |
 | Microsoft Edge | 7 errores de preparación | La suite existente espera a Uvicorn y vence antes de abrir Edge. Reintentar en un entorno que pueda levantar el servidor en loopback. |
 | JS del POS base | Correcto | `node --check` sobre el bloque de script de `pos-web/index.html`, Node v20.20.2. |
 | Dependencias Windows | Correcto en este entorno | `pip check` y carga de `America/Argentina/Buenos_Aires` con `tzdata 2025.3`. |
