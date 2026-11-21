@@ -275,7 +275,13 @@ def test_pedido_whatsapp_fiado_entrega_confirmada_y_cancelacion_auditada(tmp_pat
         paso = post(ventas, ruta, datos)
         assert post(ventas, ruta, datos) == paso
     assert ventas.post(ruta, json=solicitud(estado="entregado", version=4)).status_code == 409
-    pedido = post(ventas, ruta, solicitud(estado="entregado", version=4, confirmar_pendiente=True))
+    assert ventas.post(ruta, json=solicitud(
+        estado="entregado", version=4, confirmar_pendiente=True, saldo_confirmado_centavos=1,
+    )).status_code == 409
+    pedido = post(ventas, ruta, solicitud(
+        estado="entregado", version=4, confirmar_pendiente=True,
+        saldo_confirmado_centavos=venta["saldo_pendiente_centavos"],
+    ))
     assert pedido["saldo_pendiente_centavos"] == venta["saldo_pendiente_centavos"]
     assert len(pedido["historial"]) == 5
     assert ventas.get(SIM + "/pedidos").json()["pedidos"] == []

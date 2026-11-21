@@ -97,3 +97,5 @@ El registro de un pedido todavía requiere confirmar una venta. El saldo pendien
 Los casos nuevos de seguimiento pasaron SQLite/API y Edge en la [ejecución 44920199208](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/44920199208). Esa ejecución es anterior a la constancia de pago directo y a la asociación opcional en la interfaz.
 
 El comando `activar-fondos-envio` también prepara las tablas de historial operativo. La recuperación al PR #16 usa el respaldo anterior a la activación. Para recuperar pedidos ya guardados, restaurá un respaldo posterior y abrilo con la misma versión del PR #17 que lo generó.
+
+La confirmación de entrega exige el importe pendiente vigente bajo la misma transacción. Incluye el cargo de terceros aún sin constancia de cobro, conservándolo separado de la deuda propia. Si el importe cambia antes de confirmar, hay que volver a consultar el pedido.

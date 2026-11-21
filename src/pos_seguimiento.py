@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pos_cobros import SolicitudContable, estado_cuenta
+from pos_envios import resumen_fondos_reparto
 
 
 class EntregaPedido(BaseModel):
@@ -30,6 +31,7 @@ class TransicionPedido(SolicitudContable):
     version: int = Field(strict=True, ge=1, le=2**31 - 1)
     estado: Literal["preparacion", "listo", "en_camino", "entregado", "cancelado"]
     confirmar_pendiente: bool = Field(default=False, strict=True)
+    saldo_confirmado_centavos: int | None = Field(default=None, strict=True, ge=0, le=2**63 - 1)
     motivo: str | None = Field(default=None, min_length=1, max_length=300)
 
 
@@ -81,11 +83,19 @@ def leer_pedido(db, venta, *, con_historial=True):
     numero, estado, version, fecha, datos, anulada = fila
     pedido = json.loads(datos)
     saldo = estado_cuenta(db, numero, pedido, anulada)
+    envio = pedido.get("envio")
+    pendiente_reparto = 0
+    if envio and envio["titular"] == "repartidor" and not anulada:
+        fondos = resumen_fondos_reparto(db, id_venta=numero)
+        abonado = sum(f["recibido_centavos"] - f["reembolsado_centavos"]
+                      + f.get("pagado_directo_centavos", 0) for f in fondos)
+        pendiente_reparto = max(0, envio["importe_centavos"] - abonado)
     resultado = {
         "id_pedido": numero, "estado": estado, "version": version, "fecha": fecha,
         **pedido["entrega"], "items": pedido["items"], "envio": pedido.get("envio"),
         "id_cliente": pedido.get("id_cliente"),
         "estado_cobro": saldo["estado"], "saldo_pendiente_centavos": saldo["saldo_pendiente_centavos"],
+        "saldo_reparto_centavos": pendiente_reparto,
     }
     if con_historial:
         resultado["historial"] = [
@@ -142,8 +152,11 @@ def cambiar_estado_pedido(db, venta, cambio, usuario):
             raise HTTPException(422, "Indicá el motivo de la cancelación.")
     if siguiente is None or cambio.estado not in (siguiente, "cancelado"):
         raise HTTPException(409, "La transición no corresponde al estado actual.")
-    if cambio.estado == "entregado" and pedido["saldo_pendiente_centavos"] > 0 and not cambio.confirmar_pendiente:
-        raise HTTPException(409, {"codigo": "ENTREGA_CON_SALDO", "saldo_centavos": pedido["saldo_pendiente_centavos"]})
+    saldo = pedido["saldo_pendiente_centavos"] + pedido["saldo_reparto_centavos"]
+    if cambio.estado == "entregado" and saldo > 0 and (
+        not cambio.confirmar_pendiente or cambio.saldo_confirmado_centavos != saldo
+    ):
+        raise HTTPException(409, {"codigo": "ENTREGA_CON_SALDO", "saldo_centavos": saldo})
     if cambio.estado != "cancelado" and pedido["estado_cobro"] == "anulada":
         raise HTTPException(409, "La venta ya fue anulada.")
     version = cambio.version + 1

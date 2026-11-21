@@ -2449,6 +2449,8 @@ if (modoReal) {
     }
     if (pedido.envio) fila.append(nodoPos('p', 'Envío para ' + pedido.envio.titular
       + ' · ' + importePos(pedido.envio.importe_centavos)));
+    if (pedido.saldo_reparto_centavos > 0) fila.append(nodoPos('p', 'Pendiente del envío al repartidor · '
+      + importePos(pedido.saldo_reparto_centavos)));
     const historial = nodoPos('details');
     historial.append(nodoPos('summary', 'Historial de estados'));
     for (const paso of pedido.historial) {
@@ -2467,10 +2469,12 @@ if (modoReal) {
           '/simulacion/pedidos/' + pedido.id_pedido + '/estado', usuario, campos => {
             const motivo = estado === 'cancelado' ? motivoOperacionPos(campos) : null;
             if (motivo) campos.append(nodoPos('p', 'La cancelación operativa conserva la venta y sus cobros.'));
-            const confirmar = estado === 'entregado' && pedido.saldo_pendiente_centavos > 0;
+            const saldoEntrega = pedido.saldo_pendiente_centavos + pedido.saldo_reparto_centavos;
+            const confirmar = estado === 'entregado' && saldoEntrega > 0;
             if (confirmar) campos.append(nodoPos('p', 'Confirmá la entrega con saldo pendiente de '
-              + importePos(pedido.saldo_pendiente_centavos) + '.'));
+              + importePos(saldoEntrega) + '.'));
             return () => ({estado, version: pedido.version, confirmar_pendiente: confirmar,
+              saldo_confirmado_centavos: confirmar ? saldoEntrega : null,
               motivo: motivo ? motivo() : null});
           }, () => mostrarSeguimientoPos());
         fila.append(accion);
