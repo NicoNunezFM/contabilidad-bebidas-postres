@@ -70,11 +70,20 @@ def preparar_simulacion_web(base_prueba, monkeypatch, tmp_path, modo):
         monkeypatch.setenv("NEGOCIO_DB_PATH", str(copia))
 
 
-def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None):
+def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, *, tls=None, app_factory=None):
     with socket.socket() as red:
         red.bind(("127.0.0.1", 0))
-        origen = f"http://127.0.0.1:{red.getsockname()[1]}"
-        servidor = uvicorn.Server(uvicorn.Config(app_prueba, log_level="warning"))
+        port = red.getsockname()[1]
+        origen = f"{'https' if tls else 'http'}://127.0.0.1:{port}"
+        if app_factory:
+            app_prueba = app_factory(port)
+        if tls:
+            from scripts.servir_tablet_https import configurar_tls
+            config = configurar_tls(app_prueba, host="127.0.0.1", port=port, cert=tls[0], key=tls[1])
+            config.log_level = "warning"
+        else:
+            config = uvicorn.Config(app_prueba, log_level="warning")
+        servidor = uvicorn.Server(config)
         hilo = Thread(target=servidor.run, kwargs={"sockets": [red]}, daemon=True)
         hilo.start()
         try:
@@ -84,6 +93,9 @@ def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None):
                 ejecutable, "--headless", "--no-first-run", "--disable-background-networking",
                 "--no-proxy-server", "--remote-debugging-port=0", f"--user-data-dir={perfil}", "about:blank",
             ]
+            if tls:
+                # Excepción limitada al SPKI efímero del test; no se modifica el almacén de confianza.
+                opciones.insert(-1, f"--ignore-certificate-errors-spki-list={tls[2]}")
             with subprocess.Popen(
                 opciones, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

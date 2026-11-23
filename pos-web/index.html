@@ -1334,6 +1334,8 @@ function mostrarPedidoReal() {
       try {
         await enviarPos('/login', {usuario: el('usuarioPos').value.trim(), contrasena: el('claveAdmin').value});
         await actualizarSesionPos();
+        // El laboratorio exige sesión también para cargar el catálogo ficticio.
+        if (simulacionActiva && !modoReal) el('catalogMode').click();
         if (formulario.isConnected && !overlay.hidden) close();
       } catch (error) {
         if (formulario.isConnected) el('errorAdmin').textContent = error.status === 401
