@@ -22,13 +22,13 @@ def codigo_pos():
 def test_tablet_no_modifica_interfaz_de_escritorio():
     html, _ = codigo_pos()
     assert 'id="abadion-tablet-layout"' in html
-    assert "@media (hover:none) and (pointer:coarse) and (max-width:1100px)" in html
+    assert "@media (max-width:1100px)" in html
     assert '.tablet-cart-toggle{display:none}' in html
     assert 'aria-controls="tabletOrder"' in html
     assert 'aria-expanded="false"' in html
     assert 'body.tablet-order-open .order{display:block}' in html
     assert 'body.tablet-order-open .menu{display:none}' in html
-    assert "(hover:hover) and (pointer:fine)" in ENTRENAMIENTO.read_text(encoding="utf-8")
+    assert "(min-width:1101px)" in ENTRENAMIENTO.read_text(encoding="utf-8")
 
 
 def test_no_quedan_llamadas_no_compatibles_sin_alternativa():
