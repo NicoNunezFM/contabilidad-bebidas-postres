@@ -783,3 +783,32 @@ def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
     clic("#accept")
     texto("#consultaPos", "En preparación")
     texto("#consultaPos", "saldado")
+
+
+@pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
+def test_pos_web_tablet_carrito_funciona_sin_javascript(controles_pos):
+    """El control nativo de HTML alterna el carrito aun si el JS del POS falla."""
+    evaluar, _, texto, _ = controles_pos
+    texto("#cardsReal", "Oreo chico")
+    assert evaluar("""
+        (() => {
+            document.documentElement.classList.add('tablet-mode');
+            const carrito = document.querySelector('#tabletOrder');
+            const catalogo = document.querySelector('#catalog');
+            const selector = document.querySelector('#tabletCartState');
+            const etiqueta = document.querySelector('label[for="tabletCartState"]');
+            if (!selector || !etiqueta) return false;
+            const estadoInicial = !selector.checked &&
+                getComputedStyle(catalogo).display !== 'none' &&
+                getComputedStyle(carrito).display === 'none';
+            etiqueta.click();
+            const vistaCarrito = selector.checked &&
+                getComputedStyle(carrito).display !== 'none' &&
+                getComputedStyle(catalogo).display === 'none';
+            etiqueta.click();
+            const regresoCatalogo = !selector.checked &&
+                getComputedStyle(catalogo).display !== 'none' &&
+                getComputedStyle(carrito).display === 'none';
+            return estadoInicial && vistaCarrito && regresoCatalogo;
+        })()
+    """)
