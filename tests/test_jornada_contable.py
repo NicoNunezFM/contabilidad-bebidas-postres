@@ -66,6 +66,19 @@ def test_jornada_contable_completa(tmp_path):
     pedidos = SIM + "/pedidos"
     informe = SIM + "/contabilidad"
     ruta_ventas = SIM + "/ventas"
+    def control(rotiseria, postres_bebidas, banco, mercado_pago, fiado):
+        cajas = obtener(ventas, RUTA)["cajas"]
+        reporte = obtener(admin, informe)
+        digital = {(m["receptor"], m["medio_pago"]): m["neto_centavos"]
+                   for m in reporte["cobros_por_receptor"]}
+        assert (
+            cajas[COMIDAS]["esperado_centavos"], cajas[BEBIDAS]["esperado_centavos"],
+            digital.get(("bebidas_postres_banco", "transferencia"), 0),
+            digital.get(("bebidas_postres_mercado_pago", "mercado_pago"), 0),
+            reporte["fiado_al_cierre_centavos"],
+        ) == (rotiseria, postres_bebidas, banco, mercado_pago, fiado)
+
+    control(1000, 500, 0, 0, 0)
     titular = registrar_cliente_prueba(ventas, "Cliente ficticio jornada")
     cuenta = f"{SIM}/clientes/{titular}"
     comida = {"id_producto": ids["Comida"], "cantidad": 1}
@@ -91,9 +104,10 @@ def test_jornada_contable_completa(tmp_path):
             assert db.execute(f"SELECT COUNT(*) FROM {tabla}").fetchone() == (0,)
         assert db.execute("SELECT tipo, COUNT(*) FROM pos_diario_caja GROUP BY tipo").fetchall() == [("apertura", 2)]
 
+    control(1000, 500, 0, 0, 0)
     conversion = solicitud(total_esperado_centavos=1500, pagos=[
-        pago("comidas_efectivo", "efectivo", 1200),
-        pago("bebidas_postres_banco", "transferencia", 300, "transferencia-jornada"),
+        pago("comidas_efectivo", "efectivo", 1400),
+        pago("bebidas_postres_banco", "transferencia", 100, "transferencia-jornada"),
     ])
     convertir = f"{pedidos}/{mostrador['id_pedido']}/venta"
     primera = post(ventas, convertir, conversion)
@@ -102,25 +116,36 @@ def test_jornada_contable_completa(tmp_path):
     assert primera["items"][0]["subtotal_centavos"] == 1200
     assert existencias(ruta, ids) == {"Comida": 9, "Bebida": 9, "Postre": 10}
 
+    control(2400, 500, 100, 0, 0)
+    traslado = solicitud(origen="comidas_efectivo", destino="bebidas_postres_efectivo",
+                         importe_centavos=200, motivo="Distribución del cobro mixto")
+    mover = SIM + "/cajas/transferencias"
+    assert post(admin, mover, traslado) == post(admin, mover, traslado)
+
+    control(2200, 700, 100, 0, 0)
     segunda = post(ventas, pendiente + "/venta", solicitud(
         total_esperado_centavos=1000, pagos=[
             pago("bebidas_postres_mercado_pago", "mercado_pago", 1000, "mp-jornada"),
         ],
     ))
+    control(2200, 700, 100, 1000, 0)
     fiada = post(ventas, ruta_ventas, solicitud(
         items=[comida], total_esperado_centavos=1000, id_cliente=titular, fiado=True, pagos=[],
     ))
     assert obtener(ventas, cuenta)["saldo_centavos"] == 1000
+    control(2200, 700, 100, 1000, 1000)
     previa, abono = preparar_abono(ventas, cuenta, pago(
         "bebidas_postres_banco", "transferencia", 400, "abono-jornada",
     ))
     assert [(p["id_venta"], p["importe_centavos"]) for p in previa["imputaciones"]] == [(fiada["id_venta"], 400)]
     abonar = cuenta + "/abonos"
     assert post(ventas, abonar, abono) == post(ventas, abonar, abono)
+    control(2200, 700, 500, 1000, 600)
     anulable = post(ventas, ruta_ventas, solicitud(
         items=[bebida], total_esperado_centavos=300, medio_pago="efectivo",
     ))
 
+    control(2200, 1000, 500, 1000, 600)
     # Entrenamiento expone sólo el router POS. Los movimientos legados se
     # registran con sus funciones de dominio sobre la misma base descartable.
     contexto = RUTA_ENTRENAMIENTO.set(ruta)
@@ -130,13 +155,11 @@ def test_jornada_contable_completa(tmp_path):
         assert registrar_merma(ids["Bebida"], 1, fecha=fecha)["ok"]
     finally:
         RUTA_ENTRENAMIENTO.reset(contexto)
+    control(2200, 1000, 500, 1000, 600)
     operar(admin, COMIDAS, "movimientos", id_jornada=jornadas[COMIDAS],
            tipo="gasto", importe_centavos=100, motivo="Gasto ficticio jornada")
-    traslado = solicitud(origen="comidas_efectivo", destino="bebidas_postres_efectivo",
-                         importe_centavos=200, motivo="Cambio para la segunda caja")
-    mover = SIM + "/cajas/transferencias"
-    assert post(admin, mover, traslado) == post(admin, mover, traslado)
 
+    control(2100, 1000, 500, 1000, 600)
     antes = obtener(admin, informe)
     with closing(sqlite3.connect(ruta)) as db, db:
         db.execute("UPDATE productos SET categoria = 'Comidas', precio_venta = 8 WHERE id_producto = ?",
@@ -149,11 +172,15 @@ def test_jornada_contable_completa(tmp_path):
     aplicada = post(admin, devolver, devolucion)
     assert aplicada["reembolsado_centavos"] == 500
     assert post(admin, devolver, devolucion) == aplicada
+    control(2100, 1000, 500, 500, 600)
     anular = f"{ruta_ventas}/{anulable['id_venta']}/anulacion"
-    anulada = post(admin, anular, solicitud(motivo="Anulación ficticia"))
+    anulacion = solicitud(motivo="Anulación ficticia")
+    anulada = post(admin, anular, anulacion)
+    assert post(admin, anular, anulacion) == anulada
     assert anulada["reembolsado_centavos"] == 300
 
-    efectivo = {COMIDAS: 1000 + 1200 - 100 - 200, BEBIDAS: 500 + 300 + 200 - 300}
+    control(2100, 700, 500, 500, 600)
+    efectivo = {COMIDAS: 1000 + 1400 - 100 - 200, BEBIDAS: 500 + 300 + 200 - 300}
     for caja, contado in efectivo.items():
         actual = obtener(ventas, RUTA)["cajas"][caja]
         assert actual["esperado_centavos"] == contado
@@ -165,7 +192,7 @@ def test_jornada_contable_completa(tmp_path):
     reporte = obtener(admin, informe, desde=fecha, hasta=fecha)
     esperado = {
         "devengado_centavos": 1200 + 300 + 1000 - 500 + 1000 + 300 - 300,
-        "cobrado_neto_centavos": 1200 + 300 + 1000 - 500 + 400 + 300 - 300,
+        "cobrado_neto_centavos": 1400 + 100 + 1000 - 500 + 400 + 300 - 300,
         "fiado_al_cierre_centavos": 1000 - 400,
         "compras_centavos": 2 * 100,
         "gastos_centavos": 100,
@@ -177,8 +204,8 @@ def test_jornada_contable_completa(tmp_path):
             for caja, valores in reporte["secciones"].items()} == {COMIDAS: (2200, 1600), BEBIDAS: (800, 800)}
     netos = {(m["receptor"], m["medio_pago"]): m["neto_centavos"] for m in reporte["cobros_por_receptor"]}
     assert netos == {
-        ("comidas_efectivo", "efectivo"): 1200, ("bebidas_postres_efectivo", "efectivo"): 0,
-        ("bebidas_postres_banco", "transferencia"): 700, ("bebidas_postres_mercado_pago", "mercado_pago"): 500,
+        ("comidas_efectivo", "efectivo"): 1400, ("bebidas_postres_efectivo", "efectivo"): 0,
+        ("bebidas_postres_banco", "transferencia"): 500, ("bebidas_postres_mercado_pago", "mercado_pago"): 500,
     }
     assert sum(netos.values()) == esperado["cobrado_neto_centavos"]
     assert {j["caja"]: (j["esperado_centavos"], j["contado_centavos"], j["diferencia_centavos"])
