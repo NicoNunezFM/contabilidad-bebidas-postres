@@ -25,9 +25,13 @@ def test_tablet_no_modifica_interfaz_de_escritorio():
     assert "@media (max-width:1100px)" in html
     assert '.tablet-cart-toggle{display:none}' in html
     assert 'aria-controls="tabletOrder"' in html
-    assert 'aria-expanded="false"' in html
-    assert 'body.tablet-order-open .order{display:block}' in html
-    assert 'body.tablet-order-open .menu{display:none}' in html
+    assert 'id="tabletCartState"' in html
+    assert 'for="tabletCartState"' in html
+    assert "html.tablet-mode #tabletCartState:checked ~ .order{display:block}" in html
+    assert "html.tablet-mode #tabletCartState:checked ~ .menu{display:none}" in html
+    assert "if (/Android/i.test(agent)" in html
+    assert "Ver carrito y cobro" in html
+    assert "Volver al catálogo" in html
     assert "(min-width:1101px)" in ENTRENAMIENTO.read_text(encoding="utf-8")
 
 
@@ -51,7 +55,7 @@ def test_script_pos_y_fallbacks_en_node():
     assert sintaxis.returncode == 0, sintaxis.stderr
 
     inicio = script.index("  function senalTiempoPos(ms) {")
-    fin = script.index("\n\n  var tabletCartButton", inicio)
+    fin = script.index("\n  var catalog =", inicio)
     funciones = script[inicio:fin]
     # Entorno sin AbortSignal.timeout y sin crypto.randomUUID, como Chrome 101.
     control = r"""
