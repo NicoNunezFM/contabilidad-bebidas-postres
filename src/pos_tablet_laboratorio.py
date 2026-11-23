@@ -24,12 +24,12 @@ def ipv4_local(valor):
 class PerimetroTablet:
     """No confía en cabeceras proxy ni redirige credenciales recibidas por HTTP."""
 
-    def __init__(self, app, *, host, port, clientes):
+    def __init__(self, app, *, host, port, clientes, autoridad=None):
         self.app = app
         self.host = ipv4_local(host)
         if not 1024 <= port <= 65535:
             raise ValueError("El puerto debe estar entre 1024 y 65535.")
-        self.autoridad = f"{self.host}:{port}"
+        self.autoridad = autoridad or f"{self.host}:{port}"
         self.origen = f"https://{self.autoridad}"
         self.clientes = frozenset(ipv4_local(ip) for ip in clientes)
         self.intentos_login = {}
@@ -94,8 +94,7 @@ class PerimetroTablet:
         return await self.app(scope, receive, proteger)
 
 
-def crear_app_tablet(carpeta, *, host="127.0.0.1", port=8460, clientes=("127.0.0.1",)):
-    host = ipv4_local(host)
+def crear_app_laboratorio(carpeta, *, host, cookies):
     # Solo acepta el marcador adicional creado por el launcher de laboratorio.
     from contextlib import closing
     from pos_entrenamiento_db import ARCHIVO_BASE, abrir_base_entrenamiento
@@ -107,5 +106,13 @@ def crear_app_tablet(carpeta, *, host="127.0.0.1", port=8460, clientes=("127.0.0
     app = crear_app_entrenamiento(carpeta, hosts_permitidos=(host,),
                                  aviso="LABORATORIO FICTICIO TEMPORAL - SIN VALIDEZ CONTABLE")
     app.state.ruta_laboratorio = carpeta / ARCHIVO_BASE
-    app.state.cookies_pos = ("abadion_tablet_lab_admin", "abadion_tablet_lab_ventas")
+    app.state.cookies_pos = cookies
+    return app
+
+
+def crear_app_tablet(carpeta, *, host="127.0.0.1", port=8460, clientes=("127.0.0.1",)):
+    host = ipv4_local(host)
+    app = crear_app_laboratorio(carpeta, host=host, cookies=(
+        "abadion_tablet_lab_admin", "abadion_tablet_lab_ventas",
+    ))
     return PerimetroTablet(app, host=host, port=port, clientes=clientes)

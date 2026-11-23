@@ -1,118 +1,163 @@
-# Acceso remoto del POS desde PCBOX
+# POS ficticio remoto con Cloudflare Access
 
-## Decisión del 23/11/2026
+## Requisitos y estado
 
-**POS remoto bloqueado.** Un Protected Quick Tunnel con `--allowed-mail`
-exige un PIN por correo autorizado en el borde de Cloudflare. La documentación
-no especifica para este producto una afirmación por solicitud que Abadion
-pueda verificar en el origen, ni publica un emisor, audiencia y claves para
-esa validación. Esto deja sin cumplir el requisito de acreditar la autenticación
-del túnel en el origen. Una conexión local, un encabezado reenviado o una cookie
-recibida no acreditan por sí solos que Cloudflare verificó el PIN.
+El PR #21 incorpora un laboratorio para un túnel administrado. El servidor
+escucha en `127.0.0.1:8461`, crea SQLite temporal desde cero y exige un JWT
+de usuario de la aplicación Access en cada solicitud. El launcher HTTPS
+directo del PR #20 sigue disponible en su puerto habitual. El túnel, la
+cuenta y DNS deben ser configurados por su titular. En este trabajo no se
+crearon recursos en Cloudflare ni se conectó una PCBOX.
 
-En Cloudflare Access para aplicaciones configuradas sí se documenta el token
-`Cf-Access-Jwt-Assertion` y la validación con firma, emisor, audiencia y vigencia.
-Para túneles administrados también se documenta la comprobación de Access en
-cloudflared, con equipo y audiencias configurados. Sigue pendiente conseguir una
-garantía verificable para el túnel que se use en la prueba conectada.
+Se requiere una cuenta, una organización Zero Trust, un dominio activo en
+Cloudflare bajo el control del titular y un subdominio dedicado de primer
+nivel, por ejemplo `pos-lab.example.com`. La activación de Zero Trust puede
+pedir un medio de pago incluso al elegir Free. Access Free cubre hasta 50
+usuarios por USD 0. El registro y la renovación de un dominio nuevo dependen
+del TLD y el registrador. Si ya existe un dominio elegible, el subdominio puede
+reutilizarlo. No se compró ni se confirmó titularidad de ningún dominio.
 
-- [Quick Tunnels y PIN por correo](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)
-- [Validación de JWT de Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
-- [Parámetros de origen del túnel administrado](https://developers.cloudflare.com/tunnel/reference/origin-parameters/)
+- [Configuración de Zero Trust](https://developers.cloudflare.com/learning-paths/cybersafe/account-creation/create-zero-trust-org/)
+- [Publicación de una aplicación HTTP con Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)
+- [Precios Zero Trust](https://www.cloudflare.com/plans/zero-trust-services/)
 
-## Evidencia y alcance
+La PCBOX usa únicamente navegador. Debe confiar en las cadenas TLS del
+subdominio y del equipo Access, aceptar cookies y completar el OTP y el
+login POS. Universal SSL requiere SNI y en Free requiere ECDSA. Cloudflare
+documenta que la cadena actual de Let's Encrypt puede fallar en Android 7.0
+y anteriores. Cuando esté disponible, evaluar una cadena compatible como
+Google Trust Services. La prueba previa del PIN de Quick Tunnel en esa
+PCBOX no verifica este hostname, el flujo de Access ni el JavaScript del POS.
+Si hay una alerta TLS, bucle de login o falla del carrito, detener la prueba
+y registrar versión del navegador y paso exacto. Mantener validación TLS normal.
 
-- La PCBOX con Android 6 ya mostró, según el reporte de Sergio, la página
-  estática después de completar el PIN. En Edge también se reportó una
-  operación ficticia del laboratorio HTTPS directo usando su CA local.
-- Se inspeccionaron el launcher HTTPS, el perímetro, la creación aislada de
-  SQLite, las sesiones y el router POS. El laboratorio crea una base nueva,
-  rechaza cabeceras reenviadas y valida cliente, HTTPS, Host y Origin. Login
-  y logout usan cookies separadas con ámbito `/pos-api`.
-- [La CI del commit inicial del PR #21](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/45255536675)
-  concluyó correctamente con el conjunto existente de SQLite y Edge del
-  PR #20. Esa ejecución incluye el test HTTPS preexistente con excepción SPKI
-  limitada al certificado efímero. No acredita confianza en Android 6 ni
-  acceso remoto. La prueba física de esta guía exige validación normal de TLS.
-- Se lanzaron las pruebas Python/API sobre una copia del árbol de la base
-  `c95b0c8` con SQLite ficticio. No se obtuvo un resultado final local. La
-  ejecución local en Edge registró errores y se interrumpió sin completar.
-  La consulta HTTP al servidor estático local falló por restricciones de
-  acceso a sockets del entorno. No se ejecutó un nuevo túnel.
-- El PR #21 conserva el bloqueo y solo actualiza documentación. No hay un
-  launcher remoto del POS ni pruebas automatizadas de su autenticación.
+- [Compatibilidad TLS](https://developers.cloudflare.com/ssl/reference/browser-compatibility/)
+- [Cadenas y dispositivos antiguos](https://developers.cloudflare.com/ssl/troubleshooting/general-ssl-errors/)
 
-## Condiciones para la prueba conectada
+## Configuración en Cloudflare
 
-- Origen exclusivo en `127.0.0.1`, con un proceso separado del laboratorio del
-  PR #20 y base ficticia temporal nueva. El túnel debe aportar una señal de
-  autenticación que el origen o el conector puedan verificar.
-- Host público concreto y Origin HTTPS exacto para escrituras. Rechazar
-  tráfico sin prueba verificable, orígenes ausentes o ajenos, rutas fuera del
-  POS y mecanismos que permitan alterar la autoridad o el esquema.
-- Conservar autenticación propia, roles, cookies Secure/HttpOnly/SameSite=Strict,
-  límite de intentos, logout y expiración. Verificar esos controles antes
-  de ingresar credenciales desde la PCBOX.
-- Validar compatibilidad TLS, navegación vertical y horizontal, carrito,
-  extra ficticio, historial y reintento idempotente. Registrar una sola venta
-  de $1.500, con $1.000 en comidas y $500 en bebidas/postres. Verificar la
-  invalidación de sesiones al detener o reiniciar el laboratorio.
-- Quick Tunnel cambia de hostname al reiniciar, requiere flujo interactivo
-  y carece de garantía de disponibilidad. El navegador integrado de Android 6
-  sigue pendiente de validación con el POS completo.
+1. Activar la zona DNS del dominio y comprobar que el certificado de borde
+   esté activo. Crear la organización Zero Trust y anotar el nombre del equipo.
+2. En Zero Trust → Access controls → Applications, crear una aplicación
+   **Self-hosted** para el hostname exacto, sin filtro de ruta, de modo que
+   cubra también los endpoints API. Habilitar **One-time PIN** por correo.
+   Crear una política **Allow** para una única dirección exacta que controles,
+   sin reglas Bypass ni Service Auth. Usar una duración corta, por ejemplo
+   30 minutos. Copiar el **Application Audience (AUD)**.
+3. Crear un túnel Cloudflared administrado desde **Networking → Tunnels**.
+   En **Routes → Add route → Published application**, publicar ese mismo
+   hostname entero hacia `http://127.0.0.1:8461`. Mantener el Host público
+   original y habilitar **Protect with Access** con el mismo equipo y AUD.
+4. Habilitar HTTPS en el borde y redirigir HTTP a HTTPS para ese hostname
+   antes del login. No crear reenvíos de puertos. La PC necesita salida al
+   equipo Access por HTTPS para descargar claves y conectividad de salida
+   de cloudflared. Si la red ya bloquea esa conexión, detener la prueba en
+   ese entorno.
 
-## Prueba física permitida: solo página estática
+- [Crear un túnel administrado](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/)
+- [Parámetros de origen y Access](https://developers.cloudflare.com/tunnel/reference/origin-parameters/)
+- [Formato del JWT de aplicación](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/)
 
-En la PC, abrir dos ventanas de PowerShell. Usar un puerto 8877 libre. En la
-primera ventana, crear un directorio temporal nuevo con un único archivo y
-servirlo en loopback:
+## Comandos en la PC
+
+Desde un checkout aislado del PR #21, con Python 3.12, dependencias del
+proyecto y cloudflared 2025.4.0 o posterior. En la primera consola:
 
 ```powershell
-$directorio = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('abadion-pin-' + [guid]::NewGuid().ToString('N')))
-$marca = 'ABADION-PIN-' + [guid]::NewGuid().ToString('N')
-Set-Content -LiteralPath (Join-Path $directorio.FullName 'index.html') -Encoding ascii -Value "<!doctype html><meta charset=utf-8><title>Abadion</title><h1>$marca</h1>"
-Write-Output $marca
-python -m http.server 8877 --bind 127.0.0.1 --directory $directorio.FullName
+$env:PYTHON_DOTENV_DISABLED = '1'
+$env:PYTHONUTF8 = '1'
+python -m pip install -r requirements-tablet-test.txt
+$hostPos = Read-Host 'Hostname de la aplicación, sin https://'
+$equipo = Read-Host 'Prefijo del equipo en cloudflareaccess.com'
+$aud = Read-Host 'Application Audience (AUD)'
+python scripts/servir_tablet_access.py --host $hostPos --equipo $equipo --audiencia $aud
 ```
 
-En la segunda ventana, comprobar que solo escucha en `127.0.0.1` y que la
-respuesta local muestra la marca recién generada. Confirmar que cloudflared
-reconoce `--allowed-mail` antes de ejecutar el túnel:
+Ingresar el mismo correo configurado en Access y dos contraseñas de prueba
+distintas de al menos 12 caracteres. En otra consola, guardar el token del
+conector en un archivo de acceso privado, fuera del repositorio y OneDrive.
+El comando toma la ruta del archivo, así el token queda fuera de la línea de
+comandos. En PowerShell:
 
 ```powershell
-Get-NetTCPConnection -LocalPort 8877 -State Listen | Select-Object LocalAddress,LocalPort
-(Invoke-WebRequest -Uri 'http://127.0.0.1:8877/' -TimeoutSec 5).Content
 cloudflared --version
-cloudflared tunnel --help | Select-String -SimpleMatch 'allowed-mail'
+$rutaToken = Read-Host 'Ruta absoluta del archivo privado con el token del túnel'
+Get-NetTCPConnection -LocalPort 8461 -State Listen | Select-Object LocalAddress,LocalPort
+cloudflared tunnel run --token-file $rutaToken
 ```
 
-Si todo coincide, iniciar el túnel con una dirección de correo propia y exacta:
+Comprobar que solo se escucha en `127.0.0.1`. En una tercera consola podés
+verificar el rechazo local en una solicitud sin JWT, con el hostname y
+esquema declarados explícitamente:
 
 ```powershell
-$correo = Read-Host 'Correo exacto autorizado para recibir el PIN'
-if ($correo -notmatch '^[^\s, *@]+@[^\s, *@]+\.[^\s, *@]+$') { throw 'Ingresá un correo individual.' }
-cloudflared tunnel --url http://127.0.0.1:8877 --allowed-mail $correo
+$hostPos = Read-Host 'Hostname del POS ficticio'
+curl.exe -i -H "Host: $hostPos" -H "X-Forwarded-Proto: https" http://127.0.0.1:8461/pos/
 ```
 
-1. En Edge InPrivate, abrir la nueva URL HTTPS. Antes del PIN, la marca debe
-   permanecer oculta. Verificar que un correo secundario propio fuera de la
-   lista tampoco permite ver la marca.
-2. En PCBOX, usar una conexión distinta de la PC y una sesión sin cookies
-   previas del túnel. Abrir la misma URL HTTPS en el navegador integrado.
-   Completar el PIN del correo autorizado y comprobar la misma marca. Ante
-   advertencia de certificado, detener la prueba.
-3. Detener cloudflared con Ctrl+C. En una ventana privada nueva comprobar
-   que la URL anterior dejó de entregar la marca. Si se repite la prueba,
-   comprobar que la URL nueva vuelve a pedir el PIN.
-4. Detener el servidor estático con Ctrl+C. En esa misma ventana, borrar el
-   único archivo creado y su directorio temporal:
+Resultado esperado: HTTP 403. El HTTP anterior es interno a loopback.
+Toda conexión del navegador al hostname público usa HTTPS.
 
-```powershell
-Remove-Item -LiteralPath (Join-Path $directorio.FullName 'index.html')
-Remove-Item -LiteralPath $directorio.FullName
-```
+- [cloudflared y archivo de token](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/)
 
-Registrar fecha, versión de cloudflared, navegador, tipo de red y resultado de
-cada paso sin guardar PIN, cookies ni correos. El puerto 8877 sirve únicamente
-el archivo generado. Mantener el POS fuera del túnel incluso si la prueba
-estática pasa.
+## Venta ficticia desde la PCBOX
+
+1. En Edge InPrivate, visitar `https://HOST-POS/pos/?tablet=1`. Verificar
+   que la sesión anónima queda en Access y que un correo fuera de la
+   política no llega al POS. Autenticar el correo permitido y comprobar
+   que Abadion pide sus propias credenciales. Repetir desde la tablet
+   en otra red antes de cargar contraseñas POS.
+2. Iniciar sesión como `tablet-ventas`. En **Caja diaria**, abrir las cajas
+   de comidas y bebidas/postres con $0. En el catálogo, agregar una Comida
+   ficticia, una Bebida ficticia y un Postre ficticio.
+3. Probar un Extra ficticio y quitarlo antes de cobrar. Confirmar en
+   efectivo una vez los $1.500. En el historial debe haber una sola venta.
+   Verificar $1.000 en comidas y $500 en bebidas/postres. La repetición con
+   el mismo identificador se valida por API. Un pedido nuevo puede generar
+   una segunda venta válida.
+4. Cerrar sesión en Abadion y comprobar que para volver a operar pide su
+   contraseña. Cerrar la sesión de Access con `https://HOST-POS/cdn-cgi/access/logout`.
+   Detener cloudflared y el launcher con Ctrl+C. El cierre normal elimina
+   la base temporal. Desactivar la ruta de laboratorio hasta otra prueba.
+
+## Decisiones de seguridad
+
+Access verifica el PIN en el borde y el conector puede validar el JWT antes
+de reenviar. El origen vuelve a verificar firma RS256, `kid`, emisor,
+audiencia, tipo, correo y vigencia. Obtiene claves actuales y anteriores por
+HTTPS del equipo configurado, sin seguir redirecciones. Usa caché por
+cinco minutos y rechaza solicitudes al no poder renovar la caché. Un
+`kid` desconocido puede requerir esperar al siguiente refresco.
+
+El origen rechaza conexiones fuera de loopback, Host ambiguo y HTTP del
+visitante según el esquema que Cloudflare sobrescribe. Solo después de
+validar el JWT construye la vista HTTPS de la aplicación y elimina headers
+reenviados. El perímetro de Abadion valida el Origin exacto en escrituras y
+mantiene cookies Secure, HttpOnly y SameSite=Strict, roles separados y
+límite de login. El JWT es una credencial bearer hasta su expiración.
+Mantener privada la PC, la sesión del navegador y el token del conector.
+
+## Alternativas si faltan recursos
+
+| Opción | Costo o límite |
+|---|---|
+| Dominio existente bajo tu control | Access Free puede cubrir la prueba sin comprar otro dominio. Requiere zona activa, HTTPS y permiso para configurar DNS y Access. |
+| Registrar un dominio | Costo anual de registro y renovación según extensión y registrador. No hace falta un plan de Access pago para una sola tablet. |
+| Laboratorio HTTPS directo del PR #20 | Sigue disponible para práctica ficticia en una red controlada con certificado confiable. No resuelve la PCBOX en otra red. |
+| Protected Quick Tunnel | Sin compra de dominio y apto para la demo estática. Cloudflare documenta el PIN por correo, pero no un JWT verificable en el origen para este tipo de túnel. |
+
+Para repetir el Quick Tunnel estático, consultá la [guía previa](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/blob/6cdf0963000e494d53e92eed427afbbe3a3e3a46/docs/tablet-acceso-remoto-seguro.md#prueba-f%C3%ADsica-permitida-solo-p%C3%A1gina-est%C3%A1tica).
+
+## Resultados automatizados y limitaciones
+
+- Windows, Python 3.12: 12 pruebas de firma y claims aprobadas con una clave
+  RSA efímera. Incluyen equipo, audiencia, identidad, algoritmo, tipo y vigencia.
+- Las pruebas de integración ASGI con SQLite ficticio están incluidas en la
+  suite de CI. En el entorno local restringido, asyncio de Windows quedó
+  bloqueado al crear su socket interno de loopback. La ejecución de Edge
+  tampoco pudo iniciar el servidor de pruebas, y la prueba de conectividad
+  HTTP local obtuvo WinError 10013. El resultado de la nueva ejecución de CI
+  puede consultarse en **Checks** del PR #21.
+- Pendiente en el entorno físico: HTTPS normal de ambos dominios, OTP,
+  cookies, Origin de las escrituras, carrito, historial, cajas y logout en
+  Edge y en el navegador integrado de la PCBOX desde otra red.
