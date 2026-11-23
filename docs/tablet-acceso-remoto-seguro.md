@@ -1,72 +1,118 @@
-# PCBOX desde otra red: diseño de acceso remoto seguro (pendiente de implementar)
+# Acceso remoto del POS desde PCBOX
 
-## Evidencia del 23/11/2026
+## Decisión del 23/11/2026
 
-- PCBOX Android 6, navegador integrado: el usuario **reportó** que completó el PIN de un *Protected Quick Tunnel* y vio la página estática `Abadion - Conexion segura` publicada desde `127.0.0.1:8877`.
-- Edge en la PC: el usuario **reportó** login y operación ficticia correctos del laboratorio HTTPS del PR #20 en `https://127.0.0.1:8460`, con confianza de su CA local.
-- Esas validaciones **no prueban** el POS conectado en PCBOX ni autorizan producción. No se midió rendimiento ni se comprobó en Android la confianza en la CA local.
-- El servidor `scripts/servir_tablet_https.py` del PR #20 solo soporta HTTPS directo. `PerimetroTablet` rechaza `Forwarded` y `X-Forwarded-*`, exige esquema HTTPS, cliente permitido y Host/Origin exactos. El login usa `request.url.scheme` para la bandera Secure de cookies.
-- El Quick Tunnel mostrado apunta a una **página estática ficticia** en `127.0.0.1:8877`, no a la API ni a bases.
+**POS remoto bloqueado.** Un Protected Quick Tunnel con `--allowed-mail`
+exige un PIN por correo autorizado en el borde de Cloudflare. La documentación
+no especifica para este producto una afirmación por solicitud que Abadion
+pueda verificar en el origen, ni publica un emisor, audiencia y claves para
+esa validación. Esto deja sin cumplir el requisito de acreditar la autenticación
+del túnel en el origen. Una conexión local, un encabezado reenviado o una cookie
+recibida no acreditan por sí solos que Cloudflare verificó el PIN.
 
-## Decisión arquitectónica
+En Cloudflare Access para aplicaciones configuradas sí se documenta el token
+`Cf-Access-Jwt-Assertion` y la validación con firma, emisor, audiencia y vigencia.
+Para túneles administrados también se documenta la comprobación de Access en
+cloudflared, con equipo y audiencias configurados. Sigue pendiente conseguir una
+garantía verificable para el túnel que se use en la prueba conectada.
 
-**No** cambiar el puerto 8460, quitar TLS, alterar el perimetro directo ni introducir valores `trust_proxy_headers=True` globales. Implementar un **segundo launcher aislado** para acceso por túnel, con una rama y pruebas independientes; solo el launcher nuevo puede conocer esta arquitectura.
+- [Quick Tunnels y PIN por correo](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)
+- [Validación de JWT de Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
+- [Parámetros de origen del túnel administrado](https://developers.cloudflare.com/tunnel/reference/origin-parameters/)
 
-Camino propuesto para pruebas:
+## Evidencia y alcance
 
+- La PCBOX con Android 6 ya mostró, según el reporte de Sergio, la página
+  estática después de completar el PIN. En Edge también se reportó una
+  operación ficticia del laboratorio HTTPS directo usando su CA local.
+- Se inspeccionaron el launcher HTTPS, el perímetro, la creación aislada de
+  SQLite, las sesiones y el router POS. El laboratorio crea una base nueva,
+  rechaza cabeceras reenviadas y valida cliente, HTTPS, Host y Origin. Login
+  y logout usan cookies separadas con ámbito `/pos-api`.
+- [La CI del commit inicial del PR #21](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/45255536675)
+  concluyó correctamente con el conjunto existente de SQLite y Edge del
+  PR #20. Esa ejecución incluye el test HTTPS preexistente con excepción SPKI
+  limitada al certificado efímero. No acredita confianza en Android 6 ni
+  acceso remoto. La prueba física de esta guía exige validación normal de TLS.
+- Se lanzaron las pruebas Python/API sobre una copia del árbol de la base
+  `c95b0c8` con SQLite ficticio. No se obtuvo un resultado final local. La
+  ejecución local en Edge registró errores y se interrumpió sin completar.
+  La consulta HTTP al servidor estático local falló por restricciones de
+  acceso a sockets del entorno. No se ejecutó un nuevo túnel.
+- El PR #21 conserva el bloqueo y solo actualiza documentación. No hay un
+  launcher remoto del POS ni pruebas automatizadas de su autenticación.
+
+## Condiciones para la prueba conectada
+
+- Origen exclusivo en `127.0.0.1`, con un proceso separado del laboratorio del
+  PR #20 y base ficticia temporal nueva. El túnel debe aportar una señal de
+  autenticación que el origen o el conector puedan verificar.
+- Host público concreto y Origin HTTPS exacto para escrituras. Rechazar
+  tráfico sin prueba verificable, orígenes ausentes o ajenos, rutas fuera del
+  POS y mecanismos que permitan alterar la autoridad o el esquema.
+- Conservar autenticación propia, roles, cookies Secure/HttpOnly/SameSite=Strict,
+  límite de intentos, logout y expiración. Verificar esos controles antes
+  de ingresar credenciales desde la PCBOX.
+- Validar compatibilidad TLS, navegación vertical y horizontal, carrito,
+  extra ficticio, historial y reintento idempotente. Registrar una sola venta
+  de $1.500, con $1.000 en comidas y $500 en bebidas/postres. Verificar la
+  invalidación de sesiones al detener o reiniciar el laboratorio.
+- Quick Tunnel cambia de hostname al reiniciar, requiere flujo interactivo
+  y carece de garantía de disponibilidad. El navegador integrado de Android 6
+  sigue pendiente de validación con el POS completo.
+
+## Prueba física permitida: solo página estática
+
+En la PC, abrir dos ventanas de PowerShell. Usar un puerto 8877 libre. En la
+primera ventana, crear un directorio temporal nuevo con un único archivo y
+servirlo en loopback:
+
+```powershell
+$directorio = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('abadion-pin-' + [guid]::NewGuid().ToString('N')))
+$marca = 'ABADION-PIN-' + [guid]::NewGuid().ToString('N')
+Set-Content -LiteralPath (Join-Path $directorio.FullName 'index.html') -Encoding ascii -Value "<!doctype html><meta charset=utf-8><title>Abadion</title><h1>$marca</h1>"
+Write-Output $marca
+python -m http.server 8877 --bind 127.0.0.1 --directory $directorio.FullName
 ```
-PCBOX / Android 6
-  -> HTTPS público + PIN del Protected Quick Tunnel
-  -> cloudflared (proceso local y protegido)
-  -> conexión de origen solo loopback
-  -> perímetro remoto explícito de Abadion
-  -> POS autenticado + SQLite temporal exclusivamente ficticia
+
+En la segunda ventana, comprobar que solo escucha en `127.0.0.1` y que la
+respuesta local muestra la marca recién generada. Confirmar que cloudflared
+reconoce `--allowed-mail` antes de ejecutar el túnel:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8877 -State Listen | Select-Object LocalAddress,LocalPort
+(Invoke-WebRequest -Uri 'http://127.0.0.1:8877/' -TimeoutSec 5).Content
+cloudflared --version
+cloudflared tunnel --help | Select-String -SimpleMatch 'allowed-mail'
 ```
 
-Se debe establecer y verificar una frontera de confianza para HTTPS terminado en Cloudflare. Nunca basarse en el valor de `X-Forwarded-Proto` aportado por un cliente; tampoco desactivar la comprobación de Origin para aceptar cualquier dominio. La URL temporal `trycloudflare.com` cambia en cada ejecución y debe validarse como hostname concreto, no comodín. Validar que el túnel realmente exige PIN desde sesión privada, incluso después de reiniciar.
+Si todo coincide, iniciar el túnel con una dirección de correo propia y exacta:
 
-**Condición antes de autorizar acceso a API:** documentar/implementar una forma verificable de atestiguar el tráfico autenticado en el origen. Evaluar las garantías del autenticador integrado de Protected Quick Tunnels y, para un túnel administrado, validación de JWT de Cloudflare Access (audiencia, firma, emisor, expiración) o `access.required` en cloudflared. No suponer que el Quick Tunnel provee el mismo JWT o audience tag que un túnel administrado. Un header o cookie presente sin verificación no prueba identidad.
+```powershell
+$correo = Read-Host 'Correo exacto autorizado para recibir el PIN'
+if ($correo -notmatch '^[^\s, *@]+@[^\s, *@]+\.[^\s, *@]+$') { throw 'Ingresá un correo individual.' }
+cloudflared tunnel --url http://127.0.0.1:8877 --allowed-mail $correo
+```
 
-## Controles obligatorios del launcher remoto
+1. En Edge InPrivate, abrir la nueva URL HTTPS. Antes del PIN, la marca debe
+   permanecer oculta. Verificar que un correo secundario propio fuera de la
+   lista tampoco permite ver la marca.
+2. En PCBOX, usar una conexión distinta de la PC y una sesión sin cookies
+   previas del túnel. Abrir la misma URL HTTPS en el navegador integrado.
+   Completar el PIN del correo autorizado y comprobar la misma marca. Ante
+   advertencia de certificado, detener la prueba.
+3. Detener cloudflared con Ctrl+C. En una ventana privada nueva comprobar
+   que la URL anterior dejó de entregar la marca. Si se repite la prueba,
+   comprobar que la URL nueva vuelve a pedir el PIN.
+4. Detener el servidor estático con Ctrl+C. En esa misma ventana, borrar el
+   único archivo creado y su directorio temporal:
 
-1. **Loopback exclusivo:** escuchar `127.0.0.1`, sin bind LAN, `0.0.0.0`, firewall ni router. El servidor HTTPS directo del PR #20 no cambia.
-2. **Aislamiento financiero:** nueva base temporal, catálogo y contraseñas diferentes; el launcher jamás acepta rutas de bases existentes ni reutiliza `negocio.db`. Cierre normal elimina las pruebas; cierre abrupto requiere revisión de restos temporales. No acceder al WhatsApp ni al Entrenamiento instalado.
-3. **Acceso de doble capa:** verificación de autenticación del túnel y sesión propia POS; no permitir acceso al catálogo/API anónima. Sin credenciales en CLI, logs o GitHub.
-4. **Autoridad y origen exactos:** hostname público HTTPS único de la sesión, `Origin` exacto en cada método de escritura, rechazar host alternativo o ambiguo, evitar redirecciones abiertas y CSRF; nunca inferir esquema/host de headers no confiables.
-5. **Cookies:** `Secure`, `HttpOnly`, `SameSite=Strict`, `Path=/pos-api`; logout y expiración válidos. Probar específicamente desde Android 6 que la cookie de login llega a los endpoints protegidos.
-6. **Auditoría:** rechazar métodos, headers y rutas prohibidos; respuestas `no-store`, sin filtrar contraseñas, tokens, datos financieros ni identificadores sensibles. Limitar intentos por origen de conexión y, si es autenticable, identidad verificada. La IP de origen visible desde localhost no identifica directamente a la tablet.
-7. **Desconexión:** caída del túnel o del servidor no debe abrir ruta alternativa; URL temporal y sesiones se invalidan al terminar. No suponer disponibilidad continua.
-8. **Regresión:** conservar permisos ventas/admin, separación de cajas e idempotencia del PR #20. No reducir garantías del laboratorio HTTPS directo.
+```powershell
+Remove-Item -LiteralPath (Join-Path $directorio.FullName 'index.html')
+Remove-Item -LiteralPath $directorio.FullName
+```
 
-## Matriz de aceptación (pendiente)
-
-| Caso | Criterio |
-|---|---|
-| Acceso anónimo al Quick Tunnel | PIN obligatorio; sin PIN no se llega a la página |
-| Correo diferente | No obtiene acceso |
-| Origen local directo no autenticado | Rechazo fuera del perímetro esperado |
-| Host ajeno, Origin ajeno o ausente en escritura | Rechazo |
-| `Forwarded` / `X-Forwarded-*` manipulados | No escalada ni bypass |
-| Contraseña POS incorrecta / rol inadecuado | 401/403, limitación de intentos |
-| Cookie tras login | Secure/HttpOnly/SameSite Strict y API autenticada |
-| Logout / reinicio | Sesiones invalidadas |
-| Android 6 vertical y horizontal | Login, carrito, apertura de cajas, venta ficticia e historial |
-| Venta de $1.500 y reintento | $1.000 comidas, $500 bebidas/postres, una sola venta |
-| Redirecciones y acceso directo a otros servicios | No disponibles |
-| Archivos instalados y `negocio.db` de control | Inmutables (comprobar byte a byte) |
-| Pruebas existentes del PR #20 | Sin regresiones |
-
-## Próxima implementación
-
-1. Prototipo de perímetro para túnel en módulo nuevo, sin alterar `PerimetroTablet`. Las condiciones de confianza deben ser explícitas y testeables; si no se puede autenticar el origen del tráfico, no habilitar la API.
-2. Pruebas unitarias/integración negativas antes de abrir acceso remoto; browser Edge con el hostname real antes de prueba física.
-3. Prueba **estática** en PCBOX ya superada según reporte; siguiente prueba física es login y catálogo ficticio *solo si* se cumplen todas las condiciones previas.
-4. PR independiente en borrador sobre `feature/abadion-tablet-https-laboratorio`, sin merge. Reportar pruebas ejecutadas, omitidas y pendientes de forma separada.
-
-## Referencias
-
-- Cloudflare Quick Tunnels: https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/
-- Cloudflare Tunnel origin Access validation: https://developers.cloudflare.com/tunnel/reference/origin-parameters/
-- Laboratorio directo: `docs/tablet-https-laboratorio.md`
-
-**Estado de esta rama:** documentación y diseño de seguridad únicamente. No existe todavía un modo de conexión remota habilitado para el POS.
+Registrar fecha, versión de cloudflared, navegador, tipo de red y resultado de
+cada paso sin guardar PIN, cookies ni correos. El puerto 8877 sirve únicamente
+el archivo generado. Mantener el POS fuera del túnel incluso si la prueba
+estática pasa.
