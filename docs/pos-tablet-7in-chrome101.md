@@ -9,8 +9,8 @@ La tablet de prueba es PCBOX PCB-T715, Android 6.0.1, Chrome 101. La PC y la tab
 
 ## Interfaz
 
-- En dispositivos táctiles con viewport de hasta 1100 px, el catálogo ocupa el área principal y se muestra un botón persistente **Ver carrito y cobro**.
-- El botón alterna entre catálogo y carrito, sin destruir ni reconstruir el estado del carrito y sin ocultar los cuadros de diálogo.
+- En navegadores Android (o mediante `?tablet=1` durante pruebas) con viewport de hasta 1100 px, el catálogo ocupa el área principal y se muestra un control persistente **Ver carrito y cobro**. El diseño de Windows/Edge no cambia aunque la ventana sea estrecha.
+- El control es un `label` asociado a una casilla HTML y alterna entre catálogo y carrito mediante CSS, incluso si el JavaScript principal no llega a ejecutarse en un navegador antiguo. No destruye el contenido del carrito ni afecta los diálogos.
 - Categorías y operaciones permiten desplazamiento horizontal. Se amplían los botones para uso táctil.
 - El POS de escritorio permanece con el diseño existente; los estilos nuevos se activan por media query de pantalla táctil.
 - En Entrenamiento, el banner permanece visible sin forzar la barra lateral fija en pantalla táctil.
@@ -27,7 +27,7 @@ La tablet de prueba es PCBOX PCB-T715, Android 6.0.1, Chrome 101. La PC y la tab
 
 `python -m pytest -q tests/test_pos_tablet_compat.py` valida estructura de interfaz, presencia de controles, código JavaScript, generación de UUID, bloqueo fuera de un contexto seguro y respaldo de timeout. En CI se ejecuta junto con toda la suite Python.
 
-La verificación de browser Edge continúa cubriendo los circuitos contables y del POS del PR #17; no reemplaza la prueba física de Chrome 101.
+Microsoft Edge prueba además la alternancia nativa del carrito en el modo de tablet; estas pruebas no reemplazan la validación en el dispositivo físico ni garantizan que el motor obsoleto ejecute el JavaScript del POS.
 
 ## Verificación manual sin backend
 
