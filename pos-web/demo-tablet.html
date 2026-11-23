@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="es-AR" class="tablet-mode">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Demo táctil del punto de venta Abadion POS para Lo de Clau.">
+<title>Demo estática · Abadion POS · Lo de Clau</title>
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box}
+
+#tabs[hidden],
+#cards[hidden],
+#cardsReal[hidden],
+#demoOffers[hidden] {
+  display: none;
+}
+
+#catalogMode {
+  margin-bottom: 10px;
+}
+
+#tabsReal[hidden] {
+  display: none;
+}
+
+body{margin:0;background:#f5f4fa;color:#171625;font:16px Arial,sans-serif}
+h1,h2,h3,p{margin:0}h1{font-size:28px}h2{font-size:21px}h3{font-size:15px}
+button,input{font:inherit}button{min-height:46px;border:1px solid #dcd9e9;border-radius:9px;background:#fff;color:inherit;padding:8px 12px;font-weight:bold;cursor:pointer;touch-action:manipulation}
+a:focus,button:focus,input:focus{outline:3px solid #7454d7;outline-offset:2px}
+button:disabled{opacity:.55;cursor:default}
+.workspace{display:flex;min-height:100vh}.desktop{flex:1;min-width:0}
+.sidebar{width:158px;flex:none;background:#181f3b;color:white;display:flex;flex-direction:column;align-items:stretch;padding:12px 8px;position:sticky;top:0;height:100vh}
+.system-brand{text-align:center;padding:3px 0 20px}.system-brand img{width:64px;height:64px;border-radius:12px;display:block;margin:0 auto 7px}.system-brand strong,.system-brand small{display:block}.system-brand small{color:#c9cce1;margin-top:4px}
+.sidebar a,.sidebar button{color:inherit;text-decoration:none;text-align:left;min-height:48px;padding:12px;border-radius:9px;font-size:14px;font-weight:bold;display:flex;align-items:center;gap:8px}
+.sidebar .current{background:#6240cb}.sidebar button{background:transparent;border:1px solid #49506b;margin-top:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #e4e1ee;background:#fbfaff}.top p{color:#56536b;font-size:14px;margin-top:4px}
+.store{display:flex;align-items:center;gap:7px}.store img{width:66px;height:auto}.store strong{white-space:nowrap}.demo{background:#eae4ff;color:#48269b;padding:5px 7px;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap}
+.layout{display:flex;align-items:flex-start;padding:12px 14px;max-width:1500px;margin:auto}.menu{flex:1;min-width:0}.order{flex:0 0 32%;min-width:288px;margin-left:13px;background:white;border:1px solid #e0d9f3;border-radius:14px;padding:12px;position:sticky;top:12px;box-shadow:0 2px 5px #24184a0a}
+.tabs,.cards,.payments,.actions{display:flex;flex-wrap:wrap;margin:0 -4px}.tabs button{flex:1 0 73px;margin:4px;padding:5px 4px;min-height:68px;font-size:12px;box-shadow:0 2px 5px #24184a14}.tabs .icon{display:block;font-size:24px;line-height:1.3}.active{background:#ede5ff;border-color:#7954e6;color:#331580}.tabs .active{background:#6039cb;color:#fff;border-color:#6039cb}
+.catalog-head,.catalog-head>div,.row-head,.order-heading,.total,.split,.card-foot{display:flex;align-items:center;justify-content:space-between;gap:7px}.catalog-head{margin:14px 0 8px;flex-wrap:wrap}.product-count{background:#ede8fa;border-radius:15px;padding:4px 7px;font-size:12px;white-space:nowrap;color:#40277d}.catalog-head input{min-height:44px;max-width:100%;width:190px;background:#fff;border:1px solid #dcd9e9;border-radius:10px;padding:7px 10px}
+.card{flex:0 0 calc(33.333% - 8px);margin:4px;background:white;border:1px solid #e4e0ef;border-radius:12px;overflow:hidden;box-shadow:0 2px 6px #25164410;display:flex;flex-direction:column}.product-image{display:block;width:100%;height:108px;object-fit:cover;background:#eee9fa}.placeholder{display:flex;align-items:center;justify-content:center;font-size:44px;background:#f0ebfa}
+.card-body{padding:8px;flex:1;display:flex;flex-direction:column}.card h3{font-size:15px}.ingredients{font-size:12px;color:#575369;line-height:1.3;margin:4px 0 7px;min-height:16px}.card-foot{margin-top:auto;flex-wrap:wrap}.card-foot button{background:#623bcc;color:#fff;border-color:#623bcc;font-size:13px}.price{white-space:nowrap}
+.offer{margin-top:13px;background:#efedf6;padding:10px;border-radius:10px}.offer button{margin:5px 5px 0 0}
+.row{padding:8px 0;border-bottom:1px solid #e9e5f2}.row-head>*:last-child,.total strong,.split strong{white-space:nowrap}.row button{min-height:40px;margin:4px 5px 0 0;font-size:13px}.lines{max-height:32vh;overflow:auto;margin:5px 0 10px}.empty{padding:12px 0}.muted{color:#575369;font-size:14px}.split{padding:7px 0;color:#403b55;font-size:14px}.split strong{color:#171625}.total{padding:10px 0;font-size:20px}.order-total{background:#eee5fb;border-radius:9px;padding:10px;margin:5px 0 12px}.order-total strong{color:#471a99;font-size:24px}
+.payments{margin:3px -4px 9px}.payments button{flex:1;margin:4px;min-height:48px;padding:6px 4px;font-size:12px}.primary{background:#067841;border-color:#067841;color:#fff}.wide{width:100%}.notice{color:#18693d;margin-top:6px;font-size:14px}.notice:empty{display:none}
+.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(18,17,33,.65);display:flex;align-items:center;justify-content:center;padding:12px;z-index:2}.overlay[hidden]{display:none}.dialog{background:white;border-radius:14px;width:100%;max-width:560px;max-height:94vh;overflow:auto;padding:18px}.dialog h3{margin:15px 0 5px}.actions button{margin:4px}.check{display:flex;align-items:center;min-height:49px;padding:4px;border-bottom:1px solid #e7e2ed}.check input[type=checkbox]{width:24px;height:24px;margin-right:12px;flex:none}.setting{justify-content:space-between}.setting input{width:104px;min-height:46px;padding:6px}
+@media(max-width:1080px){.sidebar{width:124px}.sidebar a,.sidebar button{padding:8px}.order{min-width:275px}}
+@media(max-width:930px){.card{flex-basis:calc(50% - 8px)}.sidebar{width:112px}.product-image{height:100px}}
+@media(max-width:720px){.workspace{display:block}.sidebar{position:static;width:auto;height:auto;flex-direction:row;align-items:center;justify-content:space-between;padding:6px 10px}.system-brand{display:flex;align-items:center;text-align:left;padding:0}.system-brand img{width:38px;height:38px;margin:0 7px 0 0}.system-brand small,.sidebar .current{display:none}.sidebar button{margin:0}.top{padding:8px 10px}.top h1{font-size:23px}.top p{font-size:12px}.store strong{display:none}.store img{width:45px}.layout{display:block;padding:8px 10px}.order{position:static;margin:12px 0 0;min-width:0}.lines{max-height:none}}
+
+.sidebar button[hidden] {
+  display: none;
+}
+
+.simulation-banner {padding: 10px 14px; background: #fff1cc; color: #604309; font-weight: bold}
+.operations {display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0}
+@media(max-width:720px){.sidebar{flex-wrap:wrap;gap:6px}}
+.dialog label {display: block; margin: 10px 0 4px}
+.dialog input:not([type=checkbox]), .dialog textarea {display: block; width: 100%; padding: 8px; font: inherit}
+.dialog select {display:block;width:100%;min-height:44px;padding:8px;font:inherit}
+.dialog select:focus, .dialog textarea:focus {outline:3px solid #7454d7;outline-offset:2px}
+.filaPagoPos {min-width:0;border:1px solid #e4e0ef;border-radius:8px;margin:8px 0;padding:8px}
+.filaPagoPos button {margin-top:8px}
+#camposOperacionPos > p, #errorOperacionPos, #errorVentaPos {margin:8px 0}
+.dialog details, .dialog .actions {margin-top: 8px}
+.dialog summary {cursor: pointer}
+.dialog .row p {margin-top: 4px; overflow-wrap: anywhere}
+
+</style>
+<style>
+.menu-selector {display:grid; gap:.6rem; margin:.75rem 0}
+.menu-selector label {display:grid; gap:.3rem; font-weight:600}
+.menu-selector select, .menu-selector textarea, .menu-selector input[type=number] {
+  box-sizing:border-box; min-height:44px; width:100%; font:inherit; padding:.45rem;
+  border:1px solid #aaa; border-radius:.5rem; color:#202020; background:#fff;
+}
+.menu-selector textarea {min-height:5rem; resize:vertical}
+.menu-selector .extra-preparacion {grid-template-columns:1fr 5rem; align-items:center}
+</style>
+
+<script id="abadion-tablet-detector">
+/* Small, standalone script: compatible with legacy Android browsers. */
+(function () {
+  var agent = navigator.userAgent || '';
+  if (/Android/i.test(agent) || /(?:^|[?&])tablet=1(?:&|$)/.test(location.search)) {
+    document.documentElement.className += ' tablet-mode';
+  }
+}());
+</script>
+<style id="abadion-tablet-layout">
+/* No layout changes on Windows/desktop Edge, including narrow test viewports. */
+.tablet-cart-toggle{display:none}
+.tablet-cart-state{position:absolute;left:-9999px;width:1px;height:1px}
+.tablet-show-catalog{display:none}
+@media (max-width:1100px) {
+ html.tablet-mode .workspace{display:block}
+ html.tablet-mode .sidebar{position:static;top:auto;width:auto;height:auto;display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;padding:5px 10px}
+ html.tablet-mode .system-brand{display:flex;align-items:center;text-align:left;padding:0}
+ html.tablet-mode .system-brand img{height:36px;width:36px;margin:0 7px 0 0}
+ html.tablet-mode .system-brand small,html.tablet-mode .sidebar .current{display:none}
+ html.tablet-mode .sidebar button{margin:0;min-height:44px}
+ html.tablet-mode .top{padding:7px 10px}
+ html.tablet-mode .top h1{font-size:21px}
+ html.tablet-mode .top p{font-size:12px}
+ html.tablet-mode .store strong{display:none}
+ html.tablet-mode .store img{width:42px}
+ html.tablet-mode .layout{display:block;padding:8px 10px 80px}
+ html.tablet-mode .menu{min-width:0}
+ html.tablet-mode .order{display:none;position:static;top:auto;min-width:0;width:100%;margin:6px 0 0}
+ html.tablet-mode #tabletCartState:checked ~ .order{display:block}
+ html.tablet-mode #tabletCartState:checked ~ .menu{display:none}
+ html.tablet-mode .tablet-cart-toggle{display:flex;align-items:center;justify-content:center;position:fixed;z-index:1;bottom:8px;left:10px;right:10px;width:calc(100% - 20px);min-height:54px;background:#067841;color:#fff;border:1px solid #067841;border-radius:9px;box-shadow:0 3px 12px #17162544;font-size:16px;font-weight:bold;text-align:center;cursor:pointer;touch-action:manipulation}
+ html.tablet-mode #tabletCartState:checked ~ .tablet-cart-toggle .tablet-show-cart{display:none}
+ html.tablet-mode #tabletCartState:checked ~ .tablet-cart-toggle .tablet-show-catalog{display:inline}
+ html.tablet-mode .tablet-cart-state:focus ~ .tablet-cart-toggle{outline:3px solid #7454d7;outline-offset:2px}
+ html.tablet-mode .operations{flex-wrap:nowrap;overflow-x:auto;gap:6px;-webkit-overflow-scrolling:touch}
+ html.tablet-mode .operations button{flex:0 0 auto;white-space:nowrap;min-height:48px}
+ html.tablet-mode .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+ html.tablet-mode .tabs button{flex:0 0 138px;min-height:58px;font-size:14px}
+ html.tablet-mode .card-foot button{min-height:52px;font-size:15px}
+ html.tablet-mode .product-image{height:80px}
+ html.tablet-mode .dialog{max-width:720px;max-height:calc(100vh - 12px);padding:12px}
+ html.tablet-mode .overlay{padding:6px}
+ html.tablet-mode .lines{max-height:none}
+ html.tablet-mode .payments button{min-height:52px}
+}
+</style>
+<style>.workspace{display:block}[hidden]{display:none!important} .simulation-banner{position:static} .check{min-height:48px} .check input{width:24px;height:24px}</style>
+</head>
+<body>
+<noscript>Esta demo necesita JavaScript para mostrar productos. La navegación del carrito por sí sola no valida el catálogo.</noscript>
+
+<div class="workspace">
+
+<div class="desktop">
+<p id="simulationBanner" class="simulation-banner">DEMO ESTÁTICA v1 · Productos y precios ficticios · No guarda ventas · Al recargar se borra el pedido</p>
+<header class="top"><div><h1>Nueva venta</h1><p>Seleccioná los productos para el pedido</p></div><div class="store"><strong>Lo de Clau</strong><span class="demo">Modo demo</span></div></header>
+<div class="layout">
+<input id="tabletCartState" class="tablet-cart-state" type="checkbox" aria-label="Ver carrito y cobro">
+<main id="catalog" class="menu">
+
+  <nav class="tabs" id="tabs" aria-label="Categorías"></nav>
+<div class="catalog-head"><div><h2 id="categoryTitle"></h2><span id="productCount" class="product-count"></span></div><input id="search" type="search" placeholder="Buscar producto…" aria-label="Buscar en esta categoría"></div>
+<div id="cards" class="cards"></div>
+
+<nav id="tabsReal" class="tabs" hidden
+     aria-label="Categorías del catálogo real">
+</nav>
+
+<div id="cardsReal" class="cards" hidden></div>
+
+<p id="apiStatus" class="muted" role="status">
+  Iniciando demo. Si no aparecen productos, el navegador no pudo ejecutar JavaScript.
+</p>
+<section id="demoOffers" class="offer"><h3>Ofrecé una bebida o un postre</h3><button data-category="Bebidas">Ver bebidas</button><button data-category="Postres">Ver postres</button></section>
+</main>
+<label for="tabletCartState" class="tablet-cart-toggle" aria-controls="tabletOrder">
+  <span class="tablet-show-cart">Ver carrito y cobro</span>
+  <span class="tablet-show-catalog">Volver al catálogo</span>
+</label>
+<aside id="tabletOrder" class="order" aria-label="Pedido">
+<div class="row-head"><div class="order-heading"><h2>Pedido actual</h2><span id="count" class="product-count"></span></div><button id="clearCart" type="button">Limpiar</button></div>
+<div id="lines" class="lines"></div>
+<button id="resumenCocina" type="button" class="wide" hidden>Ver pedido para cocina</button>
+<div class="split"><span>Caja rotisería</span><strong id="foodTotal"></strong></div>
+<div class="split"><span>Caja bebidas y postres</span><strong id="otherTotal"></strong></div>
+<div class="total order-total"><span id="totalLabel">Total del pedido</span><strong id="total"></strong></div>
+<div id="paymentSection"><h3>Cobro simulado</h3><div id="payments" class="payments"></div></div>
+<button id="guardarPedidoAnonimo" type="button" class="wide" hidden>Guardar pedido sin venta</button>
+<button id="validarPedido" type="button" class="wide" hidden>Validar pedido de prueba</button>
+<p id="estadoPedido" class="notice" role="status" hidden></p>
+<button id="checkout" class="primary wide">Simular cobro →</button><p id="notice" class="notice" role="status"></p>
+</aside>
+</div></div></div>
+<div id="overlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><h2 id="dialogTitle"></h2><div id="dialogBody"></div><div class="actions" id="dialogActions"></div></section></div>
+<script>
+(function () {
+  'use strict';
+  var icons = ['H','S','M','C','P','B','D'];
+  var methods = ['Efectivo','Transferencia','Mercado Pago'];
+  var category = 'Hamburguesas', cart = [], method = '', trigger, editing;
+  var overlay = document.getElementById('overlay');
+  var catalog = {
+    'Hamburguesas': [['Clásica',5900,'Pan,Medallón,Lechuga,Tomate,Mayonesa','queso,bacon,huevo'],['Doble cheddar',7900,'Pan,Doble medallón,Cheddar,Cebolla','queso,bacon'],['Completa',7400,'Pan,Medallón,Jamón,Queso,Huevo,Lechuga,Tomate','queso,bacon'],['Bacon',8200,'Pan,Medallón,Panceta,Cheddar,Lechuga,Tomate','queso,bacon'],['Con huevo',7500,'Pan,Medallón,Huevo,Cheddar','queso,bacon'],['Triple cheddar',9600,'Pan,Tres medallones,Cheddar','queso,bacon'],['Con cebolla',7800,'Pan,Medallón,Cheddar,Cebolla caramelizada','queso,bacon']],
+    'Sándwiches': [['Jamón y queso',3800,'Pan,Jamón,Queso','queso,huevo'],['Pollo y vegetales',5400,'Pan,Pollo,Lechuga,Tomate,Mayonesa','queso,huevo'],['Lomito',7200,'Pan,Lomito,Lechuga,Tomate','queso,huevo,bacon']],
+    'Milanesas': [['Sándwich de milanesa',6200,'Pan,Milanesa,Lechuga,Tomate,Mayonesa','queso,huevo'],['Milanesa napolitana',8500,'Milanesa,Salsa,Jamón,Mozzarella','queso,papas'],['Milanesa clásica',6900,'Milanesa,Limón','huevo,papas']],
+    'Comidas al plato': [['Pollo al horno',7600,'Pollo,Puré','huevo,papas'],['Tallarines con tuco',6600,'Tallarines,Tuco,Queso rallado','queso'],['Tortilla de papas',5900,'Papa,Huevo,Cebolla','queso']],
+    'Papas': [['Papas chicas',2900,'Sal','queso,bacon'],['Papas grandes',4600,'Sal','queso,bacon'],['Papas con cheddar',5200,'Sal,Cheddar','queso,bacon']],
+    'Bebidas': [['Agua sin gas',1600],['Gaseosa cola',2300],['Limonada',2500,'Hielo']],
+    'Postres': [['Flan casero',3100,'Caramelo','dulce'],['Budín de pan',2900,'Caramelo','dulce'],['Brownie',3400]]
+  };
+  var extras = {
+    queso: ['Queso extra',700], bacon: ['Panceta',1000], huevo: ['Huevo',600],
+    papas: ['Guarnición de papas',2000], dulce: ['Dulce de leche',500]
+  };
+  function el(id) { return document.getElementById(id); }
+  function money(amount) { return '$ ' + amount.toLocaleString('es-AR'); }
+  function parts(value) { return value ? value.split(',') : []; }
+  function price(item) {
+    return item.product[1] + item.added.reduce(function (sum,key) { return sum + extras[key][1]; },0);
+  }
+  function button(label, attr, value, extra) {
+    return '<button type="button" ' + attr + '="' + value + '" ' + (extra || '') + '>' + label + '</button>';
+  }
+  function menu() {
+    el('tabs').innerHTML = Object.keys(catalog).map(function (name,index) {
+      return button('<span class="icon" aria-hidden="true">' + icons[index] + '</span>' + name,'data-category',name,'aria-pressed="' + (category === name) + '" class="' + (category === name ? 'active' : '') + '"');
+    }).join('');
+    showProducts();
+  }
+  function searchable(text) {
+    return text.toLowerCase().replace(/[áéíóúü]/g,function (letter) { return 'aeiouu'['áéíóúü'.indexOf(letter)]; });
+  }
+  function showProducts() {
+    var query = searchable((el('search').value || '').trim());
+    var count = 0;
+    var icon = icons[Object.keys(catalog).indexOf(category)];
+    el('categoryTitle').textContent = category;
+    el('cards').innerHTML = catalog[category].map(function (product,index) {
+      if (searchable(product[0]).indexOf(query) === -1) return '';
+      count++;
+      var visual = '<span class="product-image placeholder" aria-hidden="true">' + icon + '</span>';
+      return '<article class="card">' + visual + '<div class="card-body"><h3>' + product[0] + '</h3><p class="ingredients">' +
+        parts(product[2]).join(', ') + '</p><div class="card-foot"><strong class="price">' + money(product[1]) + '</strong>' +
+        button('+ Agregar','data-product',index,'aria-label="Agregar ' + product[0] + '"') + '</div></div></article>';
+    }).join('') || '<p class="empty muted">No hay productos que coincidan con la búsqueda.</p>';
+    el('productCount').textContent = count + (count === 1 ? ' producto' : ' productos');
+  }
+
+
+  function totals() {
+    var food = 0, other = 0;
+    cart.forEach(function (item) {
+      if (item.category === 'Bebidas' || item.category === 'Postres') other += price(item);
+      else food += price(item);
+    });
+    return {food:food,other:other,total:food+other};
+  }
+  function order() {
+
+  el('resumenCocina').hidden = true;
+  el('validarPedido').hidden = true;
+  el('estadoPedido').hidden = true;
+  el('notice').textContent = '';
+  el('paymentSection').hidden = false;
+  el('totalLabel').textContent = 'Total del pedido';
+  el('cardsReal').inert = false;
+  el('lines').inert = false;
+  el('checkout').textContent = 'Simular cobro →';
+
+    var sums = totals();
+    el('count').textContent = cart.length + (cart.length === 1 ? ' unidad' : ' unidades');
+    el('lines').innerHTML = cart.length ? cart.map(function (item,index) {
+      var changes = item.removed.map(function (name) { return 'Sin ' + name.toLowerCase(); }).concat(item.added.map(function (key) { return '+ ' + extras[key][0]; }));
+      return '<div class="row"><div class="row-head"><strong>' + item.product[0] + '</strong><strong>' + money(price(item)) + '</strong></div>' +
+        (changes.length ? '<p class="muted">' + changes.join(' · ') + '</p>' : '') +
+        button('Editar','data-edit',index) + button('+ 1','data-copy',index,'aria-label="Duplicar ' + item.product[0] + '"') + button('Quitar','data-remove',index,'aria-label="Quitar ' + item.product[0] + '"') + '</div>';
+    }).join('') : '<p class="muted empty">Tocá un producto para armar el pedido.</p>';
+    el('foodTotal').textContent = money(sums.food);
+    el('otherTotal').textContent = money(sums.other);
+    el('total').textContent = money(sums.total);
+    el('payments').innerHTML = methods.map(function (name) {
+      return button(name,'data-payment',name,'aria-pressed="' + (method === name) + '" class="' + (method === name ? 'active' : '') + '"');
+    }).join('');
+    el('checkout').disabled = !cart.length || !method;
+    el('clearCart').disabled = !cart.length;
+  }
+  function show(title,body,action) {
+    if (overlay.hidden) trigger = document.activeElement;
+    el('dialogTitle').textContent = title;
+    el('dialogBody').innerHTML = body;
+    el('dialogActions').innerHTML = button(action,'id','accept','class="primary"') + button('Cancelar','id','cancel');
+    overlay.hidden = false;
+    el('accept').focus();
+  }
+  function close() {
+    overlay.hidden = true;
+    if (trigger && document.body.contains(trigger)) trigger.focus();
+  }
+  function customize(index,product) {
+    editing = index;
+    var item = index === -1 ? {product:product,category:category,removed:[],added:[]} : cart[index];
+    var body = '';
+    if (item.product[2]) body += '<h3>Quitar ingredientes · sin recargo</h3>' + parts(item.product[2]).map(function (name) {
+      return '<label class="check"><input type="checkbox" name="removed" value="' + name + '"' + (item.removed.indexOf(name) >= 0 ? ' checked' : '') + '>Sin ' + name.toLowerCase() + '</label>';
+    }).join('');
+    if (item.product[3]) body += '<h3>Agregar extras</h3>' + parts(item.product[3]).map(function (key) {
+      return '<label class="check"><input type="checkbox" name="added" value="' + key + '"' + (item.added.indexOf(key) >= 0 ? ' checked' : '') + '>' + extras[key][0] + ' · ' + money(extras[key][1]) + '</label>';
+    }).join('');
+    show(item.product[0],body + '<div class="total"><span>Unidad</span><strong id="unitPrice">' + money(price(item)) + '</strong></div>',index === -1 ? 'Agregar al pedido' : 'Guardar cambios');
+    function read(name) {
+      return Array.prototype.map.call(overlay.querySelectorAll('input[name="' + name + '"]:checked'),function (input) { return input.value; });
+    }
+    el('dialogBody').onchange = function () { el('unitPrice').textContent = money(price({product:item.product,added:read('added')})); };
+    el('accept').onclick = function () {
+      var updated = {product:item.product,category:item.category,removed:read('removed'),added:read('added')};
+      if (editing === -1) cart.push(updated);
+      else cart[editing] = updated;
+      el('notice').textContent = '';
+      close(); order();
+      if (editing !== -1) el('lines').querySelector('[data-edit="' + editing + '"]').focus();
+    };
+  }
+
+
+
+
+  el('search').oninput = showProducts;
+  el('clearCart').onclick = function () {
+    el('dialogBody').onchange = null;
+    show('Limpiar pedido ficticio', '<p>Se quitarán todos los productos de esta demo.</p>', 'Limpiar');
+    el('accept').onclick = function () { cart = []; method = ''; close(); order(); };
+  };
+  el('checkout').onclick = function () {
+
+    el('dialogBody').onchange = null;
+    var sums = totals();
+    show('Confirmar cobro de prueba','<p class="check">' + method + ' · ' + money(sums.total) + '</p><p class="muted">La simulación finaliza este pedido sin procesar un pago.</p>','Confirmar simulación');
+    el('accept').onclick = function () {
+      var confirmation = 'Cobro simulado por ' + money(sums.total) + ' · ' + method + '.';
+      cart = []; method = ''; close(); order();
+      el('notice').textContent = confirmation;
+      el('tabs').querySelector('.active').focus();
+    };
+  };
+  document.addEventListener('click',function (event) {
+    var target = event.target;
+    while (target && target !== document && target.tagName !== 'BUTTON') target = target.parentNode;
+    if (!target || target === document) return;
+    function value(name) { return target.getAttribute('data-' + name); }
+    if (target.id === 'cancel') close();
+    else if (value('category') !== null) { category = value('category'); el('search').value = ''; menu(); el('tabs').querySelector('.active').focus(); }
+    else if (value('product') !== null) customize(-1,catalog[category][Number(value('product'))]);
+    else if (value('edit') !== null) customize(Number(value('edit')));
+    else if (value('remove') !== null) { cart.splice(Number(value('remove')),1); order(); el('lines').querySelector('button') ? el('lines').querySelector('button').focus() : el('tabs').querySelector('.active').focus(); }
+    else if (value('copy') !== null) {
+      var index = Number(value('copy')), item = cart[index];
+      cart.splice(index+1,0,{product:item.product,category:item.category,removed:item.removed.slice(),added:item.added.slice()}); order();
+      el('lines').querySelector('[data-edit="' + (index+1) + '"]').focus();
+    }
+    else if (value('payment') !== null) { method = value('payment'); order(); el('payments').querySelector('.active').focus(); }
+  });
+  document.addEventListener('keydown',function (event) {
+    if (overlay.hidden) return;
+    if (event.key === 'Escape' || event.keyCode === 27) { close(); return; }
+    if (event.key !== 'Tab' && event.keyCode !== 9) return;
+    var controls = Array.from(overlay.querySelectorAll('input,textarea,select,button,summary'))
+      .filter(function (control) { return !control.disabled && control.getClientRects().length; });
+    if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls[controls.length-1].focus(); }
+    if (!event.shiftKey && document.activeElement === controls[controls.length-1]) { event.preventDefault(); controls[0].focus(); }
+  });
+
+    menu();
+    order();
+
+
+  el('apiStatus').textContent = 'Demo estática lista · Sin conexión a API ni base de datos.';
+}());
+</script>
+</body>
+</html>
