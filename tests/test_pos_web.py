@@ -70,7 +70,7 @@ def preparar_simulacion_web(base_prueba, monkeypatch, tmp_path, modo):
         monkeypatch.setenv("NEGOCIO_DB_PATH", str(copia))
 
 
-def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket):
+def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None):
     with socket.socket() as red:
         red.bind(("127.0.0.1", 0))
         origen = f"http://127.0.0.1:{red.getsockname()[1]}"
@@ -124,6 +124,9 @@ def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket):
                             assert "exceptionDetails" not in resultado, resultado
                             return resultado["result"].get("value")
 
+                        if viewport:
+                            cdp("Emulation.setDeviceMetricsOverride", width=viewport[0], height=viewport[1],
+                                deviceScaleFactor=1, mobile=True)
                         cdp("Page.navigate", url=f"{origen}/pos/")
                         yield evaluar
                 finally:

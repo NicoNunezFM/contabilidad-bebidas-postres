@@ -1,0 +1,29 @@
+{
+  "url_historial": "https://raw.githubusercontent.com/NicoNunezFM/contabilidad-bebidas-postres/bdfa181d535014cd42b40b07529091c98ca0f6c2/pos-web/index.html",
+  "fuentes": {
+    "archivo_descargado": {
+      "bytes": 307515,
+      "sha256": "cdf03a0d3463fb3b8d7349da34d878a6aa17fe6359d50b083dfe66905eadc547",
+      "igual_byte_a_byte_descarga": true,
+      "igual_normalizando_crlf_descarga": true
+    },
+    "git:bdfa181d535014cd42b40b07529091c98ca0f6c2": {
+      "bytes": 307515,
+      "sha256": "cdf03a0d3463fb3b8d7349da34d878a6aa17fe6359d50b083dfe66905eadc547",
+      "igual_byte_a_byte_descarga": true,
+      "igual_normalizando_crlf_descarga": true
+    },
+    "git:59b4810d8c9564e70abfeeadb423de5e4b423669": {
+      "bytes": 308662,
+      "sha256": "6bbe35702c4c8f91e800c78cc327dda15b5e585735853748d7777389c6674bc5",
+      "igual_byte_a_byte_descarga": false,
+      "igual_normalizando_crlf_descarga": false
+    },
+    "working_tree:pos-web/index.html": {
+      "bytes": 312276,
+      "sha256": "9c398f08ebc1ca59d552bea2bf162dcca10d3aa2a19aa9fac27e61c5f22021b7",
+      "igual_byte_a_byte_descarga": false,
+      "igual_normalizando_crlf_descarga": false
+    }
+  }
+}
