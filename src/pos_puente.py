@@ -143,9 +143,13 @@ def conciliar_pos(conexion, pos):
 
 
 def leer_conciliacion(conexion):
+    from pos_compras_caja import compras_caja_existe, conciliar_compras_caja
+
     exigir_copia_puente(conexion)
     pos = consultar_cajas_simuladas(conexion)
     diferencias = conciliar_pos(conexion, pos)
+    if compras_caja_existe(conexion):
+        diferencias.extend(conciliar_compras_caja(conexion))
     caja_diaria = {}
     if caja_diaria_activa(conexion):
         diferencias.extend(conciliar_caja_diaria(conexion))

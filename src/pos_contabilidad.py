@@ -120,6 +120,8 @@ def crear_integracion_contable(db):
 
 
 def calcular_periodo(db, desde, hasta):
+    from pos_compras_caja import compras_caja_existe, resumen_pagos_compras
+
     inicio, ultimo_pos, ultimo_diario = corte_contable(db)
     desde_contable = max(inicio, desde)
     eventos = (ultimo_pos, desde_contable, hasta)
@@ -161,11 +163,17 @@ def calcular_periodo(db, desde, hasta):
         caja: {"gasto": 0, "aporte": 0, "retiro": 0, "transferencia": 0}
         for caja in SECCIONES
     }
-    for caja, tipo, importe in db.execute("""
+    pagos_compras = {}
+    excluir_pagos_compras = ""
+    if compras_caja_existe(db):
+        pagos_compras["pagos_compras_por_receptor"] = resumen_pagos_compras(db, desde_contable, hasta)
+        excluir_pagos_compras = "AND d.id_evento NOT IN (SELECT id_diario FROM pos_compras_caja WHERE id_diario IS NOT NULL)"
+    for caja, tipo, importe in db.execute(f"""
         SELECT j.caja, d.tipo, SUM(d.importe_centavos)
         FROM pos_diario_caja AS d JOIN pos_jornadas_caja AS j USING (id_jornada)
         WHERE d.id_evento > ? AND substr(d.fecha_hora, 1, 10) BETWEEN ? AND ?
           AND d.tipo IN ('gasto', 'aporte', 'retiro', 'transferencia')
+          {excluir_pagos_compras}
         GROUP BY j.caja, d.tipo
     """, diario):
         efectivo[caja][tipo] = importe
@@ -192,6 +200,7 @@ def calcular_periodo(db, desde, hasta):
     gastos = gastos_legados + gastos_pos
     base = cobrado - compras - gastos
     return {
+        **pagos_compras,
         "simulacion": True, "fecha_corte": inicio, "desde_contable": desde_contable, "hasta": hasta,
         "devengado_centavos": devengado, "cobrado_neto_centavos": cobrado,
         "variacion_fiado_centavos": devengado - cobrado, "fiado_al_cierre_centavos": pendiente_c + pendiente_b,

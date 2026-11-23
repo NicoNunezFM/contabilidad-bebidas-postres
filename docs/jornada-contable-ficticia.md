@@ -1,10 +1,10 @@
 # Jornada contable ficticia de Lo de Clau
 
-El ensayo crea un Entrenamiento descartable con tres productos, diez unidades de cada uno, un extra y un cliente. Usa los asistentes de las pruebas de QA integrada, caja diaria y clientes. Compras, inventario y merma usan las funciones de dominio existentes sobre ese mismo archivo. Las ventas, pedidos, cobros, saldos, cierres y reportes se ejercitan por API. WhatsApp es el origen declarado del pedido, ingresado desde el POS.
+El ensayo crea un Entrenamiento descartable con tres productos, diez unidades de cada uno, un extra y un cliente. Usa los asistentes de las pruebas de QA integrada, caja diaria y clientes. Inventario y merma usan las funciones de dominio existentes sobre ese mismo archivo. Las compras, ventas, pedidos, cobros, saldos, cierres y reportes se ejercitan por API. WhatsApp es el origen declarado del pedido, ingresado desde el POS.
 
 ## Libro de control independiente
 
-Importes en pesos. Los saldos son acumulados. Las aserciones comparan cada fila con el saldo obtenido en Abadion. La compra se contabiliza como costo legado y queda fuera del diario físico. El gasto se registra en el diario de rotisería.
+Importes en pesos. Los saldos son acumulados. Las aserciones comparan cada fila con el saldo obtenido en Abadion. La compra se atribuye a postres/bebidas y se paga con efectivo de rotisería. El gasto se registra en el diario de rotisería.
 
 | Operación | Importe | Efectivo rotisería | Efectivo postres/bebidas | Banco | Mercado Pago | Fiado |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -16,14 +16,15 @@ Importes en pesos. Los saldos son acumulados. Las aserciones comparan cada fila 
 | Fiado de una comida | 10 | 22 | 7 | 1 | 10 | 10 |
 | Abono por transferencia al banco de postres/bebidas, con reintento | 4 | 22 | 7 | 5 | 10 | 6 |
 | Bebida cobrada en efectivo | 3 | 22 | 10 | 5 | 10 | 6 |
-| Compra de dos bebidas a $1, ajuste de inventario y merma | 2 | 22 | 10 | 5 | 10 | 6 |
-| Gasto físico en rotisería | -1 | 21 | 10 | 5 | 10 | 6 |
-| Cambio de categoría y precio de bebida y postre | 0 | 21 | 10 | 5 | 10 | 6 |
-| Devolución de un postre, con reintento | -5 | 21 | 10 | 5 | 5 | 6 |
-| Anulación de la bebida cobrada en efectivo, con reintento | -3 | 21 | 7 | 5 | 5 | 6 |
+| Compra de dos bebidas a $1 desde rotisería, ajuste de inventario y merma | 2 | 20 | 10 | 5 | 10 | 6 |
+| Gasto físico en rotisería | -1 | 19 | 10 | 5 | 10 | 6 |
+| Cambio de categoría y precio de bebida y postre | 0 | 19 | 10 | 5 | 10 | 6 |
+| Devolución de un postre, con reintento | -5 | 19 | 10 | 5 | 5 | 6 |
+| Anulación de la bebida cobrada en efectivo, con reintento | -3 | 19 | 7 | 5 | 5 | 6 |
 
 La rotisería devenga $22 y cobra $16 atribuibles a su sección. Postres/bebidas devenga y cobra $8. El banco de postres/bebidas recibe $5, de los cuales $4 corresponden al fiado de rotisería. El pago combinado entra como $14 en efectivo de rotisería y $1 al banco de postres/bebidas. El traspaso redistribuye los $2 en efectivo que quedaron pendientes de esa venta. La API rechaza traslados que superan una distribución pendiente. La diferencia entre los $30 devengados y los $24 cobrados es la deuda de $6. La base de diezmo es $24 − $2 − $1 = $21 y el diezmo es $2,10. La prueba también restaura el archivo respaldado y vuelve a consultar saldos, reporte y stock.
 
 ## Reproducir
 
-Desde un checkout de esta rama, con las dependencias del proyecto instaladas, usá `python -m pytest -q tests/test_jornada_contable.py`. La suite crea la base en `tmp_path`; la restauración se abre desde otro directorio temporal. El flujo cubre el libro del POS ficticio. Sigue pendiente definir cómo se registrará el egreso físico de compras pagadas desde una caja en un despliegue real, de manera que el costo se compute una vez.
+Desde un checkout de esta rama, con las dependencias del proyecto instaladas, usá `python -m pytest -q tests/test_jornada_contable.py`. La suite crea la base en `tmp_path`; la restauración se abre desde otro directorio temporal. El flujo cubre el libro del POS ficticio. El [diseño y la matriz de compras](compras-caja-ficticia.md) detallan los pagos cruzados, digitales y parciales.
+
