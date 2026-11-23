@@ -1,5 +1,11 @@
+import json
+import os
 import sqlite3
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -80,6 +86,38 @@ def test_simulacion_es_atomica_e_idempotente(venta_prueba):
     assert respuesta.json()["simulacion"] is True
     assert cliente.post(VENTAS, headers=ORIGEN, json=venta).json() == respuesta.json()
     assert cliente.post(VENTAS, headers=ORIGEN, json={**venta, "total_esperado_centavos": 1}).status_code == 409
+    assert _estado() == (8, 1, 0, 1)
+
+
+def test_recupera_venta_tras_caida_antes_del_commit(venta_prueba):
+    cliente, venta = venta_prueba
+    usuario = cliente.get("/pos-api/yo").json()["usuario"]
+    comando = """
+import json, os, sys
+import pos_simulacion
+
+def salir(*args, **kwargs):
+    os._exit(73)
+
+pos_simulacion.terminar_evento = salir
+venta, usuario = json.loads(sys.argv[1])
+pos_simulacion.registrar_venta_simulada(pos_simulacion.VentaSimuladaEntrada.model_validate(venta), usuario)
+"""
+    src = Path(__file__).resolve().parents[1] / "src"
+    proceso = subprocess.run(
+        [sys.executable, "-c", comando, json.dumps([venta, usuario])],
+        env={**os.environ, "PYTHONPATH": str(src)},
+        capture_output=True,
+        timeout=20,
+    )
+    assert proceso.returncode == 73, proceso.stderr.decode(errors="replace")
+    assert _estado() == (10, 0, 0, 0)
+    with closing(obtener_conexion()) as db:
+        assert db.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
+        assert not db.execute("PRAGMA foreign_key_check").fetchall()
+    respuesta = cliente.post(VENTAS, headers=ORIGEN, json=venta)
+    assert respuesta.status_code == 200, respuesta.text
+    assert cliente.post(VENTAS, headers=ORIGEN, json=venta).json() == respuesta.json()
     assert _estado() == (8, 1, 0, 1)
 
 

@@ -1,10 +1,41 @@
 from tests import cliente_contabilidad
+from contextlib import closing
 
 from api import app
-from database import obtener_conexion
+from database import inicializar_base_de_datos, obtener_conexion
 
 
 client = cliente_contabilidad(app)
+
+
+def test_categoria_y_precio_del_catalogo_no_reclasifican_operaciones(base_prueba):
+    producto = _crear_producto("Bebida ficticia", "Bebidas", 2000)
+    for ruta, precio in (("/ventas", 2000), ("/compras", 1000)):
+        assert client.post(ruta, json={
+            "id_producto": producto, "cantidad": 1, "precio_unitario": precio,
+        }).status_code == 201
+
+    # Simular una base anterior a la migración con movimientos existentes.
+    with closing(obtener_conexion()) as db, db:
+        for tabla in ("ventas", "compras"):
+            db.execute(f"DROP TRIGGER {tabla}_categorias_contables_alta")
+            db.execute(f"DROP TABLE {tabla}_categorias_contables")
+    inicializar_base_de_datos()
+
+    with closing(obtener_conexion()) as db, db:
+        db.execute("UPDATE productos SET categoria = 'Comidas', precio_venta = 9000")
+    inicializar_base_de_datos()
+
+    respuesta = client.get("/caja/secciones/bebidas_postres")
+    assert respuesta.status_code == 200
+    bebidas = respuesta.json()["datos"]
+    assert (bebidas["ventas"], bebidas["compras_directas"]) == (2000, 1000)
+
+    assert client.post("/ventas", json={
+        "id_producto": producto, "cantidad": 1, "precio_unitario": 9000,
+    }).status_code == 201
+    comidas = client.get("/caja/secciones/comidas").json()["datos"]
+    assert (comidas["ventas"], comidas["compras_directas"]) == (9000, 0)
 
 
 def _crear_producto(

@@ -1,11 +1,22 @@
+from contextlib import closing
 from datetime import datetime
+import os
 from pathlib import Path
 import sqlite3
+from tempfile import NamedTemporaryFile
 
 from database import obtener_ruta_base
 
 
 RETENCION_BACKUPS_DIAS = 14
+
+
+def _publicar_respaldo(temporal, destino):
+    # En Windows rename rechaza un destino existente. En POSIX lo reemplaza.
+    if os.name == "nt":
+        temporal.rename(destino)
+    else:
+        os.link(temporal, destino)
 
 
 def obtener_directorio_backups():
@@ -47,21 +58,26 @@ def crear_backup_diario(
             "ruta": str(destino),
         }
 
-    origen = None
-    respaldo = None
-
+    temporal = None
     try:
-        origen = sqlite3.connect(ruta_base)
-        respaldo = sqlite3.connect(destino)
-
-        origen.backup(respaldo)
-
-    except sqlite3.Error as error:
-        if destino.exists():
-            try:
-                destino.unlink()
-            except OSError:
-                pass
+        with NamedTemporaryFile(dir=directorio, suffix=".tmp", delete=False) as archivo:
+            temporal = Path(archivo.name)
+        uri_origen = ruta_base.resolve().as_uri() + "?mode=ro"
+        with closing(sqlite3.connect(uri_origen, uri=True)) as origen:
+            with closing(sqlite3.connect(temporal)) as respaldo:
+                origen.backup(respaldo)
+                if respaldo.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
+                    raise sqlite3.DatabaseError("El respaldo no pasó integrity_check.")
+        try:
+            _publicar_respaldo(temporal, destino)
+        except FileExistsError:
+            return {
+                "ok": True,
+                "codigo": "BACKUP_YA_EXISTE",
+                "creado": False,
+                "ruta": str(destino),
+            }
+    except (sqlite3.Error, OSError) as error:
 
         return {
             "ok": False,
@@ -72,11 +88,11 @@ def crear_backup_diario(
         }
 
     finally:
-        if respaldo is not None:
-            respaldo.close()
-
-        if origen is not None:
-            origen.close()
+        if temporal is not None:
+            try:
+                temporal.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     _aplicar_retencion(
         directorio=directorio,
