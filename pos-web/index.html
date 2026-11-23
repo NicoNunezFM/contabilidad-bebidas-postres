@@ -78,6 +78,40 @@ button:disabled{opacity:.55;cursor:default}
 .menu-selector textarea {min-height:5rem; resize:vertical}
 .menu-selector .extra-preparacion {grid-template-columns:1fr 5rem; align-items:center}
 </style>
+
+<style id="abadion-tablet-layout">
+/* Vista táctil en tablet horizontal: la interfaz de escritorio se conserva. */
+.tablet-cart-toggle{display:none}
+@media (hover:none) and (pointer:coarse) and (max-width:1100px) {
+ .workspace{display:block}
+ .sidebar{position:static;top:auto;width:auto;height:auto;display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;padding:5px 10px}
+ .system-brand{display:flex;align-items:center;text-align:left;padding:0}
+ .system-brand img{height:36px;width:36px;margin:0 7px 0 0}
+ .system-brand small,.sidebar .current{display:none}
+ .sidebar button{margin:0;min-height:44px}
+ .top{padding:7px 10px}
+ .top h1{font-size:21px}
+ .top p{font-size:12px}
+ .store strong{display:none}
+ .store img{width:42px}
+ .layout{display:block;padding:8px 10px 80px}
+ .menu{min-width:0}
+ .order{display:none;position:static;top:auto;min-width:0;width:100%;margin:6px 0 0}
+ body.tablet-order-open .order{display:block}
+ body.tablet-order-open .menu{display:none}
+ .tablet-cart-toggle{display:block;position:fixed;z-index:1;bottom:8px;left:10px;right:10px;width:calc(100% - 20px);min-height:54px;background:#067841;color:#fff;border-color:#067841;box-shadow:0 3px 12px #17162544;font-size:16px}
+ .operations{flex-wrap:nowrap;overflow-x:auto;gap:6px;-webkit-overflow-scrolling:touch}
+ .operations button{flex:0 0 auto;white-space:nowrap;min-height:48px}
+ .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+ .tabs button{flex:0 0 138px;min-height:58px;font-size:14px}
+ .card-foot button{min-height:52px;font-size:15px}
+ .product-image{height:80px}
+ .dialog{max-width:720px;max-height:calc(100vh - 12px);padding:12px}
+ .overlay{padding:6px}
+ .lines{max-height:none}
+ .payments button{min-height:52px}
+}
+</style>
 </head>
 <body>
 
@@ -131,7 +165,9 @@ button:disabled{opacity:.55;cursor:default}
 </p>
 <section id="demoOffers" class="offer"><h3>Ofrecé una bebida o un postre</h3><button data-category="Bebidas">Ver bebidas</button><button data-category="Postres">Ver postres</button></section>
 </main>
-<aside class="order" aria-label="Pedido">
+<button id="tabletCartButton" class="tablet-cart-toggle" type="button"
+ aria-controls="tabletOrder" aria-expanded="false">Ver carrito y cobro</button>
+<aside id="tabletOrder" class="order" aria-label="Pedido">
 <div class="row-head"><div class="order-heading"><h2>Pedido actual</h2><span id="count" class="product-count"></span></div><button id="clearCart" type="button">Limpiar</button></div>
 <div id="lines" class="lines"></div>
 <button id="resumenCocina" type="button" class="wide" hidden>Ver pedido para cocina</button>
@@ -149,6 +185,42 @@ button:disabled{opacity:.55;cursor:default}
 <script>
 (function () {
   'use strict';
+
+  // Chrome 101 carece de AbortSignal.timeout. El abort nunca reintenta automáticamente.
+  function senalTiempoPos(ms) {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+      return AbortSignal.timeout(ms);
+    }
+    var controlador = new AbortController();
+    setTimeout(function () { controlador.abort(); }, ms);
+    return controlador.signal;
+  }
+
+  // Nunca reemplazar un UUID contable por Math.random o un ID predecible.
+  function uuidPos() {
+    if (!window.isSecureContext || !window.crypto ||
+        typeof window.crypto.getRandomValues !== 'function') {
+      throw new Error('Abadion requiere HTTPS o localhost para registrar operaciones.');
+    }
+    if (typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    var bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    var hex = Array.from(bytes, function (byte) {
+      return byte.toString(16).padStart(2, '0');
+    }).join('');
+    return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' +
+      hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+  }
+
+  var tabletCartButton = document.getElementById('tabletCartButton');
+  tabletCartButton.addEventListener('click', function () {
+    var abierto = document.body.classList.toggle('tablet-order-open');
+    tabletCartButton.setAttribute('aria-expanded', String(abierto));
+    tabletCartButton.textContent = abierto ? 'Volver al catálogo' : 'Ver carrito y cobro';
+    window.scrollTo(0, 0);
+  });
   var catalog = {
     'Hamburguesas': [['Clásica',5900,'Pan,Medallón,Lechuga,Tomate,Mayonesa','queso,bacon,huevo'],['Doble cheddar',7900,'Pan,Doble medallón,Cheddar,Cebolla','queso,bacon'],['Completa',7400,'Pan,Medallón,Jamón,Queso,Huevo,Lechuga,Tomate','queso,bacon'],['Bacon',8200,'Pan,Medallón,Panceta,Cheddar,Lechuga,Tomate','queso,bacon'],['Con huevo',7500,'Pan,Medallón,Huevo,Cheddar','queso,bacon'],['Triple cheddar',9600,'Pan,Tres medallones,Cheddar','queso,bacon'],['Con cebolla',7800,'Pan,Medallón,Cheddar,Cebolla caramelizada','queso,bacon']],
     'Sándwiches': [['Jamón y queso',3800,'Pan,Jamón,Queso','queso,huevo'],['Pollo y vegetales',5400,'Pan,Pollo,Lechuga,Tomate,Mayonesa','queso,huevo'],['Lomito',7200,'Pan,Lomito,Lechuga,Tomate','queso,huevo,bacon']],
@@ -1153,7 +1225,7 @@ function mostrarPedidoReal() {
 
   async function consultarPos(ruta, opciones) {
     var respuesta = await fetch('/pos-api' + ruta, {
-      credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(12000),
+      credentials: 'same-origin', cache: 'no-store', signal: senalTiempoPos(12000),
       ...opciones
     });
     var datos = await respuesta.json();
@@ -2158,7 +2230,7 @@ if (modoReal) {
       boton.disabled = true;
       try {
         if (!datos) {
-          var nuevos = {...leer(), id_solicitud: crypto.randomUUID()};
+          var nuevos = {...leer(), id_solicitud: uuidPos()};
           sessionStorage.setItem(clave, JSON.stringify(nuevos));
           datos = nuevos;
         }
@@ -2411,7 +2483,7 @@ if (modoReal) {
       }
       boton.disabled = true;
       try {
-        datos ||= {motivo, id_solicitud: crypto.randomUUID()};
+        datos ||= {motivo, id_solicitud: uuidPos()};
         await enviarPos('/simulacion/ventas/' + venta.id_venta + '/anulacion', datos, usuario);
         if (formulario.isConnected && !overlay.hidden) {
           mostrarHistorialPos('Se anuló la venta simulada #' + venta.id_venta + '.');
@@ -2877,7 +2949,7 @@ if (modoReal) {
 
   async function refrescarStockPos() {
     try {
-      var respuesta = await fetch('/pos-api/catalogo/productos', {cache: 'no-store', signal: AbortSignal.timeout(12000)});
+      var respuesta = await fetch('/pos-api/catalogo/productos', {cache: 'no-store', signal: senalTiempoPos(12000)});
       if (!respuesta.ok) throw new Error('Catálogo no disponible');
       var datos = await respuesta.json();
       if (!modoReal || !Array.isArray(datos.productos)) return;
@@ -3010,7 +3082,7 @@ if (modoReal) {
       errorEl.textContent = '';
       registrar.disabled = true;
       try {
-        pendiente ||= {...leer(), id_solicitud: crypto.randomUUID()};
+        pendiente ||= {...leer(), id_solicitud: uuidPos()};
         elegir(await enviarPos(rutaClientesPos, pendiente, usuario));
         pendiente = null;
         alta.open = false;
@@ -3229,7 +3301,7 @@ if (modoReal) {
     if (!hayOperacionPos(ruta, usuario)) {
       try {
         const respuesta = await fetch('/pos-api/simulacion/pedidos/' + pedido.id_pedido + '/cotizacion',
-          {cache: 'no-store', signal: AbortSignal.timeout(12000)});
+          {cache: 'no-store', signal: senalTiempoPos(12000)});
         const cuerpo = await respuesta.json();
         if (!respuesta.ok) throw new Error(typeof cuerpo.detail === 'string' ? cuerpo.detail : 'Revisá el pedido.');
         total = cuerpo.total_centavos;
@@ -3389,7 +3461,7 @@ if (modoReal) {
           pedido: pedidoReal,
           datos: {
             items: validacion.items,
-            id_solicitud: crypto.randomUUID(),
+            id_solicitud: uuidPos(),
             total_esperado_centavos: totalVenta,
             ...seguimiento,
             ...modalidad
