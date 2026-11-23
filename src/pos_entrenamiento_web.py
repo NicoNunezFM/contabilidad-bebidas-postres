@@ -30,7 +30,7 @@ body {padding-top:3rem}
 """
 
 
-def crear_app_entrenamiento(carpeta):
+def crear_app_entrenamiento(carpeta, *, hosts_permitidos=("127.0.0.1",), aviso=AVISO):
     ruta = carpeta / ARCHIVO_BASE
     with closing(abrir_base_entrenamiento(ruta, solo_lectura=True)):
         pass
@@ -39,11 +39,11 @@ def crear_app_entrenamiento(carpeta):
         raise ValueError("No se pudo incorporar el aviso de entrenamiento al POS.")
     pagina = fuente.replace("<title>Abadion POS", "<title>Abadion Entrenamiento", 1)
     pagina = pagina.replace("</head>", ESTILO + "</head>", 1).replace(
-        "<body>", f'<body><p id="entrenamientoAviso">{AVISO}</p>', 1
+        "<body>", f'<body><p id="entrenamientoAviso">{aviso}</p>', 1
     )
     app = FastAPI(title="Abadion Entrenamiento", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cookies_pos = ("abadion_entrenamiento_admin", "abadion_entrenamiento_ventas")
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1"])
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(hosts_permitidos))
     app.include_router(router)
 
     @app.middleware("http")
