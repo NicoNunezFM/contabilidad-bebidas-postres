@@ -1,14 +1,19 @@
+import base64
 import json
 import os
 import socket
 import subprocess
 import time
 from contextlib import closing
+from pathlib import Path
 from threading import Thread
 
 import httpx
 import pytest
 import uvicorn
+from starlette.applications import Starlette
+from starlette.responses import FileResponse
+from starlette.routing import Route
 
 from api import app
 from database import obtener_conexion
@@ -70,7 +75,8 @@ def preparar_simulacion_web(base_prueba, monkeypatch, tmp_path, modo):
         monkeypatch.setenv("NEGOCIO_DB_PATH", str(copia))
 
 
-def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, *, tls=None, app_factory=None):
+def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, *, tls=None,
+                     app_factory=None, ruta="/pos/", con_cdp=False):
     with socket.socket() as red:
         red.bind(("127.0.0.1", 0))
         port = red.getsockname()[1]
@@ -139,8 +145,8 @@ def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, 
                         if viewport:
                             cdp("Emulation.setDeviceMetricsOverride", width=viewport[0], height=viewport[1],
                                 deviceScaleFactor=1, mobile=True)
-                        cdp("Page.navigate", url=f"{origen}/pos/")
-                        yield evaluar
+                        cdp("Page.navigate", url=f"{origen}{ruta}")
+                        yield (evaluar, cdp) if con_cdp else evaluar
                 finally:
                     navegador.terminate()
         finally:
@@ -177,6 +183,86 @@ def controles_pos(navegador_pos):
         esperar(lambda: evaluar("document.querySelector('#overlay').hidden"))
 
     return evaluar, clic, texto, iniciar_sesion
+
+
+@pytest.mark.parametrize("viewport,columnas,tablet", [
+    ((1440, 1000), 3, False),
+    ((1024, 600), 3, True),
+    ((600, 1024), 2, True),
+])
+def test_pos_web_premium_catalogo_y_carrito(viewport, columnas, tablet, tmp_path):
+    ejecutable = os.getenv("POS_TEST_BROWSER")
+    if not ejecutable:
+        pytest.skip("Configurá POS_TEST_BROWSER con Microsoft Edge.")
+    import websocket
+
+    index = Path(__file__).resolve().parents[1] / "pos-web" / "index.html"
+
+    async def pagina(request):
+        return FileResponse(index, media_type="text/html")
+
+    # La muestra visual solo sirve el HTML y se arma con el catálogo ficticio embebido.
+    app_demo = Starlette(routes=[Route("/pos/", pagina)])
+    ruta = "/pos/?tablet=1" if tablet else "/pos/"
+    navegador = abrir_navegador(app_demo, ejecutable, tmp_path, websocket, viewport,
+                                ruta=ruta, con_cdp=True)
+    with closing(navegador):
+        evaluar, cdp = next(navegador)
+        esperar(lambda: evaluar("""
+            document.querySelectorAll('#cards .card').length === 7 &&
+            document.querySelector('#cards img').naturalWidth > 0
+        """))
+        assert evaluar("innerWidth") == viewport[0]
+        assert evaluar("document.documentElement.scrollWidth <= innerWidth")
+        assert evaluar("""
+            [...document.querySelectorAll('#cards .card')]
+                .filter(card => card.offsetTop === document.querySelector('#cards .card').offsetTop).length
+        """) == columnas
+        assert evaluar("document.querySelector('#tabletOrder').getClientRects().length > 0") is (not tablet)
+        assert evaluar("document.querySelector('.tablet-cart-toggle').getClientRects().length > 0") is tablet
+
+        def clic(selector):
+            evaluar(f"document.querySelector({json.dumps(selector)}).click(); void 0")
+
+        def captura(vista):
+            carpeta = os.getenv("POS_UI_CAPTURAS")
+            if carpeta:
+                salida = Path(carpeta)
+                salida.mkdir(parents=True, exist_ok=True)
+                ancho, alto = viewport
+                png = cdp("Page.captureScreenshot", format="png")
+                (salida / f"abadion-{ancho}x{alto}-{vista}.png").write_bytes(base64.b64decode(png["data"]))
+
+        clic('#cards [data-product="0"]')
+        clic("#accept")
+        clic('#cards [data-product="1"]')
+        clic("#accept")
+        clic('#tabs [data-category="Bebidas"]')
+        clic('#cards [data-product="0"]')
+        clic("#accept")
+        clic('#tabs [data-category="Postres"]')
+        clic('#cards [data-product="0"]')
+        clic("#accept")
+        clic('#tabs [data-category="Hamburguesas"]')
+        if not tablet:
+            clic('[data-payment="Efectivo"]')
+        evaluar("window.scrollTo(0, 0); void 0")
+        captura("catalogo")
+
+        if tablet:
+            clic(".tablet-cart-toggle")
+            assert evaluar("document.querySelector('#catalog').getClientRects().length") == 0
+            assert evaluar("document.querySelector('#tabletOrder').getClientRects().length") > 0
+            assert evaluar("document.documentElement.scrollWidth <= innerWidth")
+            clic('[data-payment="Efectivo"]')
+            assert evaluar("!document.querySelector('#checkout').disabled")
+            evaluar("window.scrollTo(0, 0); void 0")
+            captura("carrito")
+            clic("#nuevaVentaPos")
+            assert evaluar("!document.querySelector('#tabletCartState').checked")
+            clic(".tablet-cart-toggle")
+        assert evaluar("document.querySelectorAll('#lines .row').length") == 4
+        assert evaluar("!document.querySelector('#checkout').disabled")
 
 
 @pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
@@ -774,6 +860,9 @@ def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
     """)
     clic("#accept")
     texto("#notice", "guardado sin venta")
+    clic("#historialSimulado")
+    texto("#consultaPos", "Todavía no hay ventas simuladas.")
+    clic("#accept")
     clic("#seguimientoPos")
     texto("#consultaPos", "WhatsApp")
     clic("#consultaPos details summary")
