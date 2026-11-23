@@ -8,7 +8,7 @@ from compras import registrar_compra
 from database import RUTA_ENTRENAMIENTO
 from pos_contabilidad import fecha_local
 from scripts.abadion_entrenamiento import ARCHIVO_CATALOGO, preparar_base, respaldar_sqlite
-from tests.test_pos_caja_diaria import BEBIDAS, COMIDAS, arquear, estado, operar
+from tests.test_pos_caja_diaria import BEBIDAS, COMIDAS, RUTA
 from tests.test_pos_clientes import preparar_abono
 from tests.test_pos_entrenamiento import registrar_cliente_prueba
 from tests.test_pos_qa_integrado import SIM, cliente, post, solicitud
@@ -47,6 +47,10 @@ def obtener(navegador, ruta, **params):
     respuesta = navegador.get(ruta, params=params)
     assert respuesta.status_code == 200, respuesta.text
     return respuesta.json()
+
+
+def operar(navegador, caja, accion, **datos):
+    return post(navegador, f"{RUTA}/{caja}/{accion}", solicitud(**datos))
 
 
 def test_jornada_contable_completa(tmp_path):
@@ -151,8 +155,10 @@ def test_jornada_contable_completa(tmp_path):
 
     efectivo = {COMIDAS: 1000 + 1200 - 100 - 200, BEBIDAS: 500 + 300 + 200 - 300}
     for caja, contado in efectivo.items():
-        assert estado(ventas, caja)["esperado_centavos"] == contado
-        arqueo = arquear(ventas, caja, contado)
+        actual = obtener(ventas, RUTA)["cajas"][caja]
+        assert actual["esperado_centavos"] == contado
+        arqueo = operar(ventas, caja, "arqueo", id_jornada=jornadas[caja],
+                        revision_efectivo=actual["revision_efectivo"], contado_centavos=contado)
         assert arqueo["diferencia_centavos"] == 0
         operar(ventas, caja, "cierre", id_jornada=jornadas[caja], id_arqueo=arqueo["id_evento"])
 
