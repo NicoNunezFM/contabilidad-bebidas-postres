@@ -4,7 +4,6 @@ from contextlib import closing
 from shutil import copy2
 
 from ajustes_stock import registrar_inventario_fisico, registrar_merma
-from compras import registrar_compra
 from database import RUTA_ENTRENAMIENTO
 from pos_contabilidad import fecha_local
 from scripts.abadion_entrenamiento import ARCHIVO_CATALOGO, preparar_base, respaldar_sqlite
@@ -146,20 +145,23 @@ def test_jornada_contable_completa(tmp_path):
     ))
 
     control(2200, 1000, 500, 1000, 600)
-    # Entrenamiento expone sólo el router POS. Los movimientos legados se
-    # registran con sus funciones de dominio sobre la misma base descartable.
+    compra = solicitud(id_producto=ids["Bebida"], cantidad=2, precio_unitario_centavos=100,
+                       pagado_centavos=200, pagador="comidas_efectivo", medio_pago="efectivo")
+    alta_compra = post(admin, SIM + "/compras", compra)
+    assert alta_compra["seccion"] == BEBIDAS
+    assert post(admin, SIM + "/compras", compra) == alta_compra
+    # Inventario y merma conservan las funciones de dominio legadas.
     contexto = RUTA_ENTRENAMIENTO.set(ruta)
     try:
-        assert registrar_compra(ids["Bebida"], 2, 1, fecha=fecha)["ok"]
         assert registrar_inventario_fisico(ids["Bebida"], 9, fecha=fecha)["ok"]
         assert registrar_merma(ids["Bebida"], 1, fecha=fecha)["ok"]
     finally:
         RUTA_ENTRENAMIENTO.reset(contexto)
-    control(2200, 1000, 500, 1000, 600)
+    control(2000, 1000, 500, 1000, 600)
     operar(admin, COMIDAS, "movimientos", id_jornada=jornadas[COMIDAS],
            tipo="gasto", importe_centavos=100, motivo="Gasto ficticio jornada")
 
-    control(2100, 1000, 500, 1000, 600)
+    control(1900, 1000, 500, 1000, 600)
     antes = obtener(admin, informe)
     with closing(sqlite3.connect(ruta)) as db, db:
         db.execute("UPDATE productos SET categoria = 'Comidas', precio_venta = 8 WHERE id_producto = ?",
@@ -172,15 +174,15 @@ def test_jornada_contable_completa(tmp_path):
     aplicada = post(admin, devolver, devolucion)
     assert aplicada["reembolsado_centavos"] == 500
     assert post(admin, devolver, devolucion) == aplicada
-    control(2100, 1000, 500, 500, 600)
+    control(1900, 1000, 500, 500, 600)
     anular = f"{ruta_ventas}/{anulable['id_venta']}/anulacion"
     anulacion = solicitud(motivo="Anulación ficticia")
     anulada = post(admin, anular, anulacion)
     assert post(admin, anular, anulacion) == anulada
     assert anulada["reembolsado_centavos"] == 300
 
-    control(2100, 700, 500, 500, 600)
-    efectivo = {COMIDAS: 1000 + 1400 - 100 - 200, BEBIDAS: 500 + 300 + 200 - 300}
+    control(1900, 700, 500, 500, 600)
+    efectivo = {COMIDAS: 1000 + 1400 - 100 - 200 - 200, BEBIDAS: 500 + 300 + 200 - 300}
     for caja, contado in efectivo.items():
         actual = obtener(ventas, RUTA)["cajas"][caja]
         assert actual["esperado_centavos"] == contado
@@ -208,6 +210,10 @@ def test_jornada_contable_completa(tmp_path):
         ("bebidas_postres_banco", "transferencia"): 500, ("bebidas_postres_mercado_pago", "mercado_pago"): 500,
     }
     assert sum(netos.values()) == esperado["cobrado_neto_centavos"]
+    assert reporte["pagos_compras_por_receptor"] == [
+        {"pagador": "comidas_efectivo", "medio_pago": "efectivo", "egreso_neto_centavos": 200},
+    ]
+    assert reporte["retiros_fisicos_centavos"] == 0
     assert {j["caja"]: (j["esperado_centavos"], j["contado_centavos"], j["diferencia_centavos"])
             for j in reporte["jornadas"] if j["id_cierre_diario"]} == {
         caja: (saldo, saldo, 0) for caja, saldo in efectivo.items()
@@ -231,3 +237,4 @@ def test_jornada_contable_completa(tmp_path):
     assert existencias(destino, ids) == existencias(ruta, ids)
     assert obtener(cliente(copia, 1), informe, desde=fecha, hasta=fecha) == reporte
     assert obtener(cliente(copia, 0), cuenta)["saldo_centavos"] == 600
+

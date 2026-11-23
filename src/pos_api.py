@@ -38,6 +38,7 @@ from pos_cobros import (
     SolicitudContable, TransferenciaEntrada,
 )
 from pos_contabilidad import calcular_periodo, corte_contable, etapa_contable_activa, fecha_local
+from pos_compras_caja import CompraCajaEntrada, ReversoCompraCaja, operar_compra
 from pos_puente import consultar_puente_ficticio
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
@@ -337,6 +338,31 @@ def mover_caja_diaria(
 
 
 router.include_router(diario)
+
+
+compras_caja = APIRouter(prefix="/simulacion/compras", dependencies=[
+    Depends(exigir_simulacion_activa), Depends(comprobar_origen),
+])
+
+
+@compras_caja.post("")
+def crear_compra_caja(datos: CompraCajaEntrada, usuario=Depends(exigir_administrador_pos),
+                      x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return operar_compra(db, "alta", datos, usuario)
+
+
+@compras_caja.post("/{id_compra}/{evento}")
+def revertir_compra_caja(id_compra: int, evento: Literal["anulacion", "devolucion"],
+                        datos: ReversoCompraCaja, usuario=Depends(exigir_administrador_pos),
+                        x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return operar_compra(db, evento, datos, usuario, id_compra)
+
+
+router.include_router(compras_caja)
 
 
 clientes = APIRouter(prefix="/simulacion/clientes", dependencies=[Depends(exigir_simulacion_activa),

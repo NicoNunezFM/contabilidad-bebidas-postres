@@ -1,10 +1,11 @@
 from datetime import datetime
+import math
 import sqlite3
 
 from database import obtener_conexion
 from pos_contabilidad import corte_contable, fecha_local, validar_fecha_costo, validar_reversion_costo
 from deudas_negocio import registrar_compra_deuda_en_cursor
-from productos import listar_productos, buscar_producto_por_id
+from productos import listar_productos
 
 
 # ============================================================
@@ -16,7 +17,10 @@ def registrar_compra(
     cantidad,
     precio_unitario,
     fecha=None,
-    cuenta_deuda=None
+    cuenta_deuda=None,
+    *,
+    _conexion=None,
+    _financiado=None,
 ):
     """
     Registra una compra y aumenta el stock.
@@ -30,15 +34,6 @@ def registrar_compra(
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
             "mensaje": "El ID del producto debe ser un número entero."
-        }
-
-    producto = buscar_producto_por_id(id_producto)
-
-    if producto is None:
-        return {
-            "ok": False,
-            "codigo": "PRODUCTO_NO_ENCONTRADO",
-            "mensaje": "Producto no encontrado."
         }
 
     if isinstance(cantidad, bool) or not isinstance(cantidad, int):
@@ -65,7 +60,7 @@ def registrar_compra(
             "mensaje": "El precio debe ser un número."
         }
 
-    if precio_unitario <= 0:
+    if not math.isfinite(precio_unitario) or precio_unitario <= 0:
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
@@ -80,12 +75,21 @@ def registrar_compra(
     )
 
     total = cantidad * precio_unitario
-    stock_actual = producto[7]
-
-    conexion = obtener_conexion()
+    propia = _conexion is None
+    conexion = obtener_conexion() if propia else _conexion
 
     try:
-        conexion.execute("BEGIN IMMEDIATE")
+        if propia:
+            conexion.execute("BEGIN IMMEDIATE")
+        producto = conexion.execute(
+            "SELECT nombre, stock FROM productos WHERE id_producto = ?", (id_producto,)
+        ).fetchone()
+        if producto is None:
+            return {
+                "ok": False, "codigo": "PRODUCTO_NO_ENCONTRADO",
+                "mensaje": "Producto no encontrado.",
+            }
+        nombre_producto, stock_actual = producto
         integrada = corte_contable(conexion) is not None
         fecha = fecha if fecha is not None else (fecha_local() if integrada else datetime.now().date().isoformat())
         rechazo = validar_fecha_costo(fecha) if integrada else None
@@ -93,11 +97,7 @@ def registrar_compra(
             return rechazo
         cursor = conexion.cursor()
 
-        medio_pago = (
-            "Deuda"
-            if cuenta_deuda_limpia
-            else "Caja"
-        )
+        medio_pago = ("Deuda" if cuenta_deuda_limpia else "Caja") if propia else "POS"
         id_cuenta_deuda = None
         id_movimiento_deuda = None
         saldo_deuda = None
@@ -107,12 +107,14 @@ def registrar_compra(
             deuda = registrar_compra_deuda_en_cursor(
                 cursor=cursor,
                 nombre=cuenta_deuda_limpia,
-                monto=total,
+                monto=total if propia else _financiado,
                 descripcion=(
                     f"Compra financiada: "
-                    f"{cantidad} x {producto[1]}"
+                    f"{cantidad} x {nombre_producto}"
                 ),
             )
+            if not propia and deuda["moneda"] != "ARS":
+                raise ValueError("La cuenta del proveedor debe estar en pesos.")
             id_cuenta_deuda = deuda[
                 "id_cuenta"
             ]
@@ -164,14 +166,15 @@ def registrar_compra(
             )
         )
 
-        conexion.commit()
+        if propia:
+            conexion.commit()
 
         return {
             "ok": True,
             "codigo": "COMPRA_REGISTRADA",
             "mensaje": "Compra registrada correctamente.",
             "id_compra": id_compra,
-            "producto": producto[1],
+            "producto": nombre_producto,
             "cantidad": cantidad,
             "precio_unitario": precio_unitario,
             "total": total,
@@ -185,7 +188,8 @@ def registrar_compra(
         }
 
     except (sqlite3.Error, ValueError) as error:
-        conexion.rollback()
+        if propia:
+            conexion.rollback()
 
         return {
             "ok": False,
@@ -194,7 +198,8 @@ def registrar_compra(
         }
 
     finally:
-        conexion.close()
+        if propia:
+            conexion.close()
 
 
 # ============================================================
@@ -322,7 +327,7 @@ def listar_compras():
         print(f"Total: ${compra['total']:.2f}")
         print("-----------------------\n")
 
-def anular_compra(id_compra, motivo):
+def anular_compra(id_compra, motivo, *, _conexion=None):
 
     if not isinstance(id_compra, int):
         return {
@@ -338,10 +343,12 @@ def anular_compra(id_compra, motivo):
             "mensaje": "El motivo de anulación no puede estar vacío."
         }
 
-    conexion = obtener_conexion()
+    propia = _conexion is None
+    conexion = obtener_conexion() if propia else _conexion
 
     try:
-        conexion.execute("BEGIN IMMEDIATE")
+        if propia:
+            conexion.execute("BEGIN IMMEDIATE")
         cursor = conexion.cursor()
 
         cursor.execute("""
@@ -351,7 +358,8 @@ def anular_compra(id_compra, motivo):
                 anulada,
                 precio_unitario,
                 id_cuenta_deuda,
-                id_movimiento_deuda
+                id_movimiento_deuda,
+                medio_pago
             FROM compras
             WHERE id_compra = ?
         """, (id_compra,))
@@ -371,6 +379,12 @@ def anular_compra(id_compra, motivo):
         precio_unitario = compra[3]
         id_cuenta_deuda = compra[4]
         id_movimiento_deuda = compra[5]
+
+        if propia and compra[6] == "POS":
+            return {
+                "ok": False, "codigo": "COMPRA_REQUIERE_REVERSO_POS",
+                "mensaje": "Revertí esta compra desde el POS para registrar el reintegro.",
+            }
 
         if anulada == 1:
             return {
@@ -436,10 +450,11 @@ def anular_compra(id_compra, motivo):
             id_cuenta_deuda is not None
             and id_movimiento_deuda is not None
         ):
-            deuda_revertida = (
-                cantidad
-                * precio_unitario
-            )
+            deuda_revertida = cantidad * precio_unitario
+            if not propia:
+                deuda_revertida = cursor.execute("""
+                    SELECT importe FROM movimientos_deuda_negocio WHERE id_movimiento_deuda = ?
+                """, (id_movimiento_deuda,)).fetchone()[0]
 
             cursor.execute(
                 """
@@ -465,7 +480,8 @@ def anular_compra(id_compra, motivo):
                 )
             )
 
-        conexion.commit()
+        if propia:
+            conexion.commit()
 
         return {
             "ok": True,
@@ -479,7 +495,8 @@ def anular_compra(id_compra, motivo):
         }
 
     except sqlite3.Error as error:
-        conexion.rollback()
+        if propia:
+            conexion.rollback()
 
         return {
             "ok": False,
@@ -488,4 +505,5 @@ def anular_compra(id_compra, motivo):
         }
 
     finally:
-        conexion.close()
+        if propia:
+            conexion.close()
