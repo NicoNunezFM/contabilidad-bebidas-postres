@@ -1301,6 +1301,30 @@ def crear_tabla_historial_precios_adicionales_pos():
         conexion.close()
 
 
+def fijar_categorias_contables(db):
+    for tabla, clave in (("ventas", "id_venta"), ("compras", "id_compra")):
+        historial = f"{tabla}_categorias_contables"
+        db.execute(f"""
+            CREATE TABLE IF NOT EXISTS {historial} (
+                id INTEGER PRIMARY KEY REFERENCES {tabla}({clave}) ON DELETE CASCADE,
+                categoria TEXT NOT NULL
+            )
+        """)
+        db.execute(f"""
+            INSERT OR IGNORE INTO {historial}
+            SELECT operacion.{clave}, productos.categoria
+            FROM {tabla} AS operacion JOIN productos USING (id_producto)
+        """)
+        db.execute(f"""
+            CREATE TRIGGER IF NOT EXISTS {historial}_alta AFTER INSERT ON {tabla}
+            BEGIN
+                INSERT INTO {historial}
+                SELECT NEW.{clave}, categoria FROM productos
+                WHERE id_producto = NEW.id_producto;
+            END
+        """)
+
+
 def inicializar_base_de_datos():
     crear_tabla_productos()
     actualizar_tabla_productos()
@@ -1315,6 +1339,9 @@ def inicializar_base_de_datos():
     actualizar_tabla_ajustes_stock()
     actualizar_tabla_ventas()
     actualizar_tabla_compras()
+    with closing(obtener_conexion()) as db, db:
+        db.execute("BEGIN IMMEDIATE")
+        fijar_categorias_contables(db)
     actualizar_tabla_gastos()
     crear_tabla_movimientos_caja()
     actualizar_tabla_movimientos_caja()

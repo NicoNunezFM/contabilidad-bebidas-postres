@@ -143,7 +143,7 @@ def _ventas_por_categorias(
                 for _ in categorias
             )
             condiciones.append(
-                f"LOWER(productos.categoria) IN ({placeholders})"
+                f"LOWER(categorias.categoria) IN ({placeholders})"
             )
             parametros.extend(
                 sorted(categorias)
@@ -155,7 +155,7 @@ def _ventas_por_categorias(
                 for _ in excluir_categorias
             )
             condiciones.append(
-                f"LOWER(productos.categoria) NOT IN ({placeholders})"
+                f"LOWER(categorias.categoria) NOT IN ({placeholders})"
             )
             parametros.extend(
                 sorted(excluir_categorias)
@@ -175,8 +175,8 @@ def _ventas_por_categorias(
                 )
             )
             FROM ventas
-            INNER JOIN productos
-                ON ventas.id_producto = productos.id_producto
+            INNER JOIN ventas_categorias_contables AS categorias
+                ON categorias.id = ventas.id_venta
             WHERE {" AND ".join(condiciones)}
             """,
             parametros
@@ -210,7 +210,7 @@ def _compras_por_categorias(
                 for _ in categorias
             )
             condiciones.append(
-                f"LOWER(productos.categoria) IN ({placeholders})"
+                f"LOWER(categorias.categoria) IN ({placeholders})"
             )
             parametros.extend(
                 sorted(categorias)
@@ -222,7 +222,7 @@ def _compras_por_categorias(
                 for _ in excluir_categorias
             )
             condiciones.append(
-                f"LOWER(productos.categoria) NOT IN ({placeholders})"
+                f"LOWER(categorias.categoria) NOT IN ({placeholders})"
             )
             parametros.extend(
                 sorted(excluir_categorias)
@@ -234,8 +234,8 @@ def _compras_por_categorias(
                 compras.cantidad * compras.precio_unitario
             )
             FROM compras
-            INNER JOIN productos
-                ON compras.id_producto = productos.id_producto
+            INNER JOIN compras_categorias_contables AS categorias
+                ON categorias.id = compras.id_compra
             WHERE {" AND ".join(condiciones)}
             """,
             parametros
