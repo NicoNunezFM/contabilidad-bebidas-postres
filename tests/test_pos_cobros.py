@@ -210,8 +210,8 @@ def test_ajuste_y_conteo_leen_stock_despues_de_venta_simulada(venta_prueba, monk
     ajuste_intenta_bloqueo = Event()
     calcular = pos_simulacion.calcular_pedido_pos
 
-    def pausar_venta(db, entrada):
-        pedido = calcular(db, entrada)
+    def pausar_venta(db, entrada, **opciones):
+        pedido = calcular(db, entrada, **opciones)
         venta_tiene_bloqueo.set()
         assert terminar_venta.wait(5)
         return pedido
