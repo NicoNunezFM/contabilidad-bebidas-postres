@@ -38,7 +38,7 @@ from pos_cobros import (
     SolicitudContable, TransferenciaEntrada,
 )
 from pos_contabilidad import calcular_periodo, corte_contable, etapa_contable_activa, fecha_local
-from pos_compras_caja import CompraCajaEntrada, ReversoCompraCaja, operar_compra
+from pos_compras_caja import CompraCajaEntrada, ReversoCompraCaja, listar_compras_caja, operar_compra
 from pos_puente import consultar_puente_ficticio
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
@@ -357,11 +357,21 @@ router.include_router(diario)
 
 
 compras_caja = APIRouter(prefix="/simulacion/compras", dependencies=[
-    Depends(exigir_simulacion_activa), Depends(comprobar_origen),
+    Depends(exigir_simulacion_activa),
 ])
 
 
-@compras_caja.post("")
+@compras_caja.get("", dependencies=[Depends(evitar_cache_pos)])
+def consultar_compras_caja(antes_de: int = Query(default=2**63 - 1, gt=0, le=2**63 - 1),
+                         limite: int = Query(default=20, ge=1, le=50),
+                         usuario=Depends(exigir_administrador_pos)):
+    with transaccion_simulacion() as db:
+        if not etapa_contable_activa(db):
+            raise HTTPException(404, "Se requiere una base ficticia con contabilidad integrada.")
+        return listar_compras_caja(db, antes_de, limite)
+
+
+@compras_caja.post("", dependencies=[Depends(comprobar_origen)])
 def crear_compra_caja(datos: CompraCajaEntrada, usuario=Depends(exigir_administrador_pos),
                       x_pos_usuario: int | None = Header(default=None)):
     comprobar_usuario_simulacion(x_pos_usuario, usuario)
@@ -369,7 +379,7 @@ def crear_compra_caja(datos: CompraCajaEntrada, usuario=Depends(exigir_administr
         return operar_compra(db, "alta", datos, usuario)
 
 
-@compras_caja.post("/{id_compra}/{evento}")
+@compras_caja.post("/{id_compra}/{evento}", dependencies=[Depends(comprobar_origen)])
 def revertir_compra_caja(id_compra: int, evento: Literal["anulacion", "devolucion"],
                         datos: ReversoCompraCaja, usuario=Depends(exigir_administrador_pos),
                         x_pos_usuario: int | None = Header(default=None)):
