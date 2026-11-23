@@ -287,7 +287,7 @@ def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
 
 
 @pytest.mark.parametrize("navegador_pos", ["caja_diaria"], indirect=True)
-def test_pos_web_apertura_arqueo_autorizacion_reintento_e_historial(controles_pos):
+def test_pos_web_apertura_arqueo_alerta_reintento_e_historial(controles_pos):
     evaluar, clic, texto, iniciar_sesion = controles_pos
     texto("#apiStatus", "Catálogo ficticio de simulación")
     iniciar_sesion("ventas")
@@ -315,16 +315,8 @@ def test_pos_web_apertura_arqueo_autorizacion_reintento_e_historial(controles_po
     evaluar("document.querySelector('#importeCajaDiaria').value = '299,25'")
     evaluar("document.querySelector('#camposOperacionPos textarea').value = 'Falta un peso'")
     clic("#accept")
-    texto(comidas, "Administración debe autorizar")
-    assert not evaluar(f"Array.from(document.querySelectorAll({json.dumps(comidas + ' button')}))"
-                       ".some(b => b.textContent === 'Cerrar caja')")
-
-    clic("#accept")
-    clic("#adminAccess")
-    texto("#adminAccess", "Iniciar sesión")
-    iniciar_sesion("admin")
-    clic("#cajaDiariaPos")
     boton(comidas, "Cerrar caja")
+    texto("#camposOperacionPos", "quedarán registradas para Administración")
     evaluar("""
         const fetchDiarioOriginal = window.fetch;
         window.fetch = async (...args) => {
@@ -339,7 +331,7 @@ def test_pos_web_apertura_arqueo_autorizacion_reintento_e_historial(controles_po
     clic("#accept")
     texto("#errorOperacionPos", "Confirmación pendiente")
     evaluar("setTimeout(() => location.reload(), 0)")
-    texto("#adminAccess", "Cerrar sesión (admin)")
+    texto("#adminAccess", "Cerrar sesión (ventas)")
     clic("#cajaDiariaPos")
     boton(comidas, "Reintentar · Cerrar caja")
     clic("#accept")
@@ -347,13 +339,33 @@ def test_pos_web_apertura_arqueo_autorizacion_reintento_e_historial(controles_po
     texto(comidas, "Falta un peso")
     texto(bebidas, "Abierta")
     boton(comidas, "Ver historial")
-    texto("#consultaPos", "Cerró admin")
+    texto("#consultaPos", "Cerró ventas")
     clic("#consultaPos div button")
     texto("#consultaPos", "Falta un peso")
     texto("#consultaPos", "ventas")
 
     with closing(obtener_conexion()) as db:
         assert db.execute("SELECT COUNT(*) FROM pos_diario_caja WHERE tipo = 'cierre'").fetchone() == (1,)
+
+
+def test_pos_web_confirmacion_explicita_de_stock_faltante(controles_pos):
+    evaluar, clic, texto, iniciar_sesion = controles_pos
+    with closing(obtener_conexion()) as db, db:
+        db.execute("UPDATE productos SET stock = 0 WHERE nombre = 'Comida ficticia'")
+    iniciar_sesion("ventas")
+    clic("#cardsReal .card:first-child button")
+    clic("#accept")
+    clic("#payments button:nth-child(2)")
+    clic("#validarPedido")
+    texto("#estadoPedido", "Stock insuficiente")
+    clic("#checkout")
+    clic("#accept")
+    texto("#errorVentaPos", "Confirmá explícitamente el faltante")
+    clic("#confirmarFaltantesPos")
+    clic("#accept")
+    texto("#notice", "Venta simulada #1 registrada")
+    with closing(obtener_conexion()) as db:
+        assert db.execute("SELECT stock FROM productos WHERE nombre = 'Comida ficticia'").fetchone() == (0,)
 
 
 def test_pos_web_precio_reintento_historial_y_anulacion(controles_pos):

@@ -132,7 +132,7 @@ def test_caja_receptora_pagos_fiados_traslados_gastos_y_puente(diaria):
     }
 
 
-def test_arqueo_vigente_autorizacion_reintento_y_auditoria(diaria, monkeypatch):
+def test_arqueo_vigente_alerta_reintento_y_auditoria(diaria, monkeypatch):
     ventas, admin, venta, _, _ = diaria
     jornada = abrir(ventas, COMIDAS)
     operar(ventas, COMIDAS, "apertura", 409, fecha=FECHA, inicial_centavos=0)
@@ -146,14 +146,14 @@ def test_arqueo_vigente_autorizacion_reintento_y_auditoria(diaria, monkeypatch):
     conteo = arquear(ventas, COMIDAS, 999, motivo="Faltó un centavo")
     cierre = solicitud(id_jornada=jornada, id_arqueo=conteo["id_evento"])
     ruta = f"{RUTA}/{COMIDAS}/cierre"
-    post(ventas, ruta, cierre, 403)
-    confirmado = post(admin, ruta, cierre)
-    assert confirmado["autorizado_por"] != confirmado["arqueo"]["id_usuario"]
+    confirmado = post(ventas, ruta, cierre)
+    assert confirmado["autorizado_por"] is None
+    assert confirmado["alerta_administracion"]
     assert confirmado["arqueo"]["usuario"] == "cajero"
     assert confirmado["arqueo"]["motivo"] == "Faltó un centavo"
     assert confirmado["arqueo"]["resultado"]["diferencia_centavos"] == -1
-    assert post(admin, ruta, cierre) == confirmado
-    post(admin, ruta, {**cierre, "id_arqueo": entero["id_evento"]}, 409)
+    assert post(ventas, ruta, cierre) == confirmado
+    post(ventas, ruta, {**cierre, "id_arqueo": entero["id_evento"]}, 409)
     post(admin, ruta, {**cierre, **solicitud()}, 409)
     post(ventas, VENTAS, venta, 409)
 
@@ -161,13 +161,13 @@ def test_arqueo_vigente_autorizacion_reintento_y_auditoria(diaria, monkeypatch):
     monkeypatch.setattr(pos_caja_diaria, "ahora_local", lambda: manana + "T08:00:00-03:00")
     operar(ventas, COMIDAS, "apertura", 409, fecha=FECHA, inicial_centavos=0)
     operar(ventas, COMIDAS, "apertura", fecha=manana, inicial_centavos=0)
-    assert post(admin, ruta, cierre) == confirmado
+    assert post(ventas, ruta, cierre) == confirmado
     historial = f"{RUTA}/{COMIDAS}/historial"
     primera = ventas.get(historial, params={"limite": 1}).json()
     assert primera["jornadas"][0]["fecha"] == manana
     pasada = ventas.get(historial, params={"antes_de": primera["siguiente_antes_de"]}).json()["jornadas"][0]
-    assert pasada["cierre"]["usuario"] == "admin"
-    assert pasada["cierre"]["id_usuario"] == confirmado["autorizado_por"]
+    assert pasada["cierre"]["usuario"] == "cajero"
+    assert pasada["cierre"]["id_usuario"] == confirmado["arqueo"]["id_usuario"]
     assert pasada["cierre"]["fecha_hora"].endswith("-03:00")
     eventos = ventas.get(f"{historial}/{jornada}").json()["eventos"]
     assert [evento["tipo"] for evento in eventos] == ["cierre", "arqueo", "retiro", "aporte", "arqueo", "apertura"]

@@ -18,6 +18,8 @@ Importes en pesos. Los saldos son acumulados. Las aserciones comparan cada fila 
 | Bebida cobrada en efectivo | 3 | 22 | 10 | 5 | 10 | 6 |
 | Compra de dos bebidas a $1 desde rotisería, ajuste de inventario y merma | 2 | 20 | 10 | 5 | 10 | 6 |
 | Gasto físico en rotisería | -1 | 19 | 10 | 5 | 10 | 6 |
+| Aporte de efectivo de Ventas a Postres/Bebidas | 1,50 | 19 | 11,50 | 5 | 10 | 6 |
+| Retiro del cambio temporal por Ventas | -1,50 | 19 | 10 | 5 | 10 | 6 |
 | Cambio de categoría y precio de bebida y postre | 0 | 19 | 10 | 5 | 10 | 6 |
 | Devolución de un postre, con reintento | -5 | 19 | 10 | 5 | 5 | 6 |
 | Anulación de la bebida cobrada en efectivo, con reintento | -3 | 19 | 7 | 5 | 5 | 6 |

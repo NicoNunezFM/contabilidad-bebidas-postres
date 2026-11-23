@@ -2,6 +2,7 @@ import json
 import os
 from collections import Counter
 from contextlib import contextmanager, nullcontext
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -24,6 +25,7 @@ from pos_seguimiento import AltaPedido, EntregaPedido, datos_conversion, estimar
 
 ID_SQLITE_SIMULACION = 0x41425031
 VERSION_ESQUEMA_SIMULACION = 4
+FaltantesStock = dict[str, Annotated[int, Field(strict=True, gt=0)]]
 
 
 class VentaSimuladaEntrada(PedidoPos):
@@ -40,6 +42,7 @@ class VentaSimuladaEntrada(PedidoPos):
     envio: CargoEnvio | None = Field(default=None, exclude_if=lambda valor: valor is None)
 
     id_cliente: int | None = Field(default=None, strict=True, gt=0, le=2**53 - 1)
+    confirmar_faltantes: FaltantesStock = Field(default_factory=dict, max_length=100, exclude_if=lambda valor: not valor)
 
     @model_validator(mode="after")
     def comprobar_modalidad(self):
@@ -64,6 +67,7 @@ class ConversionPedidoEntrada(BaseModel):
     pagos: list[PagoPos] | None = Field(default=None, max_length=20)
     fiado: bool = Field(default=False, strict=True)
     id_cliente: int | None = Field(default=None, strict=True, gt=0, le=2**53 - 1)
+    confirmar_faltantes: FaltantesStock = Field(default_factory=dict, max_length=100)
 
 
 def cotizar_conversion(db, numero):
@@ -71,7 +75,7 @@ def cotizar_conversion(db, numero):
     if venta is not None or estado == "cancelado":
         raise HTTPException(409, "El pedido ya se confirmó o fue cancelado.")
     return estimar_pedido(db, AltaPedido.model_validate({**json.loads(datos),
-        "id_solicitud": "00000000-0000-0000-0000-000000000000"}))
+        "id_solicitud": "00000000-0000-0000-0000-000000000000"}), advertir_faltantes=True)
 
 
 def convertir_pedido_simulado(numero, datos, usuario):
@@ -245,7 +249,7 @@ def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estad
                 raise HTTPException(409, "El pedido ya se confirmó o fue cancelado.")
 
         try:
-            pedido = calcular_pedido_pos(conexion, entrada)
+            pedido = calcular_pedido_pos(conexion, entrada, advertir_faltantes=True)
         except HTTPException as error:
             error.headers = {**(error.headers or {}), "X-POS-Resultado": "PEDIDO_RECHAZADO"}
             raise
@@ -270,6 +274,24 @@ def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estad
                 "mensaje": "Cambió el total. Volvé a validar el pedido.",
                 "total_centavos": pedido["total_centavos"],
             })
+
+        faltantes = pedido.get("faltantes_stock", {})
+        if faltantes != entrada.confirmar_faltantes:
+            raise HTTPException(409, {
+                "codigo": "STOCK_INSUFICIENTE",
+                "mensaje": "Revisá y confirmá los faltantes de stock vigentes.",
+                "faltantes_stock": faltantes,
+            }, headers={"X-POS-Resultado": "PEDIDO_RECHAZADO"})
+        if faltantes:
+            disponibles = {producto: cantidad - faltantes.get(str(producto), 0)
+                           for producto, cantidad in stock.items()}
+            for item in pedido["items"]:
+                producto = item["id_producto"]
+                if str(producto) in faltantes:
+                    descontadas = min(item["cantidad"], disponibles[producto])
+                    item["stock_descontado"] = descontadas
+                    disponibles[producto] -= descontadas
+            stock.subtract({int(producto): cantidad for producto, cantidad in faltantes.items()})
 
         pedido["cajas_centavos"] = dict(subtotales)
         pedido["deudor"] = entrada.deudor
@@ -324,7 +346,7 @@ def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estad
             raise
         conexion.executemany(
             "UPDATE productos SET stock = stock - ? WHERE id_producto = ?",
-            [(cantidad, id_producto) for id_producto, cantidad in stock.items()],
+            [(cantidad, id_producto) for id_producto, cantidad in stock.items() if cantidad],
         )
         estado = estado_cuenta(conexion, id_venta, pedido)
         resultado = {"id_venta": id_venta, "anulada": False, **pedido, **estado}
@@ -385,7 +407,12 @@ def revertir_venta_simulada(id_venta, entrada, usuario, *, tipo):
             if cantidad > item["cantidad"] - antes["unidades_devueltas"].get(linea, 0):
                 raise HTTPException(409, "La devolución supera las unidades disponibles.")
             if item["controla_stock"]:
-                stock[item["id_producto"]] += cantidad
+                descontadas = item.get("stock_descontado", item["cantidad"])
+                faltantes = item["cantidad"] - descontadas
+                previo = antes["unidades_devueltas"].get(linea, 0)
+                reintegro = max(0, previo + cantidad - faltantes) - max(0, previo - faltantes)
+                if reintegro:
+                    stock[item["id_producto"]] += reintegro
         conexion.executemany("""
             INSERT INTO pos_unidades_devueltas (id_evento, linea, cantidad) VALUES (?, ?, ?)
         """, [(evento, linea, cantidad) for linea, cantidad in reversas.items()])

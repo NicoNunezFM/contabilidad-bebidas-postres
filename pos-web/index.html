@@ -358,7 +358,7 @@ function mostrarCategoriasReales() {
 
 function productoDisponible(producto) {
   return producto.estado_entrenamiento !== 'sin_stock' &&
-    (!producto.estado_entrenamiento || !producto.controla_stock || producto.stock > 0) &&
+    (simulacionActiva || !producto.estado_entrenamiento || !producto.controla_stock || producto.stock > 0) &&
     Number.isFinite(producto.precio_venta) && producto.precio_venta > 0;
 }
 
@@ -2636,9 +2636,10 @@ if (modoReal) {
     return new Date(evento.fecha_hora).toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'});
   }
 
-  function importeCajaDiaria(campos, etiqueta) {
+  function importeCajaDiaria(campos, etiqueta, propuesta) {
     var importe = importeEntradaPos(etiqueta);
     importe.input.id = 'importeCajaDiaria';
+    if (propuesta != null) importe.input.value = String(propuesta / 100);
     campos.append(importe.label);
     return permiteCero => leerCentavosPos(importe.input.value, permiteCero);
   }
@@ -2687,7 +2688,7 @@ if (modoReal) {
     }
   }
 
-  function accionesJornada(seccion, caja, jornada, fecha, usuario) {
+  function accionesJornada(seccion, caja, jornada, fecha, usuario, propuesta) {
     var nombre = nombresCajaDiaria[caja];
     var id = jornada?.id_jornada;
     var abierta = id && !jornada.cerrada;
@@ -2703,7 +2704,8 @@ if (modoReal) {
       }));
     }
     accion('Abrir caja', 'apertura', !jornada, campos => {
-      var importe = importeCajaDiaria(campos, 'Efectivo inicial en pesos');
+      if (propuesta) campos.append(nodoPos('p', 'Saldo contado en el último cierre: ' + importePos(propuesta.contado_centavos)));
+      var importe = importeCajaDiaria(campos, 'Efectivo inicial en pesos', propuesta?.contado_centavos);
       return () => ({fecha, inicial_centavos: importe(true)});
     }, 'Caja abierta.');
     accion('Guardar arqueo', 'arqueo', abierta, campos => {
@@ -2713,23 +2715,35 @@ if (modoReal) {
       return () => ({id_jornada: id, revision_efectivo: jornada.revision_efectivo,
         contado_centavos: importe(true), motivo: motivo()});
     }, 'Arqueo registrado.');
-    var requiereAdmin = jornada?.arqueo?.resultado.diferencia_centavos !== 0;
     var listo = abierta && jornada.arqueo_vigente;
-    if (listo && requiereAdmin && !admin) {
-      seccion.append(nodoPos('p', 'Administración debe autorizar el cierre con diferencia.'));
-    }
-    accion('Cerrar caja', 'cierre', listo && (!requiereAdmin || admin), campos => {
+    accion('Cerrar caja', 'cierre', listo, campos => {
       campos.append(nodoPos('p', describirArqueo(jornada.arqueo)));
-      if (requiereAdmin) campos.append(nodoPos('p', 'Al confirmar autorizás el cierre con esta diferencia.'));
+      if (jornada.arqueo.resultado.diferencia_centavos) {
+        campos.append(nodoPos('p', 'La diferencia y su observación quedarán registradas para Administración.'));
+      }
       return () => ({id_jornada: id, id_arqueo: jornada.arqueo.id_evento});
     }, 'Caja cerrada.');
-    accion('Registrar gasto, retiro o aporte', 'movimientos', abierta && jornada.fecha === fecha && admin, campos => {
-      var tipo = selectorPos('Movimiento', {gasto: 'Gasto pagado en efectivo', retiro: 'Retiro', aporte: 'Aporte'});
+    accion(admin ? 'Registrar gasto, retiro o aporte' : 'Registrar retiro o aporte', 'movimientos',
+      abierta && jornada.fecha === fecha, campos => {
+      var tipo = selectorPos('Movimiento', {...(admin ? {gasto: 'Gasto pagado en efectivo'} : {}),
+        retiro: 'Retiro', aporte: 'Aporte'});
       campos.append(tipo.label);
       var importe = importeCajaDiaria(campos, 'Importe en pesos');
       var motivo = motivoOperacionPos(campos);
       return () => ({id_jornada: id, tipo: tipo.select.value, importe_centavos: importe(), motivo: motivo()});
     }, 'Movimiento registrado.');
+  }
+
+  function mostrarAlertasCajaDiaria() {
+    var cuerpo = abrirConsultaPos('Alertas de cierre de caja');
+    cuerpo.append(botonCajaDiaria('Volver', () => mostrarCajaDiaria()));
+    paginarPos(cuerpo, rutaCajaDiaria + '/alertas', 'alertas', alerta => {
+      var fila = nodoPos('article', undefined, 'row');
+      fila.append(nodoPos('strong', alerta.fecha + ' · ' + nombresCajaDiaria[alerta.caja]),
+        nodoPos('p', alerta.usuario + ' · Diferencia ' + importePos(alerta.diferencia_centavos)),
+        nodoPos('p', alerta.observacion));
+      return fila;
+    }, 'Todavía no hay alertas.');
   }
 
   async function mostrarCajaDiaria(mensaje) {
@@ -2744,6 +2758,7 @@ if (modoReal) {
       if (!cuerpo.isConnected || overlay.hidden || sesionPos !== usuario) return;
       estado.textContent = (mensaje ? mensaje + ' ' : '') + 'Fecha en Argentina ' + datos.fecha_local;
       cuerpo.append(botonCajaDiaria('Actualizar', () => mostrarCajaDiaria()));
+      if (usuario.rol === 'admin') cuerpo.append(botonCajaDiaria('Alertas de cierre', mostrarAlertasCajaDiaria));
       for (const [caja, nombre] of Object.entries(nombresCajaDiaria)) {
         var jornada = datos.cajas[caja];
         var seccion = nodoPos('section', undefined, 'row');
@@ -2761,7 +2776,7 @@ if (modoReal) {
         } else {
           seccion.append(nodoPos('p', 'Pendiente de apertura.'));
         }
-        accionesJornada(seccion, caja, jornada, datos.fecha_local, usuario);
+        accionesJornada(seccion, caja, jornada, datos.fecha_local, usuario, datos.propuestas_apertura?.[caja]);
         seccion.append(botonCajaDiaria('Ver historial', () => mostrarHistorialCajaDiaria(caja)));
         cuerpo.append(seccion);
       }
@@ -2941,10 +2956,12 @@ if (modoReal) {
     actualizarPedidoSimulado();
     estado.textContent = 'Validando precios y stock…';
     try {
-      var datos = await enviarPos('/pedidos/validar', {items});
+      var ruta = '/pedidos/validar' + (simulacionActiva ? '?advertir_faltantes=true' : '');
+      var datos = await enviarPos(ruta, {items});
       if (revision !== revisionPedidoReal) return;
-      validacionPos = {items, total: datos.total_centavos};
+      validacionPos = {items, total: datos.total_centavos, faltantes: datos.faltantes_stock};
       estado.textContent = 'Total validado por el servidor: ' + importePos(datos.total_centavos) + '.';
+      if (datos.faltantes_stock) estado.textContent += ' ' + describirFaltantesPos(datos.faltantes_stock);
       if (datos.descuento_centavos) {
         estado.textContent += ' Descuento por postres chicos: ' + importePos(datos.descuento_centavos) + '.';
       }
@@ -2958,6 +2975,29 @@ if (modoReal) {
       if (revision === revisionPedidoReal) actualizarPedidoSimulado();
     }
   };
+
+  function describirFaltantesPos(faltantes) {
+    return 'Stock insuficiente: ' + Object.entries(faltantes).map(([id, cantidad]) => {
+      var producto = productosReales.find(p => String(p.id_producto) === id);
+      return (producto?.nombre || 'Producto #' + id) + ' (' + cantidad + ' faltantes)';
+    }).join(', ') + '.';
+  }
+
+  function aceptarFaltantesPos(campos, faltantes) {
+    if (!faltantes) return () => ({});
+    var aviso = nodoPos('p', describirFaltantesPos(faltantes));
+    aviso.setAttribute('role', 'alert');
+    var confirmacion = nodoPos('label', ' Confirmo la venta con este faltante');
+    var casilla = nodoPos('input');
+    casilla.type = 'checkbox';
+    casilla.id = 'confirmarFaltantesPos';
+    confirmacion.prepend(casilla);
+    campos.append(aviso, confirmacion);
+    return () => {
+      if (!casilla.checked) throw new Error('Confirmá explícitamente el faltante de stock.');
+      return {confirmar_faltantes: faltantes};
+    };
+  }
 
   async function refrescarStockPos() {
     try {
@@ -2993,7 +3033,7 @@ if (modoReal) {
           : ' · ' + (mediosSimulados[venta.medio_pago] || 'Pago combinado')) + '.';
       void refrescarStockPos();
     } catch (error) {
-      if (error.status === 422 || ['PEDIDO_RECHAZADO', 'TOTAL_MODIFICADO', 'PAGO_RECHAZADO'].includes(error.codigo)) {
+      if (error.status === 422 || ['PEDIDO_RECHAZADO', 'TOTAL_MODIFICADO', 'PAGO_RECHAZADO', 'STOCK_INSUFICIENTE'].includes(error.codigo)) {
         sessionStorage.removeItem(clavePendiente(usuario));
         ventaPendiente = null;
         mostrarPedidoReal();
@@ -3309,7 +3349,7 @@ if (modoReal) {
   async function prepararConversionPos(pedido, usuario) {
     const ruta = '/simulacion/pedidos/' + pedido.id_pedido + '/venta';
     const consulta = el('consultaPos');
-    let total;
+    let total, faltantes;
     if (!hayOperacionPos(ruta, usuario)) {
       try {
         const respuesta = await fetch('/pos-api/simulacion/pedidos/' + pedido.id_pedido + '/cotizacion',
@@ -3317,6 +3357,7 @@ if (modoReal) {
         const cuerpo = await respuesta.json();
         if (!respuesta.ok) throw new Error(typeof cuerpo.detail === 'string' ? cuerpo.detail : 'Revisá el pedido.');
         total = cuerpo.total_centavos;
+        faltantes = cuerpo.faltantes_stock;
       } catch (error) {
         if (consulta?.isConnected) consulta.prepend(nodoPos('p', error.message, 'notice'));
         return;
@@ -3325,6 +3366,7 @@ if (modoReal) {
     if (!consulta?.isConnected || sesionPos !== usuario) return;
     abrirOperacionPos('Confirmar venta · Pedido #' + pedido.id_pedido, ruta, usuario, campos => {
       campos.append(nodoPos('p', 'Total vigente ' + importePos(total)));
+      const leerFaltantes = aceptarFaltantesPos(campos, faltantes);
       if (total !== pedido.total_estimado_centavos) {
         campos.append(nodoPos('p', 'Estimación original ' + importePos(pedido.total_estimado_centavos)));
       }
@@ -3347,7 +3389,7 @@ if (modoReal) {
       actualizar();
       return () => {
         const valor = medio.select.value;
-        const datos = {total_esperado_centavos: total};
+        const datos = {total_esperado_centavos: total, ...leerFaltantes()};
         if (valor === 'fiado' || valor === 'combinado') {
           datos.pagos = leerPagos();
           if (valor === 'fiado') {
@@ -3386,6 +3428,7 @@ if (modoReal) {
     var errorVenta = el('errorVentaPos');
     var campos = nodoPos('div');
     errorVenta.before(campos);
+    const leerFaltantes = aceptarFaltantesPos(campos, validacion.faltantes);
     const leerSeguimiento = el('entrenamientoAviso') ? camposSeguimientoPos(campos) : () => ({});
     function cargoEnvio() {
       try {
@@ -3476,6 +3519,7 @@ if (modoReal) {
             id_solicitud: uuidPos(),
             total_esperado_centavos: totalVenta,
             ...seguimiento,
+            ...leerFaltantes(),
             ...modalidad
           }
         };

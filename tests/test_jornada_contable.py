@@ -122,8 +122,15 @@ def test_jornada_contable_completa(tmp_path):
     assert post(admin, mover, traslado) == post(admin, mover, traslado)
 
     control(2200, 700, 100, 0, 0)
+    contexto = RUTA_ENTRENAMIENTO.set(ruta)
+    try:
+        assert registrar_inventario_fisico(ids["Postre"], 1, fecha=fecha)["ok"]
+    finally:
+        RUTA_ENTRENAMIENTO.reset(contexto)
+    faltantes = {str(ids["Postre"]): 1}
+    assert obtener(ventas, pendiente + "/cotizacion")["faltantes_stock"] == faltantes
     segunda = post(ventas, pendiente + "/venta", solicitud(
-        total_esperado_centavos=1000, pagos=[
+        total_esperado_centavos=1000, confirmar_faltantes=faltantes, pagos=[
             pago("bebidas_postres_mercado_pago", "mercado_pago", 1000, "mp-jornada"),
         ],
     ))
@@ -160,6 +167,11 @@ def test_jornada_contable_completa(tmp_path):
     control(2000, 1000, 500, 1000, 600)
     operar(admin, COMIDAS, "movimientos", id_jornada=jornadas[COMIDAS],
            tipo="gasto", importe_centavos=100, motivo="Gasto ficticio jornada")
+    operar(ventas, BEBIDAS, "movimientos", id_jornada=jornadas[BEBIDAS],
+           tipo="aporte", importe_centavos=150, motivo="Cambio temporal")
+    control(1900, 1150, 500, 1000, 600)
+    operar(ventas, BEBIDAS, "movimientos", id_jornada=jornadas[BEBIDAS],
+           tipo="retiro", importe_centavos=150, motivo="Devolución de cambio")
 
     control(1900, 1000, 500, 1000, 600)
     antes = obtener(admin, informe)
@@ -213,7 +225,7 @@ def test_jornada_contable_completa(tmp_path):
     assert reporte["pagos_compras_por_receptor"] == [
         {"pagador": "comidas_efectivo", "medio_pago": "efectivo", "egreso_neto_centavos": 200},
     ]
-    assert reporte["retiros_fisicos_centavos"] == 0
+    assert reporte["aportes_fisicos_centavos"] == reporte["retiros_fisicos_centavos"] == 150
     assert {j["caja"]: (j["esperado_centavos"], j["contado_centavos"], j["diferencia_centavos"])
             for j in reporte["jornadas"] if j["id_cierre_diario"]} == {
         caja: (saldo, saldo, 0) for caja, saldo in efectivo.items()
@@ -222,7 +234,7 @@ def test_jornada_contable_completa(tmp_path):
         COMIDAS: -200, BEBIDAS: 200,
     }
     assert obtener(ventas, cuenta)["saldo_centavos"] == 600
-    assert existencias(ruta, ids) == {"Comida": 8, "Bebida": 9, "Postre": 9}
+    assert existencias(ruta, ids) == {"Comida": 8, "Bebida": 9, "Postre": 0}
     assert obtener(admin, SIM + "/conciliacion")["cuadrado"]
 
     copia = tmp_path / "restaurada"
