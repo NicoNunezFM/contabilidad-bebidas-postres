@@ -15,7 +15,8 @@ def generar():
     # Conservar estilos y estructura táctil, sin imágenes ni controles del backend.
     html = re.sub(r"<img\b[^>]*>", "", html)
     html = re.sub(r'<aside class="sidebar".*?</aside>', '', html, flags=re.S)
-    html = re.sub(r'<button id="catalogMode".*?</div>', '', html, flags=re.S)
+    html = re.sub(r'<div class="catalog-tools">.*?</div>', '', html, flags=re.S)
+    html = re.sub(r'<button id="adminAccess".*?</button>', '', html, flags=re.S)
     html = html.replace('<html lang="es-AR">', '<html lang="es-AR" class="tablet-mode">')
     html = html.replace('</head>', '<style>.workspace{display:block}[hidden]{display:none!important} .simulation-banner{position:static} .check{min-height:48px} .check input{width:24px;height:24px}</style>\n</head>')
     html = html.replace('<p id="simulationBanner" class="simulation-banner" hidden>', '<p id="simulationBanner" class="simulation-banner">')
@@ -36,7 +37,6 @@ def generar():
     checkout = re.sub(r'    if \(modoReal\) \{.*?\n    \}', '', checkout, count=1, flags=re.S)
     inicio = """(function () {
   'use strict';
-  var icons = ['H','S','M','C','P','B','D'];
   var methods = ['Efectivo','Transferencia','Mercado Pago'];
   var category = 'Hamburguesas', cart = [], method = '', trigger, editing;
   var overlay = document.getElementById('overlay');

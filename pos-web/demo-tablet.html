@@ -6,67 +6,339 @@
 <meta name="description" content="Demo táctil del punto de venta Abadion POS para Lo de Clau.">
 <title>Demo estática · Abadion POS · Lo de Clau</title>
 <style>
-:root{color-scheme:light}
-*{box-sizing:border-box}
-
-#tabs[hidden],
-#cards[hidden],
-#cardsReal[hidden],
-#demoOffers[hidden] {
-  display: none;
+:root {
+  color-scheme: light;
+  --navy: #0c1b30;
+  --ink: #111c2e;
+  --muted: #4d5a70;
+  --line: #d5dce7;
+  --paper: #f9fafc;
+  --gold: #b27408;
+  --gold-button: linear-gradient(170deg, #ffedc1, #f4ca72 55%, #d99a28);
+  --shadow: 0 5px 12px rgba(18, 38, 70, .10);
 }
-
-#catalogMode {
-  margin-bottom: 10px;
+* {box-sizing: border-box}
+[hidden] {display: none !important}
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 22% 0, #fafbfd 0%, #eef1f7 47%, #e6ebf4 100%);
+  color: var(--ink);
+  font: 16px "Segoe UI", Arial, sans-serif;
 }
-
-#tabsReal[hidden] {
-  display: none;
+h1, h2, h3, p {margin: 0}
+h2 {font-size: 22px; letter-spacing: -.02em}
+h3 {font-size: 16px}
+button, input {font: inherit}
+button {
+  min-height: 44px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
 }
-
-body{margin:0;background:#f5f4fa;color:#171625;font:16px Arial,sans-serif}
-h1,h2,h3,p{margin:0}h1{font-size:28px}h2{font-size:21px}h3{font-size:15px}
-button,input{font:inherit}button{min-height:46px;border:1px solid #dcd9e9;border-radius:9px;background:#fff;color:inherit;padding:8px 12px;font-weight:bold;cursor:pointer;touch-action:manipulation}
-a:focus,button:focus,input:focus{outline:3px solid #7454d7;outline-offset:2px}
-button:disabled{opacity:.55;cursor:default}
-.workspace{display:flex;min-height:100vh}.desktop{flex:1;min-width:0}
-.sidebar{width:158px;flex:none;background:#181f3b;color:white;display:flex;flex-direction:column;align-items:stretch;padding:12px 8px;position:sticky;top:0;height:100vh}
-.system-brand{text-align:center;padding:3px 0 20px}.system-brand img{width:64px;height:64px;border-radius:12px;display:block;margin:0 auto 7px}.system-brand strong,.system-brand small{display:block}.system-brand small{color:#c9cce1;margin-top:4px}
-.sidebar a,.sidebar button{color:inherit;text-decoration:none;text-align:left;min-height:48px;padding:12px;border-radius:9px;font-size:14px;font-weight:bold;display:flex;align-items:center;gap:8px}
-.sidebar .current{background:#6240cb}.sidebar button{background:transparent;border:1px solid #49506b;margin-top:auto}
-.top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #e4e1ee;background:#fbfaff}.top p{color:#56536b;font-size:14px;margin-top:4px}
-.store{display:flex;align-items:center;gap:7px}.store img{width:66px;height:auto}.store strong{white-space:nowrap}.demo{background:#eae4ff;color:#48269b;padding:5px 7px;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap}
-.layout{display:flex;align-items:flex-start;padding:12px 14px;max-width:1500px;margin:auto}.menu{flex:1;min-width:0}.order{flex:0 0 32%;min-width:288px;margin-left:13px;background:white;border:1px solid #e0d9f3;border-radius:14px;padding:12px;position:sticky;top:12px;box-shadow:0 2px 5px #24184a0a}
-.tabs,.cards,.payments,.actions{display:flex;flex-wrap:wrap;margin:0 -4px}.tabs button{flex:1 0 73px;margin:4px;padding:5px 4px;min-height:68px;font-size:12px;box-shadow:0 2px 5px #24184a14}.tabs .icon{display:block;font-size:24px;line-height:1.3}.active{background:#ede5ff;border-color:#7954e6;color:#331580}.tabs .active{background:#6039cb;color:#fff;border-color:#6039cb}
-.catalog-head,.catalog-head>div,.row-head,.order-heading,.total,.split,.card-foot{display:flex;align-items:center;justify-content:space-between;gap:7px}.catalog-head{margin:14px 0 8px;flex-wrap:wrap}.product-count{background:#ede8fa;border-radius:15px;padding:4px 7px;font-size:12px;white-space:nowrap;color:#40277d}.catalog-head input{min-height:44px;max-width:100%;width:190px;background:#fff;border:1px solid #dcd9e9;border-radius:10px;padding:7px 10px}
-.card{flex:0 0 calc(33.333% - 8px);margin:4px;background:white;border:1px solid #e4e0ef;border-radius:12px;overflow:hidden;box-shadow:0 2px 6px #25164410;display:flex;flex-direction:column}.product-image{display:block;width:100%;height:108px;object-fit:cover;background:#eee9fa}.placeholder{display:flex;align-items:center;justify-content:center;font-size:44px;background:#f0ebfa}
-.card-body{padding:8px;flex:1;display:flex;flex-direction:column}.card h3{font-size:15px}.ingredients{font-size:12px;color:#575369;line-height:1.3;margin:4px 0 7px;min-height:16px}.card-foot{margin-top:auto;flex-wrap:wrap}.card-foot button{background:#623bcc;color:#fff;border-color:#623bcc;font-size:13px}.price{white-space:nowrap}
-.offer{margin-top:13px;background:#efedf6;padding:10px;border-radius:10px}.offer button{margin:5px 5px 0 0}
-.row{padding:8px 0;border-bottom:1px solid #e9e5f2}.row-head>*:last-child,.total strong,.split strong{white-space:nowrap}.row button{min-height:40px;margin:4px 5px 0 0;font-size:13px}.lines{max-height:32vh;overflow:auto;margin:5px 0 10px}.empty{padding:12px 0}.muted{color:#575369;font-size:14px}.split{padding:7px 0;color:#403b55;font-size:14px}.split strong{color:#171625}.total{padding:10px 0;font-size:20px}.order-total{background:#eee5fb;border-radius:9px;padding:10px;margin:5px 0 12px}.order-total strong{color:#471a99;font-size:24px}
-.payments{margin:3px -4px 9px}.payments button{flex:1;margin:4px;min-height:48px;padding:6px 4px;font-size:12px}.primary{background:#067841;border-color:#067841;color:#fff}.wide{width:100%}.notice{color:#18693d;margin-top:6px;font-size:14px}.notice:empty{display:none}
-.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(18,17,33,.65);display:flex;align-items:center;justify-content:center;padding:12px;z-index:2}.overlay[hidden]{display:none}.dialog{background:white;border-radius:14px;width:100%;max-width:560px;max-height:94vh;overflow:auto;padding:18px}.dialog h3{margin:15px 0 5px}.actions button{margin:4px}.check{display:flex;align-items:center;min-height:49px;padding:4px;border-bottom:1px solid #e7e2ed}.check input[type=checkbox]{width:24px;height:24px;margin-right:12px;flex:none}.setting{justify-content:space-between}.setting input{width:104px;min-height:46px;padding:6px}
-@media(max-width:1080px){.sidebar{width:124px}.sidebar a,.sidebar button{padding:8px}.order{min-width:275px}}
-@media(max-width:930px){.card{flex-basis:calc(50% - 8px)}.sidebar{width:112px}.product-image{height:100px}}
-@media(max-width:720px){.workspace{display:block}.sidebar{position:static;width:auto;height:auto;flex-direction:row;align-items:center;justify-content:space-between;padding:6px 10px}.system-brand{display:flex;align-items:center;text-align:left;padding:0}.system-brand img{width:38px;height:38px;margin:0 7px 0 0}.system-brand small,.sidebar .current{display:none}.sidebar button{margin:0}.top{padding:8px 10px}.top h1{font-size:23px}.top p{font-size:12px}.store strong{display:none}.store img{width:45px}.layout{display:block;padding:8px 10px}.order{position:static;margin:12px 0 0;min-width:0}.lines{max-height:none}}
-
-.sidebar button[hidden] {
-  display: none;
+button:disabled {opacity: .55; cursor: default}
+a:focus, button:focus, input:focus, textarea:focus, select:focus, summary:focus {
+  outline: 3px solid #a26a0b;
+  outline-offset: 2px;
 }
-
-.simulation-banner {padding: 10px 14px; background: #fff1cc; color: #604309; font-weight: bold}
-.operations {display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0}
-@media(max-width:720px){.sidebar{flex-wrap:wrap;gap:6px}}
+svg.ui-icon {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  flex: none;
+}
+.workspace {display: flex; min-height: 100vh}
+.desktop {flex: 1; min-width: 0}
+.sidebar {
+  position: sticky;
+  top: 0;
+  flex: 0 0 150px;
+  height: 100vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 8px 10px;
+  background: linear-gradient(137deg, transparent 42px, #d99d34 43px, transparent 44px) no-repeat,
+              linear-gradient(315deg, transparent 54px, #d99d34 55px, transparent 57px) no-repeat,
+              linear-gradient(153deg, #10243e, #09182c 65%, #102b4c);
+  color: #fff;
+}
+.system-brand {display: block; text-align: center; padding: 10px 5px 25px}
+.system-brand img {display: block; width: 100%; max-width: 128px; height: 94px; object-fit: contain; margin: 0 auto}
+.sidebar .nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 57px;
+  margin: 0 0 5px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: #fff;
+  text-align: center;
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 1.25;
+}
+.sidebar .nav-link .ui-icon {margin-bottom: 4px; width: 24px; height: 24px}
+.sidebar .current {
+  min-height: 68px;
+  border-color: #f8cb68;
+  background: linear-gradient(145deg, rgba(249, 212, 133, .28), rgba(207, 143, 40, .13));
+  color: #fff5da;
+}
+.sidebar .current .ui-icon {color: #ffde93}
+.sidebar .nav-link:hover {background-color: rgba(255, 255, 255, .08)}
+.sidebar .nav-link:focus {outline-color: #ffdc8b}
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: 1680px;
+  margin: auto;
+  padding: 22px 24px 16px;
+}
+.page-title {position: relative; padding: 0 12px 0 18px}
+.page-title:before {
+  content: "";
+  position: absolute;
+  inset: 4px auto 3px 0;
+  width: 5px;
+  border-radius: 4px;
+  background: linear-gradient(#f5b947, #ac6e08);
+}
+.page-title h1 {font-size: 40px; line-height: 1.06; letter-spacing: -.045em}
+.page-title p {margin-top: 3px; color: var(--muted)}
+.top-tools {display: flex; flex: 0 1 460px; min-width: 0; align-items: center; margin: 6px 0}
+.search-box {position: relative; flex: 1; min-width: 0}
+.search-box .ui-icon {position: absolute; left: 13px; top: 12px; pointer-events: none}
+.search-box input {
+  display: block;
+  width: 100%;
+  height: 46px;
+  padding: 8px 13px 8px 43px;
+  border: 1px solid #b4bfd2;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, .65);
+  color: inherit;
+}
+#adminAccess {
+  flex: none;
+  max-width: 50%;
+  margin-left: 8px;
+  border-radius: 24px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+#adminAccess .ui-icon {margin-right: 4px}
+.simulation-banner {padding: 7px 24px; background: #fff0cd; color: #65440a; font-weight: 600}
+.layout {
+  display: flex;
+  align-items: flex-start;
+  margin: auto;
+  padding: 8px 14px 24px;
+  max-width: 1680px;
+}
+.menu {flex: 1; min-width: 0}
+.order {
+  position: sticky;
+  top: 12px;
+  flex: 0 0 38%;
+  min-width: 290px;
+  margin-left: 14px;
+  padding: 15px;
+  border: 1px solid #e1e6ef;
+  border-radius: 21px;
+  background: var(--paper);
+  box-shadow: 0 11px 24px rgba(18, 38, 70, .12);
+}
+.operations {margin: 0 0 8px}
+#catalogMode {min-height: 44px; margin: 0 0 8px; font-size: 13px}
+.tabs, .cards, .payments, .actions {display: flex; flex-wrap: wrap}
+.tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 4px;
+  margin: 0 0 5px;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, .64);
+}
+.tabs button {
+  flex: 1 0 auto;
+  margin: 0 4px 4px;
+  padding: 7px 10px;
+  min-height: 66px;
+  font-size: 14px;
+  white-space: nowrap;
+  border-radius: 14px;
+  background: linear-gradient(#fafbfd, #eef1f7);
+  box-shadow: 0 2px 5px rgba(18, 38, 70, .12);
+}
+.tabs button:focus {outline-offset: -4px}
+.tabs .icon {display: block; margin-bottom: 4px}
+.tabs .ui-icon {width: 28px; height: 28px}
+.tabs .active {
+  background: linear-gradient(#203750, #09192d);
+  color: white;
+  border-color: #dea128;
+  box-shadow: inset 0 0 0 1px #dea128, 0 3px 7px rgba(18, 38, 70, .18);
+}
+.tabs .active .icon {color: #ffda82}
+.catalog-head, .catalog-head > div, .row-head, .order-heading, .total, .split, .card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.catalog-head {margin: 10px 4px 6px}
+.product-count {
+  margin-left: 7px;
+  padding: 3px 7px;
+  border-radius: 12px;
+  background: #edf1f7;
+  color: #44516a;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.cards {margin: 0 -5px}
+.card {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 calc(33.333% - 10px);
+  min-width: 0;
+  margin: 5px;
+  overflow: hidden;
+  border: 1px solid #e1e6ef;
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+.product-image {display: block; width: 100%; height: clamp(115px, 12vw, 192px); object-fit: cover}
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at top, #2d4764, #102139 78%);
+  color: #ffe1a1;
+  font-size: 36px;
+}
+.placeholder .ui-icon {width: 45px; height: 45px; stroke-width: 1.2}
+#cardsReal .product-image {height: 82px}
+.card-body {display: flex; flex-direction: column; flex: 1; padding: 10px}
+.card h3 {font-size: 19px; letter-spacing: -.025em; overflow-wrap: anywhere}
+.ingredients {margin: 4px 0 9px; color: var(--muted); font-size: 13px; line-height: 1.35}
+.card-foot {flex-wrap: wrap; margin-top: auto}
+.price {font-size: 17px; font-weight: 750; margin: 4px 4px 4px 0; overflow-wrap: anywhere}
+.card-foot button, .primary, #checkout {
+  border-color: #d29a38;
+  background: var(--gold-button);
+  color: #211500;
+}
+.card-foot button {font-size: 13px}
+.offer {margin-top: 12px; padding: 10px; border-radius: 12px; background: #edf1f7}
+.offer button, .actions button {margin: 5px 5px 0 0}
+#apiStatus {margin: 10px 4px}
+#clearCart {font-size: 13px; white-space: nowrap}
+.order h2 .ui-icon {margin-right: 5px}
+.order-heading {justify-content: flex-start; flex-wrap: wrap}
+.row {padding: 8px; border-bottom: 1px solid #e1e6ef}
+.row:last-child {border-bottom: 0}
+.row-head > strong:first-child {min-width: 0; padding-right: 8px; overflow-wrap: anywhere}
+.row-head > strong:last-child, .total strong, .split strong {white-space: nowrap}
+.row button {margin: 4px 5px 0 0; font-size: 13px}
+.lines {max-height: 31vh; overflow: auto; margin: 9px 0 12px; border: 1px solid #e1e6ef; border-radius: 11px}
+.empty {padding: 12px}
+.muted {color: var(--muted); font-size: 14px}
+.split {padding: 9px 2px; border-bottom: 1px solid #e1e6ef; font-size: 14px}
+.split .ui-icon {margin-right: 5px; color: var(--gold)}
+.total {padding: 10px 0; font-weight: 750}
+.order-total {margin: 10px 0 14px; padding: 10px 12px; border-radius: 11px; background: linear-gradient(130deg, #fff2d5, #f2d39c)}
+.order-total strong {font-size: 28px; letter-spacing: -.035em}
+.payments {margin: 3px -3px 9px}
+.payments button {flex: 1 1 auto; margin: 3px; min-height: 49px; padding: 6px; font-size: 13px}
+.payments .ui-icon {display: block; margin: 0 auto 3px}
+.active {background: #fff0d1; border-color: #c58b23; color: #332208}
+.wide {width: 100%}
+#checkout {min-height: 56px; margin-top: 7px; font-size: 18px; box-shadow: var(--shadow)}
+#guardarPedidoAnonimo {margin-bottom: 6px}
+.notice {margin-top: 6px; color: #205e42; font-size: 14px}
+.notice:empty {display: none}
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 23, 42, .68);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  z-index: 2;
+}
+.dialog {
+  width: 100%;
+  max-width: 560px;
+  max-height: 94vh;
+  overflow: auto;
+  padding: 18px;
+  border-radius: 17px;
+  background: var(--paper);
+}
+.dialog h3 {margin: 15px 0 5px}
+.check {display: flex; align-items: center; min-height: 49px; padding: 4px; border-bottom: 1px solid var(--line)}
+.check input[type=checkbox] {width: 24px; height: 24px; margin-right: 12px; flex: none; accent-color: #a26a0b}
+.setting {justify-content: space-between}
+.setting input {width: 104px; min-height: 46px; padding: 6px}
 .dialog label {display: block; margin: 10px 0 4px}
-.dialog input:not([type=checkbox]), .dialog textarea {display: block; width: 100%; padding: 8px; font: inherit}
-.dialog select {display:block;width:100%;min-height:44px;padding:8px;font:inherit}
-.dialog select:focus, .dialog textarea:focus {outline:3px solid #7454d7;outline-offset:2px}
-.filaPagoPos {min-width:0;border:1px solid #e4e0ef;border-radius:8px;margin:8px 0;padding:8px}
-.filaPagoPos button {margin-top:8px}
-#camposOperacionPos > p, #errorOperacionPos, #errorVentaPos {margin:8px 0}
-.dialog details, .dialog .actions {margin-top: 8px}
+.dialog input:not([type=checkbox]), .dialog textarea, .dialog select {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  font: inherit;
+}
+.dialog select {min-height: 44px}
+.filaPagoPos {min-width: 0; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; padding: 8px}
+.filaPagoPos button, .dialog details, .dialog .actions {margin-top: 8px}
+#camposOperacionPos > p, #errorOperacionPos, #errorVentaPos {margin: 8px 0}
 .dialog summary {cursor: pointer}
 .dialog .row p {margin-top: 4px; overflow-wrap: anywhere}
-
+@media (max-width: 1190px) {
+  .sidebar {flex-basis: 120px}
+  .top-tools {flex-basis: 380px}
+}
+@media (max-width: 930px) {
+  .card {flex-basis: calc(50% - 10px)}
+}
+@media (max-width: 740px) {
+  .workspace {display: block}
+  .sidebar {position: static; height: auto; padding: 6px 9px}
+  .system-brand {display: flex; align-items: center; padding: 0}
+  .system-brand img {width: 76px; height: 51px; margin: 0}
+  .sidebar .operations {display: flex; overflow-x: auto; margin: 0}
+  .sidebar .nav-link {flex: 0 0 auto; width: auto; min-height: 48px; margin: 4px; padding: 7px 10px; white-space: nowrap}
+  .sidebar .nav-link .ui-icon {margin-bottom: 2px}
+  .top {padding: 10px}
+  .top-tools {flex: 1 0 100%; margin-bottom: 0}
+  .page-title h1 {font-size: 29px}
+  .page-title p {font-size: 14px}
+  .layout {display: block; padding: 6px 10px 16px}
+  .order {position: static; min-width: 0; margin: 12px 0 0}
+  .lines {max-height: none}
+}
 </style>
 <style>
 .menu-selector {display:grid; gap:.6rem; margin:.75rem 0}
@@ -89,41 +361,71 @@ button:disabled{opacity:.55;cursor:default}
 }());
 </script>
 <style id="abadion-tablet-layout">
-/* No layout changes on Windows/desktop Edge, including narrow test viewports. */
 .tablet-cart-toggle{display:none}
-.tablet-cart-state{position:absolute;left:-9999px;width:1px;height:1px}
-.tablet-show-catalog{display:none}
+.tablet-cart-state {position: absolute; left: -9999px; width: 1px; height: 1px}
+.tablet-show-catalog {display: none}
 @media (max-width:1100px) {
- html.tablet-mode .workspace{display:block}
- html.tablet-mode .sidebar{position:static;top:auto;width:auto;height:auto;display:flex;flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;padding:5px 10px}
- html.tablet-mode .system-brand{display:flex;align-items:center;text-align:left;padding:0}
- html.tablet-mode .system-brand img{height:36px;width:36px;margin:0 7px 0 0}
- html.tablet-mode .system-brand small,html.tablet-mode .sidebar .current{display:none}
- html.tablet-mode .sidebar button{margin:0;min-height:44px}
- html.tablet-mode .top{padding:7px 10px}
- html.tablet-mode .top h1{font-size:21px}
- html.tablet-mode .top p{font-size:12px}
- html.tablet-mode .store strong{display:none}
- html.tablet-mode .store img{width:42px}
- html.tablet-mode .layout{display:block;padding:8px 10px 80px}
- html.tablet-mode .menu{min-width:0}
- html.tablet-mode .order{display:none;position:static;top:auto;min-width:0;width:100%;margin:6px 0 0}
- html.tablet-mode #tabletCartState:checked ~ .order{display:block}
- html.tablet-mode #tabletCartState:checked ~ .menu{display:none}
- html.tablet-mode .tablet-cart-toggle{display:flex;align-items:center;justify-content:center;position:fixed;z-index:1;bottom:8px;left:10px;right:10px;width:calc(100% - 20px);min-height:54px;background:#067841;color:#fff;border:1px solid #067841;border-radius:9px;box-shadow:0 3px 12px #17162544;font-size:16px;font-weight:bold;text-align:center;cursor:pointer;touch-action:manipulation}
- html.tablet-mode #tabletCartState:checked ~ .tablet-cart-toggle .tablet-show-cart{display:none}
- html.tablet-mode #tabletCartState:checked ~ .tablet-cart-toggle .tablet-show-catalog{display:inline}
- html.tablet-mode .tablet-cart-state:focus ~ .tablet-cart-toggle{outline:3px solid #7454d7;outline-offset:2px}
- html.tablet-mode .operations{flex-wrap:nowrap;overflow-x:auto;gap:6px;-webkit-overflow-scrolling:touch}
- html.tablet-mode .operations button{flex:0 0 auto;white-space:nowrap;min-height:48px}
- html.tablet-mode .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
- html.tablet-mode .tabs button{flex:0 0 138px;min-height:58px;font-size:14px}
- html.tablet-mode .card-foot button{min-height:52px;font-size:15px}
- html.tablet-mode .product-image{height:80px}
- html.tablet-mode .dialog{max-width:720px;max-height:calc(100vh - 12px);padding:12px}
- html.tablet-mode .overlay{padding:6px}
- html.tablet-mode .lines{max-height:none}
- html.tablet-mode .payments button{min-height:52px}
+  html.tablet-mode .workspace {display: block}
+  html.tablet-mode .sidebar {position: static; height: auto; padding: 5px 10px}
+  html.tablet-mode .system-brand {display: flex; align-items: center; padding: 0}
+  html.tablet-mode .system-brand img {width: 76px; height: 50px; margin: 0}
+  html.tablet-mode .sidebar .operations {display: flex; overflow-x: auto; margin: 0; -webkit-overflow-scrolling: touch}
+  html.tablet-mode .sidebar .nav-link {
+    flex: 0 0 auto;
+    flex-direction: row;
+    width: auto;
+    min-height: 44px;
+    margin: 3px;
+    padding: 5px 9px;
+    white-space: nowrap;
+  }
+  html.tablet-mode .sidebar .nav-link .ui-icon {width: 20px; height: 20px; margin: 0 5px 0 0}
+  html.tablet-mode .top {padding: 8px 10px}
+  html.tablet-mode .page-title h1 {font-size: 28px}
+  html.tablet-mode .page-title p {font-size: 13px}
+  html.tablet-mode .layout {display: block; padding: 6px 10px 78px}
+  html.tablet-mode .order {display: none; position: static; min-width: 0; margin: 0}
+  html.tablet-mode #tabletCartState:checked ~ .order{display:block}
+  html.tablet-mode #tabletCartState:checked ~ .menu{display:none}
+  html.tablet-mode .tablet-cart-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    z-index: 1;
+    bottom: 8px;
+    left: 10px;
+    width: calc(100% - 20px);
+    min-height: 54px;
+    padding: 4px 8px;
+    border: 1px solid #ebb84e;
+    border-radius: 12px;
+    background: var(--gold-button);
+    box-shadow: 0 5px 17px rgba(18, 38, 70, .25);
+    color: #211500;
+    font-weight: 750;
+    text-align: center;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  html.tablet-mode .tablet-cart-toggle .ui-icon {margin-right: 6px}
+  html.tablet-mode #tabletCartState:checked ~ .tablet-cart-toggle .tablet-show-cart {display: none}
+  html.tablet-mode #tabletCartState:checked ~ .tablet-cart-toggle .tablet-show-catalog {display: inline}
+  html.tablet-mode .tablet-cart-state:focus ~ .tablet-cart-toggle {outline: 3px solid #a26a0b; outline-offset: 2px}
+  html.tablet-mode .tabs button {min-height: 56px}
+  html.tablet-mode .card-foot button, html.tablet-mode .payments button {min-height: 50px}
+  html.tablet-mode .product-image {height: 104px}
+  html.tablet-mode .dialog {max-width: 720px; max-height: calc(100vh - 12px); padding: 12px}
+  html.tablet-mode .overlay {padding: 6px}
+  html.tablet-mode .lines {max-height: none}
+}
+@media (min-width: 760px) and (max-width: 1100px) {
+  html.tablet-mode .card {flex-basis: calc(33.333% - 10px)}
+}
+@media (max-width: 390px) {
+  .card-foot button {width: 100%}
+  .order-total strong {font-size: 24px}
+  .order-heading h2 {font-size: 18px}
 }
 </style>
 <style>.workspace{display:block}[hidden]{display:none!important} .simulation-banner{position:static} .check{min-height:48px} .check input{width:24px;height:24px}</style>
@@ -135,13 +437,19 @@ button:disabled{opacity:.55;cursor:default}
 
 <div class="desktop">
 <p id="simulationBanner" class="simulation-banner">DEMO ESTÁTICA v1 · Productos y precios ficticios · No guarda ventas · Al recargar se borra el pedido</p>
-<header class="top"><div><h1>Nueva venta</h1><p>Seleccioná los productos para el pedido</p></div><div class="store"><strong>Lo de Clau</strong><span class="demo">Modo demo</span></div></header>
+<header class="top">
+  <div class="page-title"><h1>Nueva venta</h1><p>Seleccioná los productos para el pedido</p></div>
+  <div class="top-tools">
+    <div class="search-box"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m21 21-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0"/></svg><input id="search" type="search" placeholder="Buscar producto…" aria-label="Buscar en esta categoría"></div>
+
+  </div>
+</header>
 <div class="layout">
 <input id="tabletCartState" class="tablet-cart-state" type="checkbox" aria-label="Ver carrito y cobro">
 <main id="catalog" class="menu">
 
   <nav class="tabs" id="tabs" aria-label="Categorías"></nav>
-<div class="catalog-head"><div><h2 id="categoryTitle"></h2><span id="productCount" class="product-count"></span></div><input id="search" type="search" placeholder="Buscar producto…" aria-label="Buscar en esta categoría"></div>
+<div class="catalog-head"><div><h2 id="categoryTitle"></h2><span id="productCount" class="product-count"></span></div></div>
 <div id="cards" class="cards"></div>
 
 <nav id="tabsReal" class="tabs" hidden
@@ -156,17 +464,18 @@ button:disabled{opacity:.55;cursor:default}
 <section id="demoOffers" class="offer"><h3>Ofrecé una bebida o un postre</h3><button data-category="Bebidas">Ver bebidas</button><button data-category="Postres">Ver postres</button></section>
 </main>
 <label for="tabletCartState" class="tablet-cart-toggle" aria-controls="tabletOrder">
+  <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 3h3l3 13h12l2-9H6 M10 21a1 1 0 1 1-2 0 1 1 0 0 1 2 0 M20 21a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/></svg>
   <span class="tablet-show-cart">Ver carrito y cobro</span>
   <span class="tablet-show-catalog">Volver al catálogo</span>
 </label>
 <aside id="tabletOrder" class="order" aria-label="Pedido">
-<div class="row-head"><div class="order-heading"><h2>Pedido actual</h2><span id="count" class="product-count"></span></div><button id="clearCart" type="button">Limpiar</button></div>
+<div class="row-head"><div class="order-heading"><h2><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 3h3l3 13h12l2-9H6 M10 21a1 1 0 1 1-2 0 1 1 0 0 1 2 0 M20 21a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/></svg>Pedido actual</h2><span id="count" class="product-count"></span></div><button id="clearCart" type="button"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7m4-7v7"/></svg> Vaciar</button></div>
 <div id="lines" class="lines"></div>
 <button id="resumenCocina" type="button" class="wide" hidden>Ver pedido para cocina</button>
-<div class="split"><span>Caja rotisería</span><strong id="foodTotal"></strong></div>
-<div class="split"><span>Caja bebidas y postres</span><strong id="otherTotal"></strong></div>
+<div class="split"><span><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 10a9 7 0 0 1 18 0z M3 14c2-3 4 3 6 0s4 3 6 0 4 3 6 0 M3 17h18v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z M8 7h.01m4-2h.01m4 2h.01"/></svg> Caja rotisería</span><strong id="foodTotal"></strong></div>
+<div class="split"><span><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 8h14l-2 13H7z M5 11h13 M12 8l2-6h4"/></svg> Caja bebidas y postres</span><strong id="otherTotal"></strong></div>
 <div class="total order-total"><span id="totalLabel">Total del pedido</span><strong id="total"></strong></div>
-<div id="paymentSection"><h3>Cobro simulado</h3><div id="payments" class="payments"></div></div>
+<div id="paymentSection"><h3>Método de pago</h3><div id="payments" class="payments"></div></div>
 <button id="guardarPedidoAnonimo" type="button" class="wide" hidden>Guardar pedido sin venta</button>
 <button id="validarPedido" type="button" class="wide" hidden>Validar pedido de prueba</button>
 <p id="estadoPedido" class="notice" role="status" hidden></p>
@@ -177,7 +486,6 @@ button:disabled{opacity:.55;cursor:default}
 <script>
 (function () {
   'use strict';
-  var icons = ['H','S','M','C','P','B','D'];
   var methods = ['Efectivo','Transferencia','Mercado Pago'];
   var category = 'Hamburguesas', cart = [], method = '', trigger, editing;
   var overlay = document.getElementById('overlay');
@@ -203,9 +511,35 @@ button:disabled{opacity:.55;cursor:default}
   function button(label, attr, value, extra) {
     return '<button type="button" ' + attr + '="' + value + '" ' + (extra || '') + '>' + label + '</button>';
   }
+  var trazosIconosPos = {
+    burger: 'M3 10a9 7 0 0 1 18 0z M3 14c2-3 4 3 6 0s4 3 6 0 4 3 6 0 M3 17h18v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z M8 7h.01m4-2h.01m4 2h.01',
+    sandwich: 'm3 10 8-6c.7-.5 1.6-.5 2.3 0l8 6a1.5 1.5 0 0 1-.9 2.7H3.9A1.5 1.5 0 0 1 3 10z M3 16c2-3 4 3 6 0s4 3 6 0 4 3 6 0 M3 18v2h18v-2',
+    milanesa: 'M4 13c2-2 3-1 5-5s9-7 12-2c2 3-1 9-5 10s-5 4-9 4-7-4-3-7z M9 15h.01m4-4h.01m4-3h.01',
+    plate: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0 M18 12a6 6 0 1 1-12 0 6 6 0 0 1 12 0',
+    fries: 'm5 11 2 10h10l2-10h-4c0 3-6 3-6 0z M6 11 5 5h3l2 6 M10 11V3h4v8 M14 11l2-6h3l-1 6',
+    drink: 'M5 8h14l-2 13H7z M5 11h13 M12 8l2-6h4',
+    cake: 'M3 11v10h18V10l-4-2 M3 11l7-4 M3 16h18 M3 13h18 M15 3c2 2 3 4 0 5-3-1-2-3 0-5z',
+    cash: 'M2 6h20v12H2z M5 9h1m12 6h1 M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
+    transfer: 'M3 7h17m-5-4 5 4-5 4 M21 17H4m5-4-5 4 5 4',
+    card: 'M3 5h18v14H3z M3 10h18 M6 15h4',
+    orders: 'M9 5H5v16h14V5h-4 M9 3h6v4H9z M8 11h1m3 0h4 M8 15h1m3 0h4',
+    cube: 'm12 3 9 4.5v9L12 21l-9-4.5v-9L12 3z M3 7.5l9 4.5 9-4.5 M12 12v9 M7.5 5.25l9 4.5'
+  };
+  var iconosCategoriasPos = {"Hamburguesas":"burger","Sándwiches":"sandwich","Milanesas":"milanesa","Comidas al plato":"plate","Comidas":"plate","Papas":"fries","Bebidas":"drink","Postres":"cake"};
+  var iconosPagosPos = {"Efectivo":"cash","Transferencia":"transfer","Mercado Pago":"card","Pago combinado":"card","Pendiente / Fiado":"orders"};
+  function iconoPos(nombre) {
+    return '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' +
+      (trazosIconosPos[nombre] || trazosIconosPos.cube) + '"/></svg>';
+  }
+  function iconoCategoriaPos(nombre) {
+    return iconoPos(iconosCategoriasPos[nombre]);
+  }
+  function iconoPagoPos(nombre) {
+    return iconoPos(iconosPagosPos[nombre] || 'card');
+  }
   function menu() {
-    el('tabs').innerHTML = Object.keys(catalog).map(function (name,index) {
-      return button('<span class="icon" aria-hidden="true">' + icons[index] + '</span>' + name,'data-category',name,'aria-pressed="' + (category === name) + '" class="' + (category === name ? 'active' : '') + '"');
+    el('tabs').innerHTML = Object.keys(catalog).map(function (name) {
+      return button('<span class="icon" aria-hidden="true">' + iconoCategoriaPos(name) + '</span>' + name,'data-category',name,'aria-pressed="' + (category === name) + '" class="' + (category === name ? 'active' : '') + '"');
     }).join('');
     showProducts();
   }
@@ -215,7 +549,7 @@ button:disabled{opacity:.55;cursor:default}
   function showProducts() {
     var query = searchable((el('search').value || '').trim());
     var count = 0;
-    var icon = icons[Object.keys(catalog).indexOf(category)];
+    var icon = iconoCategoriaPos(category);
     el('categoryTitle').textContent = category;
     el('cards').innerHTML = catalog[category].map(function (product,index) {
       if (searchable(product[0]).indexOf(query) === -1) return '';
@@ -261,7 +595,7 @@ button:disabled{opacity:.55;cursor:default}
     el('otherTotal').textContent = money(sums.other);
     el('total').textContent = money(sums.total);
     el('payments').innerHTML = methods.map(function (name) {
-      return button(name,'data-payment',name,'aria-pressed="' + (method === name) + '" class="' + (method === name ? 'active' : '') + '"');
+      return button(iconoPagoPos(name) + name,'data-payment',name,'aria-pressed="' + (method === name) + '" class="' + (method === name ? 'active' : '') + '"');
     }).join('');
     el('checkout').disabled = !cart.length || !method;
     el('clearCart').disabled = !cart.length;
@@ -353,6 +687,10 @@ button:disabled{opacity:.55;cursor:default}
 
     menu();
     order();
+
+    el('nuevaVentaPos').onclick = el('search').onfocus = function () {
+      el('tabletCartState').checked = false;
+    };
 
 
   el('apiStatus').textContent = 'Demo estática lista · Sin conexión a API ni base de datos.';
