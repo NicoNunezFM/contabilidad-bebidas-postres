@@ -116,6 +116,28 @@ Este hash identifica la demo nueva y es diferente del archivo histórico.
     y ausencia de solapamientos. Si falla, registrar foto, texto de estado y paso exacto.
 14. Detener el servidor y cerrar la regla temporal usada para la prueba.
 
+## Validación física reportada el 23/11/2026
+
+Fuente: usuario en la conversación «Prueba carrito en Edge»
+(`6b046ad4-b4c8-83e8-b0d2-0932d9dfbf74`). Tras indicar «Funciono perfecto.
+pude agregar los productos», recibió el recorrido de personalizar una Clásica,
+agregar bebida y postre, comprobar subtotales, simular cobro y verificar el vaciado.
+Respondió **«Pude hacer todo»**. La solicitud de continuación confirma expresamente
+catálogo, personalizaciones, carrito, subtotales separados, cobro simulado y vaciado.
+Se registra como **validación manual reportada**, no observación directa del agente.
+
+El log aportado muestra `GET /` con 200 a las 14:42:21 del 23/11/2026 y
+`GET /favicon.ico` con 404. El 404 del icono no impidió el recorrido reportado.
+No se capturaron tiempos de respuesta, métricas de rendimiento, video ni capturas.
+Modelo: PCBOX PCB-T715; navegador integrado Android. La versión exacta del motor,
+orientaciones ensayadas, SHA servido y valores numéricos observados no fueron
+aportados. El hash publicado arriba identifica el artefacto del repositorio,
+pero no demuestra por sí solo los bytes recibidos por la tablet.
+
+Esta validación corresponde a la **demo estática ficticia**; no acredita login,
+HTTPS, persistencia en SQLite, movimientos de las dos cajas ni conexión al POS
+completo de Entrenamiento. Tampoco modifica el resultado de la demo histórica.
+
 ## Registro de resultados
 
 Validación local del 23/11/2026:
@@ -145,8 +167,8 @@ python -m pytest -q tests/test_pos_web.py tests/test_demo_tablet.py
 | PCBOX PCB-T715 / Android 6.0.1 / navegador integrado, demo histórica | Navegación reportada funcional; catálogo vacío | Conversación «Prueba carrito en Edge». SHA servido no demostrado |
 | Microsoft Edge PC / nueva demo / 1024×600 | Aprobado automáticamente | Personalizar, editar, duplicar, quitar, totales, cancelar, simular, limpiar, recargar |
 | Microsoft Edge PC / nueva demo / 600×1024 | Aprobado automáticamente | Mismo recorrido, sin desbordamiento horizontal |
-| PCBOX / nueva demo / horizontal | Pendiente físico | Completar abajo |
-| PCBOX / nueva demo / vertical | Pendiente físico | Completar abajo |
+| PCBOX / nueva demo / orientación no informada | Recorrido principal aprobado por reporte del usuario | Catálogo, personalizaciones, carrito, subtotales, cobro simulado y vaciado; conversación citada |
+| PCBOX / nueva demo / ambas orientaciones | Sin confirmación individual | Pendiente registro por orientación, versión exacta, captura y hash servido |
 
 Registrar por cada prueba: fecha/hora, operador, modelo, nombre y versión del
 navegador/WebView, orientación, URL, commit de la rama, SHA-256 del HTML servido,
