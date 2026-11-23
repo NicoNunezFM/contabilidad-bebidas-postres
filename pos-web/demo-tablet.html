@@ -8,7 +8,6 @@
 <style>
 :root {
   color-scheme: light;
-  --navy: #0c1b30;
   --ink: #111c2e;
   --muted: #4d5a70;
   --line: #d5dce7;
@@ -22,6 +21,7 @@
 body {
   margin: 0;
   background: radial-gradient(ellipse at 22% 0, #fafbfd 0%, #eef1f7 47%, #e6ebf4 100%);
+  color: #111c2e;
   color: var(--ink);
   font: 16px "Segoe UI", Arial, sans-serif;
 }
@@ -34,6 +34,7 @@ button {
   padding: 7px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
+  background: #f9fafc;
   background: var(--paper);
   color: inherit;
   font-weight: 600;
@@ -116,7 +117,9 @@ svg.ui-icon {
 .page-title:before {
   content: "";
   position: absolute;
-  inset: 4px auto 3px 0;
+  top: 4px;
+  bottom: 3px;
+  left: 0;
   width: 5px;
   border-radius: 4px;
   background: linear-gradient(#f5b947, #ac6e08);
@@ -141,6 +144,7 @@ svg.ui-icon {
   max-width: 50%;
   margin-left: 8px;
   border-radius: 24px;
+  background: #f9fafc;
   background: var(--paper);
   box-shadow: var(--shadow);
   font-size: 13px;
@@ -180,6 +184,7 @@ svg.ui-icon {
   padding: 15px;
   border: 1px solid #e1e6ef;
   border-radius: 21px;
+  background: #f9fafc;
   background: var(--paper);
   box-shadow: 0 11px 24px rgba(18, 38, 70, .12);
 }
@@ -241,10 +246,11 @@ svg.ui-icon {
   overflow: hidden;
   border: 1px solid #e1e6ef;
   border-radius: 16px;
+  background: #f9fafc;
   background: var(--paper);
   box-shadow: var(--shadow);
 }
-.product-image {display: block; width: 100%; height: clamp(115px, 12vw, 192px); object-fit: cover}
+.product-image {display: block; width: 100%; height: 150px; height: clamp(115px, 12vw, 192px); object-fit: cover}
 .placeholder {
   display: flex;
   align-items: center;
@@ -257,11 +263,12 @@ svg.ui-icon {
 #cardsReal .product-image {height: 82px}
 .card-body {display: flex; flex-direction: column; flex: 1; padding: 10px}
 .card h3 {font-size: 19px; letter-spacing: -.025em; overflow-wrap: anywhere}
-.ingredients {margin: 4px 0 9px; color: var(--muted); font-size: 13px; line-height: 1.35}
+.ingredients {margin: 4px 0 9px; color: #4d5a70; color: var(--muted); font-size: 13px; line-height: 1.35}
 .card-foot {flex-wrap: wrap; margin-top: auto}
 .price {font-size: 17px; font-weight: 750; margin: 4px 4px 4px 0; overflow-wrap: anywhere}
 .card-foot button, .primary, #checkout {
   border-color: #d29a38;
+  background: #f4ca72;
   background: var(--gold-button);
   color: #211500;
 }
@@ -279,7 +286,7 @@ svg.ui-icon {
 .row button {margin: 4px 5px 0 0; font-size: 13px}
 .lines {max-height: 31vh; overflow: auto; margin: 9px 0 12px; border: 1px solid #e1e6ef; border-radius: 11px}
 .empty {padding: 12px}
-.muted {color: var(--muted); font-size: 14px}
+.muted {color: #4d5a70; color: var(--muted); font-size: 14px}
 .split {padding: 9px 2px; border-bottom: 1px solid #e1e6ef; font-size: 14px}
 .split .ui-icon {margin-right: 5px; color: var(--gold)}
 .total {padding: 10px 0; font-weight: 750}
@@ -296,7 +303,10 @@ svg.ui-icon {
 .notice:empty {display: none}
 .overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: rgba(9, 23, 42, .68);
   display: flex;
   align-items: center;
@@ -311,6 +321,7 @@ svg.ui-icon {
   overflow: auto;
   padding: 18px;
   border-radius: 17px;
+  background: #f9fafc;
   background: var(--paper);
 }
 .dialog h3 {margin: 15px 0 5px}
@@ -415,6 +426,7 @@ svg.ui-icon {
     padding: 4px 8px;
     border: 1px solid #ebb84e;
     border-radius: 12px;
+    background: #f4ca72;
     background: var(--gold-button);
     box-shadow: 0 5px 17px rgba(18, 38, 70, .25);
     color: #211500;
@@ -703,10 +715,6 @@ svg.ui-icon {
 
     menu();
     order();
-
-    el('nuevaVentaPos').onclick = el('search').onfocus = function () {
-      el('tabletCartState').checked = false;
-    };
 
 
   el('apiStatus').textContent = 'Demo estática lista · Sin conexión a API ni base de datos.';
