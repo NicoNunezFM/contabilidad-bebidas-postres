@@ -55,23 +55,19 @@ def test_script_pos_y_fallbacks_en_node():
     funciones = script[inicio:fin]
     # Entorno sin AbortSignal.timeout y sin crypto.randomUUID, como Chrome 101.
     control = r"""
-const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const webcrypto = require('node:crypto').webcrypto;
-const ctx = {
-    AbortSignal: {}, AbortController, setTimeout,
-    window: {
-        isSecureContext: true,
-        crypto: {getRandomValues: (buffer) => webcrypto.getRandomValues(buffer)}
-    }
+globalThis.window = {
+    isSecureContext: true,
+    crypto: {getRandomValues: (buffer) => webcrypto.getRandomValues(buffer)}
 };
-vm.createContext(ctx);
-const ids = vm.runInContext('[uuidPos(), uuidPos()]', ctx);
+globalThis.AbortSignal = {}; // Chrome 101 no soporta .timeout
+const ids = [uuidPos(), uuidPos()];
 assert.match(ids[0], /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
 assert.notEqual(ids[0], ids[1]);
-const signal = vm.runInContext('senalTiempoPos(1)', ctx);
-ctx.window.isSecureContext = false;
-assert.throws(() => vm.runInContext('uuidPos()', ctx), /HTTPS/);
+const signal = senalTiempoPos(1);
+window.isSecureContext = false;
+assert.throws(() => uuidPos(), /HTTPS/);
 setTimeout(() => { assert.equal(signal.aborted, true); }, 10);
 """
     resultado = subprocess.run(
