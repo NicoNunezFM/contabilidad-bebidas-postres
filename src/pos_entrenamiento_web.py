@@ -21,7 +21,7 @@ body {padding-top:3rem}
 #simulationBanner {display:none}
 #overlay {top:3rem}
 #overlay .dialog {max-height:calc(100vh - 4.5rem)}
-@media (min-width:721px) {
+@media (min-width:721px) and (hover:hover) and (pointer:fine) {
   .sidebar {top:3rem; height:calc(100vh - 3rem)}
   .order {top:calc(3rem + 12px)}
 }
