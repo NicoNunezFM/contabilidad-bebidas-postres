@@ -1,14 +1,19 @@
+import base64
 import json
 import os
 import socket
 import subprocess
 import time
 from contextlib import closing
+from pathlib import Path
 from threading import Thread
 
 import httpx
 import pytest
 import uvicorn
+from starlette.applications import Starlette
+from starlette.responses import FileResponse
+from starlette.routing import Route
 
 from api import app
 from database import obtener_conexion
@@ -70,7 +75,8 @@ def preparar_simulacion_web(base_prueba, monkeypatch, tmp_path, modo):
         monkeypatch.setenv("NEGOCIO_DB_PATH", str(copia))
 
 
-def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, *, tls=None, app_factory=None):
+def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, *, tls=None,
+                     app_factory=None, ruta="/pos/", con_cdp=False):
     with socket.socket() as red:
         red.bind(("127.0.0.1", 0))
         port = red.getsockname()[1]
@@ -139,8 +145,8 @@ def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, 
                         if viewport:
                             cdp("Emulation.setDeviceMetricsOverride", width=viewport[0], height=viewport[1],
                                 deviceScaleFactor=1, mobile=True)
-                        cdp("Page.navigate", url=f"{origen}/pos/")
-                        yield evaluar
+                        cdp("Page.navigate", url=f"{origen}{ruta}")
+                        yield (evaluar, cdp) if con_cdp else evaluar
                 finally:
                     navegador.terminate()
         finally:
@@ -177,6 +183,86 @@ def controles_pos(navegador_pos):
         esperar(lambda: evaluar("document.querySelector('#overlay').hidden"))
 
     return evaluar, clic, texto, iniciar_sesion
+
+
+@pytest.mark.parametrize("viewport,columnas,tablet", [
+    ((1440, 1000), 3, False),
+    ((1024, 600), 3, True),
+    ((600, 1024), 2, True),
+])
+def test_pos_web_premium_catalogo_y_carrito(viewport, columnas, tablet, tmp_path):
+    ejecutable = os.getenv("POS_TEST_BROWSER")
+    if not ejecutable:
+        pytest.skip("Configurá POS_TEST_BROWSER con Microsoft Edge.")
+    import websocket
+
+    index = Path(__file__).resolve().parents[1] / "pos-web" / "index.html"
+
+    async def pagina(request):
+        return FileResponse(index, media_type="text/html")
+
+    # La muestra visual solo sirve el HTML y se arma con el catálogo ficticio embebido.
+    app_demo = Starlette(routes=[Route("/pos/", pagina)])
+    ruta = "/pos/?tablet=1" if tablet else "/pos/"
+    navegador = abrir_navegador(app_demo, ejecutable, tmp_path, websocket, viewport,
+                                ruta=ruta, con_cdp=True)
+    with closing(navegador):
+        evaluar, cdp = next(navegador)
+        esperar(lambda: evaluar("""
+            document.querySelectorAll('#cards .card').length === 7 &&
+            document.querySelector('#cards img').naturalWidth > 0
+        """))
+        assert evaluar("innerWidth") == viewport[0]
+        assert evaluar("document.documentElement.scrollWidth <= innerWidth")
+        assert evaluar("""
+            [...document.querySelectorAll('#cards .card')]
+                .filter(card => card.offsetTop === document.querySelector('#cards .card').offsetTop).length
+        """) == columnas
+        assert evaluar("document.querySelector('#tabletOrder').getClientRects().length > 0") is (not tablet)
+        assert evaluar("document.querySelector('.tablet-cart-toggle').getClientRects().length > 0") is tablet
+
+        def clic(selector):
+            evaluar(f"document.querySelector({json.dumps(selector)}).click(); void 0")
+
+        def captura(vista):
+            carpeta = os.getenv("POS_UI_CAPTURAS")
+            if carpeta:
+                salida = Path(carpeta)
+                salida.mkdir(parents=True, exist_ok=True)
+                ancho, alto = viewport
+                png = cdp("Page.captureScreenshot", format="png")
+                (salida / f"abadion-{ancho}x{alto}-{vista}.png").write_bytes(base64.b64decode(png["data"]))
+
+        clic('#cards [data-product="0"]')
+        clic("#accept")
+        clic('#cards [data-product="1"]')
+        clic("#accept")
+        clic('#tabs [data-category="Bebidas"]')
+        clic('#cards [data-product="0"]')
+        clic("#accept")
+        clic('#tabs [data-category="Postres"]')
+        clic('#cards [data-product="0"]')
+        clic("#accept")
+        clic('#tabs [data-category="Hamburguesas"]')
+        if not tablet:
+            clic('[data-payment="Efectivo"]')
+        evaluar("window.scrollTo(0, 0); void 0")
+        captura("catalogo")
+
+        if tablet:
+            clic(".tablet-cart-toggle")
+            assert evaluar("document.querySelector('#catalog').getClientRects().length") == 0
+            assert evaluar("document.querySelector('#tabletOrder').getClientRects().length") > 0
+            assert evaluar("document.documentElement.scrollWidth <= innerWidth")
+            clic('[data-payment="Efectivo"]')
+            assert evaluar("!document.querySelector('#checkout').disabled")
+            evaluar("window.scrollTo(0, 0); void 0")
+            captura("carrito")
+            clic("#nuevaVentaPos")
+            assert evaluar("!document.querySelector('#tabletCartState').checked")
+            clic(".tablet-cart-toggle")
+        assert evaluar("document.querySelectorAll('#lines .row').length") == 4
+        assert evaluar("!document.querySelector('#checkout').disabled")
 
 
 @pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
@@ -786,6 +872,9 @@ def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
     """)
     clic("#accept")
     texto("#notice", "guardado sin venta")
+    clic("#historialSimulado")
+    texto("#consultaPos", "Todavía no hay ventas simuladas.")
+    clic("#accept")
     clic("#seguimientoPos")
     texto("#consultaPos", "WhatsApp")
     clic("#consultaPos details summary")
@@ -839,3 +928,106 @@ def test_pos_web_tablet_carrito_funciona_sin_javascript(controles_pos):
             return estadoInicial && vistaCarrito && regresoCatalogo;
         })()
     """)
+
+
+
+@pytest.mark.parametrize("navegador_pos", ["contabilidad"], indirect=True)
+def test_pos_web_jornada_premium_compras_venta_cierres_y_restauracion(controles_pos, tmp_path):
+    import sqlite3
+
+    from pos_contabilidad import calcular_periodo, fecha_local
+
+    evaluar, clic, texto, ingresar = controles_pos
+    comidas = '[data-caja-diaria="comidas"]'
+    bebidas = '[data-caja-diaria="bebidas_postres"]'
+
+    def boton(selector, nombre):
+        esperar(lambda: evaluar(f"""
+            (() => {{
+                const b = [...document.querySelectorAll({json.dumps(selector)})]
+                    .find(x => x.textContent === {json.dumps(nombre)} && !x.disabled);
+                if (!b) return false;
+                b.click();
+                return true;
+            }})()
+        """))
+
+    def campo(selector, valor):
+        evaluar(f"document.querySelector({json.dumps(selector)}).value = {json.dumps(valor)}")
+
+    ingresar("ventas")
+    assert evaluar("document.querySelector('#comprasPos').hidden")
+    clic("#cajaDiariaPos")
+    for caja, saldo in ((comidas, "1000"), (bebidas, "500")):
+        boton(caja + " button", "Abrir caja")
+        campo("#importeCajaDiaria", saldo)
+        clic("#accept")
+        texto(caja, "Abierta")
+    clic("#accept")
+
+    for indice in (1, 2):
+        clic(f"#cardsReal .card:nth-child({indice}) button")
+        clic("#accept")
+    clic("#validarPedido")
+    texto("#estadoPedido", "4.000,00")
+    clic("#payments button:first-child")
+    clic("#checkout")
+    clic("#accept")
+    texto("#notice", "Venta simulada #1 registrada")
+
+    clic("#adminAccess")
+    texto("#adminAccess", "Iniciar sesión")
+    ingresar("admin")
+    clic("#comprasPos")
+    boton("#consultaPos button", "Registrar compra")
+    evaluar("""
+        const productoCompra = document.querySelector('#productoCompraPos');
+        productoCompra.value = [...productoCompra.options].find(o => o.text === 'Bebida ficticia').value;
+    """)
+    for selector, valor in (("#cantidadCompraPos", "1"), ("#costoCompraPos", "100"),
+                            ("#pagadoCompraPos", "100"), ("#pagadorCompraPos", "comidas_efectivo")):
+        campo(selector, valor)
+    clic("#accept")
+    texto("#consultaPos", "Compra #1 registrada")
+    texto("#consultaPos", "Pago inicial")
+    clic("#accept")
+    clic("#cajaDiariaPos")
+    for caja, saldo, moneda in ((comidas, "3399", "3.400,00"), (bebidas, "2000", "2.000,00")):
+        texto(caja, moneda)
+        boton(caja + " button", "Guardar arqueo")
+        campo("#importeCajaDiaria", saldo)
+        if caja == comidas:
+            campo("#camposOperacionPos textarea", "Falta un peso en el conteo ficticio")
+        clic("#accept")
+        texto("#consultaPos", "Arqueo registrado.")
+        boton(caja + " button", "Cerrar caja")
+        clic("#accept")
+        texto(caja, "Cerrada")
+    boton("#consultaPos button", "Alertas de cierre")
+    texto("#consultaPos", "Falta un peso en el conteo ficticio")
+    clic("#accept")
+    clic("#contabilidadPos")
+    texto("#consultaPos", "Diezmo estimado")
+    texto("#consultaPos", "390,00")
+
+    fecha = fecha_local()
+
+    def comprobar(db):
+        reporte = calcular_periodo(db, fecha, fecha)
+        assert reporte["devengado_centavos"] == reporte["cobrado_neto_centavos"] == 400000
+        assert reporte["compras_centavos"] == 10000 and reporte["gastos_centavos"] == 0
+        assert reporte["diezmo_centavos"] == 39000
+        assert {j["caja"]: (j["esperado_centavos"], j["contado_centavos"], j["diferencia_centavos"])
+                for j in reporte["jornadas"]} == {
+            "comidas": (340000, 339900, -100), "bebidas_postres": (200000, 200000, 0),
+        }
+        assert db.execute("SELECT stock FROM productos ORDER BY id_producto").fetchall() == [(9,), (20,)]
+        return reporte
+
+    with closing(obtener_conexion()) as db, closing(sqlite3.connect(tmp_path / "restaurada-pos.db")) as resta:
+        original = comprobar(db)
+        db.backup(resta)
+        assert resta.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        assert resta.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert comprobar(resta) == original
+

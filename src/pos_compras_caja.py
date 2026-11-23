@@ -196,6 +196,25 @@ def resumen_pagos_compras(db, desde, hasta):
     ]
 
 
+def listar_compras_caja(db, antes_de, limite):
+    if not compras_caja_existe(db):
+        return {"compras": [], "siguiente_antes_de": None}
+    filas = db.execute("""
+        SELECT pc.id_compra, p.nombre, pc.resultado, c.anulada, r.evento
+        FROM pos_compras_caja AS pc JOIN compras AS c USING (id_compra)
+        JOIN productos AS p USING (id_producto)
+        LEFT JOIN pos_compras_caja AS r ON r.id_compra = pc.id_compra AND r.evento <> 'alta'
+        WHERE pc.evento = 'alta' AND pc.id_compra < ?
+        ORDER BY pc.id_compra DESC LIMIT ?
+    """, (antes_de, limite + 1)).fetchall()
+    return {
+        "compras": [{**json.loads(datos), "producto": nombre, "revertida": bool(anulada),
+                     "reverso": reverso}
+                    for _, nombre, datos, anulada, reverso in filas[:limite]],
+        "siguiente_antes_de": filas[limite - 1][0] if len(filas) > limite else None,
+    }
+
+
 def conciliar_compras_caja(db):
     return [
         {"codigo": "COMPRA_PAGO_DESCUADRADO", "id_compra": identificador, "evento": evento}
