@@ -129,7 +129,7 @@ def _personalizar_preparacion(linea, menu):
     return recargo, detalle
 
 
-def calcular_pedido_pos(conexion, pedido):
+def calcular_pedido_pos(conexion, pedido, *, advertir_faltantes=False):
     """Calcula el pedido dentro de la transacción abierta por el llamador."""
     cantidades = Counter()
     for linea in pedido.items:
@@ -140,6 +140,7 @@ def calcular_pedido_pos(conexion, pedido):
     unidades_promo = Counter()
     grupos_promo = {}
     catalogo = {}
+    faltantes = {}
     for id_producto, cantidad in cantidades.items():
         producto = conexion.execute(
             """
@@ -160,13 +161,15 @@ def calcular_pedido_pos(conexion, pedido):
         if entrenamiento and precio is None:
             raise HTTPException(409, f"Precio pendiente para {nombre}.")
         if controla_stock and cantidad > stock:
-            raise HTTPException(409, {
-                "codigo": "STOCK_INSUFICIENTE",
-                "mensaje": f"Stock insuficiente para {nombre}.",
-                "id_producto": id_producto,
-                "stock_disponible": stock,
-                "cantidad_solicitada": cantidad,
-            })
+            faltantes[str(id_producto)] = cantidad - max(stock, 0)
+            if not advertir_faltantes:
+                raise HTTPException(409, {
+                    "codigo": "STOCK_INSUFICIENTE",
+                    "mensaje": f"Stock insuficiente para {nombre}.",
+                    "id_producto": id_producto,
+                    "stock_disponible": stock,
+                    "cantidad_solicitada": cantidad,
+                })
 
         base = _precio_centavos(precio, nombre, 1)
         if grupo is not None and base > DESCUENTO_POSTRE_CENTAVOS:
@@ -238,6 +241,8 @@ def calcular_pedido_pos(conexion, pedido):
             items.append(dict(item, cantidad=cantidad_regular, subtotal_centavos=unitario * cantidad_regular))
 
     resultado = {"items": items, "total_centavos": sum(item["subtotal_centavos"] for item in items)}
+    if faltantes:
+        resultado["faltantes_stock"] = faltantes
     if descuento_total:
         resultado["descuento_centavos"] = descuento_total
     return resultado

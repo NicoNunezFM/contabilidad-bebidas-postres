@@ -173,16 +173,48 @@ def detalle_jornada(db, fila):
     }
 
 
+def cierre_anterior(db, caja, fecha):
+    fila = db.execute("""
+        SELECT j.fecha, d.resultado FROM pos_jornadas_caja AS j
+        JOIN pos_diario_caja AS d USING (id_jornada)
+        WHERE j.caja = ? AND j.fecha < ? AND j.cerrada = 1 AND d.tipo = 'cierre'
+        ORDER BY j.fecha DESC LIMIT 1
+    """, (caja, fecha)).fetchone()
+    if fila is None:
+        return None
+    return {"fecha": fila[0], "contado_centavos": json.loads(fila[1])["arqueo"]["resultado"]["contado_centavos"]}
+
+
+def alertas_cierre(db, antes_de, limite):
+    alertas = [
+        {"id_evento": evento, "caja": caja, "fecha": fecha, "usuario": usuario,
+         "observacion": motivo, "diferencia_centavos": json.loads(resultado)["arqueo"]["resultado"]["diferencia_centavos"]}
+        for evento, caja, fecha, usuario, motivo, resultado in db.execute("""
+            SELECT d.id_evento, j.caja, j.fecha, d.usuario, d.motivo, d.resultado
+            FROM pos_diario_caja AS d JOIN pos_jornadas_caja AS j USING (id_jornada)
+            WHERE d.tipo = 'cierre' AND d.id_evento < ?
+              AND json_extract(d.resultado, '$.alerta_administracion') = 1
+            ORDER BY d.id_evento DESC LIMIT ?
+        """, (antes_de, limite + 1))
+    ]
+    return {"alertas": alertas[:limite],
+            "siguiente_antes_de": alertas[limite - 1]["id_evento"] if len(alertas) > limite else None}
+
+
 def estado_cajas(db):
-    fecha = ahora_local()[:10]
+    momento = ahora_local()
+    fecha = momento[:10]
     cajas = {}
+    propuestas = {}
     for caja in CAJAS:
         fila = db.execute("""
             SELECT id_jornada, caja, fecha, cerrada FROM pos_jornadas_caja
             WHERE caja = ? AND (cerrada = 0 OR fecha = ?) ORDER BY cerrada LIMIT 1
         """, (caja, fecha)).fetchone()
         cajas[caja] = detalle_jornada(db, fila) if fila else None
-    return {"fecha_local": fecha, "zona_horaria": ZONA, "cajas": cajas}
+        if not fila and "10:00" <= momento[11:16] < "12:00":
+            propuestas[caja] = cierre_anterior(db, caja, fecha)
+    return {"fecha_local": fecha, "zona_horaria": ZONA, "cajas": cajas, "propuestas_apertura": propuestas}
 
 
 def conciliar_caja_diaria(db):
@@ -245,7 +277,7 @@ def registrar_operacion(db, caja, tipo, entrada, usuario):
     momento = ahora_local()
     fecha = momento[:10]
     importe = None
-    motivo = getattr(entrada, "motivo", None)
+    motivo = (getattr(entrada, "motivo", None) or "").strip() or None
     resultado = {}
     if tipo == "apertura":
         if entrada.fecha.isoformat() != fecha:
@@ -257,6 +289,12 @@ def registrar_operacion(db, caja, tipo, entrada, usuario):
         jornada = db.execute("INSERT INTO pos_jornadas_caja (caja, fecha) VALUES (?, ?)",
                              (caja, fecha)).lastrowid
         importe = entrada.inicial_centavos
+        referencia = cierre_anterior(db, caja, fecha)
+        if referencia:
+            resultado.update(
+                referencia_anterior=referencia,
+                diferencia_centavos=importe - referencia["contado_centavos"],
+            )
     else:
         abierta = jornada_abierta(db, caja)
         if not abierta or abierta[0] != entrada.id_jornada:
@@ -277,13 +315,19 @@ def registrar_operacion(db, caja, tipo, entrada, usuario):
             if (not arqueo or arqueo["id_evento"] != entrada.id_arqueo
                     or arqueo["resultado"]["revision_efectivo"] != saldo["revision_efectivo"]):
                 raise HTTPException(409, "Se requiere el último arqueo y debe estar vigente.")
-            if arqueo["resultado"]["diferencia_centavos"] and usuario["rol"] != "admin":
-                raise HTTPException(403, "Administración debe autorizar el cierre con diferencia.")
+            alerta = arqueo["resultado"]["diferencia_centavos"] != 0
+            motivo = arqueo["motivo"] if alerta else None
+            if alerta and not (motivo or "").strip():
+                raise HTTPException(422, "Registrá un arqueo con una observación para la diferencia.")
             resultado = {"saldo": saldo, "arqueo": arqueo,
-                         "autorizado_por": usuario["id_usuario"] if arqueo["resultado"]["diferencia_centavos"] else None}
+                         "autorizado_por": None, "alerta_administracion": alerta}
             db.execute("UPDATE pos_jornadas_caja SET cerrada = 1 WHERE id_jornada = ?", (jornada,))
         else:
             exigir_jornada_actual(db, caja, fecha)
+            if not motivo:
+                raise HTTPException(422, "Indicá el motivo del movimiento.")
+            if tipo == "retiro" and entrada.importe_centavos > saldo_fisico(db, jornada)["esperado_centavos"]:
+                raise HTTPException(409, "La caja no tiene efectivo suficiente para el retiro.")
             importe = entrada.importe_centavos if tipo == "aporte" else -entrada.importe_centavos
     resultado.update(id_jornada=jornada, caja=caja, fecha_hora=momento)
     evento = guardar_evento(db, jornada, tipo, momento, usuario, importe=importe, motivo=motivo,

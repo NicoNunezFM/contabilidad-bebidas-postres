@@ -122,8 +122,8 @@ def iniciar_seguimiento(db, venta, usuario, *, entrada=None, estimacion=None, cl
     return numero
 
 
-def estimar_pedido(db, entrada):
-    estimacion = calcular_pedido_pos(db, entrada)
+def estimar_pedido(db, entrada, *, advertir_faltantes=False):
+    estimacion = calcular_pedido_pos(db, entrada, advertir_faltantes=advertir_faltantes)
     estimacion["entrega"] = entrada.entrega.model_dump()
     if entrada.envio:
         estimacion["envio"] = entrada.envio.model_dump()

@@ -23,7 +23,7 @@ from pos_menu_entrenamiento import personalizacion_menu, variante_menu
 from pos_pedidos import PedidoPos, calcular_pedido_pos, consultar_opciones_producto
 from productos import obtener_productos
 from pos_caja_diaria import (
-    Caja, caja_diaria_activa, estado_cajas, exigir_caja_diaria,
+    Caja, alertas_cierre, caja_diaria_activa, estado_cajas, exigir_caja_diaria,
     historial_caja, historial_eventos, registrar_operacion,
 )
 from pos_clientes import (
@@ -203,7 +203,10 @@ def usuario_actual(usuario: dict = Depends(exigir_usuario_pos)):
 
 
 @router.post("/pedidos/validar", dependencies=[Depends(comprobar_origen), Depends(exigir_usuario_pos)])
-def validar_pedido_pos(pedido: PedidoPos):
+def validar_pedido_pos(pedido: PedidoPos, advertir_faltantes: bool = False):
+    if advertir_faltantes:
+        with transaccion_simulacion() as db:
+            return {"ok": True, **calcular_pedido_pos(db, pedido, advertir_faltantes=True)}
     conexion = obtener_conexion()
     try:
         conexion.execute("PRAGMA query_only = ON")
@@ -285,6 +288,17 @@ def consultar_historial_caja_diaria(
         return historial_caja(db, caja, antes_de, limite)
 
 
+@diario.get("/alertas", dependencies=[Depends(evitar_cache_pos)])
+def consultar_alertas_diarias(
+    antes_de: int = Query(default=2**63 - 1, gt=0, le=2**63 - 1),
+    limite: int = Query(default=20, ge=1, le=50),
+    usuario: dict = Depends(exigir_administrador_pos),
+):
+    with transaccion_simulacion() as db:
+        exigir_caja_diaria(db)
+        return alertas_cierre(db, antes_de, limite)
+
+
 @diario.get("/{caja}/historial/{id_jornada}", dependencies=[Depends(evitar_cache_pos)])
 def consultar_eventos_caja_diaria(
     caja: Caja,
@@ -331,9 +345,11 @@ def cerrar_caja_diaria(
 
 @diario.post("/{caja}/movimientos", dependencies=[Depends(comprobar_origen)])
 def mover_caja_diaria(
-    caja: Caja, datos: MovimientoCajaEntrada, usuario: dict = Depends(exigir_administrador_pos),
+    caja: Caja, datos: MovimientoCajaEntrada, usuario: dict = Depends(exigir_usuario_pos),
     x_pos_usuario: int | None = Header(default=None),
 ):
+    if datos.tipo == "gasto" and usuario["rol"] != "admin":
+        raise HTTPException(403, "Administración debe registrar los gastos.")
     return operar_caja_diaria(caja, datos.tipo, datos, usuario, x_pos_usuario)
 
 
