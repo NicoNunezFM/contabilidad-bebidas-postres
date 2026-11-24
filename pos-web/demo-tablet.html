@@ -326,7 +326,17 @@ svg.ui-icon {
 }
 .dialog-header {display: flex; align-items: flex-start; justify-content: space-between; gap: 12px}
 #closeDialog {min-width: 44px; min-height: 44px; padding: 0; font-size: 27px; flex: none}
-.dialog .complemento-pos {display: flex; align-items: center; justify-content: space-between; gap: 12px}
+.dialog .complemento-pos, .dialog .extra-preparacion {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-width: 0;
+}
+.cantidad-pos {display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px}
+.cantidad-pos button {min-width: 48px; min-height: 48px; padding: 4px; font-size: 22px; touch-action: manipulation}
+.cantidad-pos output {min-width: 2ch; text-align: center; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums}
+.grupo-complemento {border: 1px solid currentColor; border-radius: 10px; padding: 0 10px}
+.grupo-complemento summary {min-height: 48px; padding: 12px 0; cursor: pointer; touch-action: manipulation; font-weight: 700}
+.grupo-complemento .complemento-pos {padding: 5px 0}
+.grupo-complemento summary:focus-visible, .cantidad-pos button:focus-visible {outline: 2px solid #d5a74a; outline-offset: 2px}
 .dialog input[type=number] {width: 5em; min-height: 44px}
 .dialog h3 {margin: 15px 0 5px}
 .check {display: flex; align-items: center; min-height: 49px; padding: 4px; border-bottom: 1px solid var(--line)}
