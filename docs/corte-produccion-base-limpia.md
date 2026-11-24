@@ -141,3 +141,22 @@ No continuar hasta dejar documentado qué libro conserva cada operación. Esta g
 - [ ] Backup externo y restore aislado verificados; contraseñas privadas recuperables o renovables.
 - [ ] Permisos, dispositivos, reinicio de Windows y recuperación tras corte de energía ensayados antes de operar.
 - [ ] Etapa de activación implementada y revisada por separado; ninguna operación autorizada por esta preparación.
+
+## Evidencia de preparación técnica
+
+- 30 controles de candidata aprobados en Windows sobre el código `760791f`:
+  esquema, catálogo/precios/promos, stock cero pendiente, roles inactivos, permisos privados reales,
+  errores de permisos sin DB ni credenciales, no reutilización, bloqueo SQL, apertura genérica incluso
+  renombrada, entorno con fuente ficticia ignorada, reinicio de procesos, restore aislado, snapshots
+  alterados/ajenos/con auxiliares/sin bloqueos rechazados. Repetidos tras el ajuste final de persistencia de backup.
+- Regresión sobre `2de5f47`: 47 aprobadas y 2 omitidas de navegador. Incluye database, catálogo comercial,
+  Abadion Pruebas, contabilidad POS, separación de cajas y usuarios. El cambio posterior sólo agrega
+  persistencia explícita de snapshot/manifiesto y cobertura Windows en CI; sus 30 controles fueron repetidos.
+  Total: **77 casos distintos aprobados**, sin sumar las repeticiones.
+- Instalador PowerShell real ensayado con código exportado por SHA `2de5f474fe8c89b3e7e92b37c1d1da38db0a2be2`
+  en un destino temporal nuevo: entornos y dependencias independientes, catálogo exacto, backup inicial,
+  permisos privados y candidata bloqueada. Ningún servidor iniciado.
+- Sintaxis Python/PowerShell y limpieza del diff comprobadas. Las suites de CI del PR deben revisarse
+  en su cabecera exacta; esta evidencia local no declara aprobada una ejecución remota pendiente.
+- No se ejecutaron reinicio físico de Windows, corte de energía, aceptación de saldos reales ni activación.
+  No se abrió ningún libro histórico ni instalación existente.
