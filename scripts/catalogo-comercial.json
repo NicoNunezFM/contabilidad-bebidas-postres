@@ -1,0 +1,285 @@
+{
+  "aviso": "Catálogo comercial Lo de Clau. Candidato para revisión y ensayo aislado; no aplicar a instalaciones existentes. Sin saldos iniciales. Especial conserva el nombre histórico Jamón y morrones.",
+  "combinar_sabores_promo": true,
+  "productos": [
+    {
+      "nombre": "Manaos Pomelo 600ml",
+      "categoria": "Bebidas",
+      "precio_centavos": 130000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Manaos Cola 600ml",
+      "categoria": "Bebidas",
+      "precio_centavos": 130000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Manaos Cola 2.25l",
+      "categoria": "Bebidas",
+      "precio_centavos": 200000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Manaos Naranja 2.25l",
+      "categoria": "Bebidas",
+      "precio_centavos": 200000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Manaos Manzana 2.25l",
+      "categoria": "Bebidas",
+      "precio_centavos": 200000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Manaos Pomelo 2.25l",
+      "categoria": "Bebidas",
+      "precio_centavos": 200000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Grande de pollo individual",
+      "categoria": "Sándwiches",
+      "precio_centavos": 750000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Grande de carne individual",
+      "categoria": "Sándwiches",
+      "precio_centavos": 850000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Chico de pollo + papas",
+      "categoria": "Sándwiches",
+      "precio_centavos": 700000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Chico de carne + papas",
+      "categoria": "Sándwiches",
+      "precio_centavos": 800000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Grande de pollo + papas",
+      "categoria": "Sándwiches",
+      "precio_centavos": 900000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Grande de carne + papas",
+      "categoria": "Sándwiches",
+      "precio_centavos": 1000000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Conos",
+      "categoria": "Conos",
+      "precio_centavos": 350000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Bandeja chica",
+      "categoria": "Conos",
+      "precio_centavos": 450000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Bandeja grande",
+      "categoria": "Conos",
+      "precio_centavos": 550000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Milanesa de pollo con fritas",
+      "categoria": "Al plato",
+      "precio_centavos": 900000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Milanesa de carne con fritas",
+      "categoria": "Al plato",
+      "precio_centavos": 1000000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Milanesa de pollo con puré",
+      "categoria": "Al plato",
+      "precio_centavos": 850000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Milanesa de carne con puré",
+      "categoria": "Al plato",
+      "precio_centavos": 950000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Napo de pollo con fritas",
+      "categoria": "Al plato",
+      "precio_centavos": 1050000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Napo de carne con fritas",
+      "categoria": "Al plato",
+      "precio_centavos": 1150000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Napo de pollo con puré",
+      "categoria": "Al plato",
+      "precio_centavos": 1000000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Napo de carne con puré",
+      "categoria": "Al plato",
+      "precio_centavos": 1100000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Tortilla",
+      "categoria": "Al plato",
+      "precio_centavos": 850000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Pollo con papas simple",
+      "categoria": "Hamburguesas",
+      "precio_centavos": 550000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Cheddar y huevo simple",
+      "categoria": "Hamburguesas",
+      "precio_centavos": 800000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Cheddar y huevo doble",
+      "categoria": "Hamburguesas",
+      "precio_centavos": 1000000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Clásica simple",
+      "categoria": "Hamburguesas",
+      "precio_centavos": 700000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Clásica doble",
+      "categoria": "Hamburguesas",
+      "precio_centavos": 900000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Chocotorta grande",
+      "categoria": "Postres",
+      "precio_centavos": 450000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Oreo grande",
+      "categoria": "Postres",
+      "precio_centavos": 450000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Chocotorta chica",
+      "categoria": "Postres",
+      "precio_centavos": 300000,
+      "controla_stock": false,
+      "stock_inicial": 0,
+      "promo_postres_chicos": true
+    },
+    {
+      "nombre": "Oreo chico",
+      "categoria": "Postres",
+      "precio_centavos": 300000,
+      "controla_stock": false,
+      "stock_inicial": 0,
+      "promo_postres_chicos": true
+    },
+    {
+      "nombre": "Mozzarella",
+      "categoria": "Pizzas",
+      "precio_centavos": 1000000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Jamón y morrones",
+      "categoria": "Pizzas",
+      "precio_centavos": 1200000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Pepitos chico",
+      "categoria": "Postres",
+      "precio_centavos": 300000,
+      "controla_stock": false,
+      "stock_inicial": 0,
+      "promo_postres_chicos": true
+    },
+    {
+      "nombre": "Pepitos grande",
+      "categoria": "Postres",
+      "precio_centavos": 450000,
+      "controla_stock": true,
+      "stock_inicial": 0
+    },
+    {
+      "nombre": "Fugazzeta",
+      "categoria": "Pizzas",
+      "precio_centavos": 1200000,
+      "controla_stock": false,
+      "stock_inicial": 0
+    }
+  ],
+  "adicionales": [
+    {
+      "nombre": "Cheddar extra",
+      "precio_centavos": 100000
+    },
+    {
+      "nombre": "Huevo extra",
+      "precio_centavos": 100000
+    }
+  ]
+}
