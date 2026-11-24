@@ -120,6 +120,20 @@ No se ejecuta el launcher instalado ni se pasan rutas persistentes. Los fixtures
 
 ## Resultados de ejecución
 
-Pruebas específicas del catálogo: **13 aprobadas**, incluidas API/SQLite, controles CLI/hash, Edge y worker real con reinicio y recuperación. Se repitieron las dos comprobaciones ampliadas de bajas y Edge después de agregar el control del adicional de práctica y la captura de escritorio. La regresión completa heredada está en ejecución; se actualizará este apartado con su resultado real.
+Código candidato: `a6df0a31249005ab14080cbc8473fcd726cc6d54`. El commit posterior sólo actualiza este informe.
+
+| Ejecución local Windows/Edge | Aprobadas | Omitidas | Fallidas |
+| --- | ---: | ---: | ---: |
+| Regresión completa heredada + 11 casos de catálogo recogidos al iniciarla | 417 | 0 | 0 |
+| Archivo de catálogo final, incluidos los dos controles añadidos | 13 | 0 | 0 |
+| Repetición final de bajas/adicional de práctica y Edge a 1440 × 1000 | 2 | 0 | 0 |
+| **Unión por clase y nombre de test** | **419 únicas** | **0** | **0** |
+
+Las filas se solapan: no sumar sus ejecuciones como casos distintos. La regresión completa terminó en 461,46 segundos; el archivo final en 40,53 segundos y las dos comprobaciones ampliadas en 9,80 segundos. La regresión comenzó antes de las dos incorporaciones y las ampliaciones finales del archivo; sus 13 casos finales y la repetición cubren esas diferencias. Permanecen dos avisos de deprecación FastAPI existentes, sin fallos.
+
+[CI del código exacto](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/45434201555): API/Python/SQLite **393 aprobadas y 26 omitidas**, job aprobado, incluida sintaxis Node. Las omisiones son principalmente casos de navegador que se ejecutan en Windows; no se contabilizan como aprobadas. Windows/Edge remoto todavía en ejecución al actualizar este informe; no se declara aprobado por anticipado. Edge local ya pasó en la regresión completa y en los casos específicos.
+
+La vista previa ficticia generada aparte enumera las tres altas y las cinco bajas esperadas, 38 variantes y el mismo SHA-256. No se aplicó el catálogo comercial a ninguna instalación existente. La captura local muestra Pepitos chico + Oreo chico, $6.000 bruto, total validado $5.000 y descuento $1.000. Las 38 variantes se agrupan en 19 tarjetas en el catálogo visual; esa agrupación no cambia el total comercial.
+
 
 Las primeras corridas de desarrollo detectaron errores en las pruebas nuevas (campo de descuento opcional, nombre de ruta de anulación y conteo de tarjetas agrupadas); se corrigieron sin cambiar el código contable ni la interfaz. La corrida restringida inicial se interrumpió porque el cliente de prueba quedó bloqueado; las verificaciones finales se ejecutan con conectividad local y Edge habilitados.
