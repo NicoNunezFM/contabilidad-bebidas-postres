@@ -42,7 +42,23 @@ Detiene y reinicia un proceso real con la misma base, compara esos informes e id
 
 ## Resultados y controles
 
-Resultados finales de la candidata: se completan en el commit de evidencia después de finalizar las ejecuciones locales y la CI de este PR. No se interpreta una ejecución en curso como aprobada. Las suites se solapan: contar casos por archivo/clase/nombre del XML, sin sumar repeticiones como casos nuevos.
+Código final: `4d4e71880aca751fc2866c5ffd9b282fee25a843`. Instalador corregido en `f01264e4f5087c7d38f4d4d5979aae28bf9aed90`: Windows oculta AppData, por eso la inspección de ancestros usa `Get-Item -Force`.
+
+| Ejecución local Windows / Edge real | Aprobadas | Omitidas | Fallidas en esa ejecución |
+|---|---:|---:|---:|
+| Regresión completa, XML `abadion-pruebas-regresion-final.xml` | 433 | 0 | 1: timeout al guardar PNG, después de aprobar las aserciones UI |
+| Archivo final nuevo, XML `abadion-pruebas-controles-final.xml` | 20 | 0 | 0 |
+| Repetición explícita con captura PNG, XML `abadion-pruebas-edge-repeticion.xml` | 1 | 0 | 0 |
+| Control final de activación repetida y fallos, XML `abadion-pruebas-actualizacion-idempotente.xml` | 6 | 0 | 0 |
+| Unión por archivo/clase/nombre | **439 casos únicos con aprobación** | **0 sin cubrir** | **0 pendientes tras repetición** |
+
+La regresión se recogió antes de agregar los últimos cinco casos del archivo nuevo; los 20 controles finales cubren esa ampliación. Las suites se solapan, por lo que no se suman las repeticiones como casos nuevos. El timeout de la captura queda registrado, no se presenta la regresión como una ejecución enteramente verde. La captura repetida se guardó y se inspeccionó: banda ABADION PRUEBAS, usuario admin-pruebas y catálogo agrupado.
+
+Además de pytest se ejecutó el **instalador PowerShell real** contra el commit `f01264e`, con LOCALAPPDATA redirigido a una carpeta temporal nueva y privada. Se instalaron dependencias y una versión desde `git archive`, se verificaron vista previa de 38 productos, aprobación SHA/ID exclusivamente ficticia, arranque sin ventana de navegador, estado autenticado, backup y detención. El wrapper PowerShell aceptó los argumentos de la guía.
+
+Se ejecutó después una actualización real por esos comandos desde `f01264e` a `1644e0d`, y rollback a `f01264e`, con dos entornos Python realmente instalados. Se comparó SHA-256 de la SQLite antes, después de actualizar y después de rollback: **idéntica**. Se reinició y detuvo la versión recuperada. La jornada con historial y stock posterior al cambio se verifica adicionalmente en pytest. El ajuste final `4d4e718` conserva también el destino anterior cuando se repite exactamente el mismo SHA; seis casos finales aprobados lo verifican, incluidos fallos y esquema candidato incompatible.
+
+CI remota comprobada: [ejecución 45440854188 del instalador corregido](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/45440854188), **SQLite/API 412 aprobadas, 27 omitidas**, más sintaxis Node aprobada; Windows/Edge todavía en ejecución al redactar esta evidencia. [CI del código final 4d4e718](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/45441672510) iniciada, sin declarar aprobación anticipada. El commit posterior de evidencia sólo cambia documentación y puede abrir otra ejecución. Revisar siempre la cabecera exacta del PR antes de instalar.
 
 La CI de #33, #34 y de la cabecera más reciente de #35 está aprobada en ambos trabajos. La CI de esta rama conserva `sqlite-ficticio` (Ubuntu, toda la suite sin Edge) y `pos-edge` (Windows/Edge); agrega el archivo nuevo a este último. El trabajo sin navegador omite los casos que requieren `POS_TEST_BROWSER`; esas omisiones se declaran por separado. El chequeo de sintaxis Node del bot no conecta WhatsApp.
 
@@ -53,3 +69,5 @@ Los hashes acreditan contenido y las órdenes registran aprobación explícita, 
 Las pruebas de fallo de descarga/dependencias usan una falla inyectada; no simulan todos los cortes de red o energía posibles. La activación comprueba integridad, UUID y esquema con el Python candidato en sólo lectura. No hay migraciones de esquema automáticas. Un rollback incompatible se detiene. La restauración crea otra carpeta y conserva el original para no perder silenciosamente operaciones posteriores al backup.
 
 Las versiones y snapshots no se eliminan automáticamente. No se hicieron pruebas táctiles físicas, reinicio del equipo, corte de energía, restauración externa en otra PC ni aceptación familiar. No se habilitó dinero real, WhatsApp ni producción.
+
+Huella SHA-256 del JSON comercial revisado: `36bb753a5980a9fa445728ae13471e56b7325edea047e9e4b48a98eecff43486`. La aprobación de una instalación nueva exige generar su propia vista previa y confirmar su UUID; esta huella no autoriza bases existentes.

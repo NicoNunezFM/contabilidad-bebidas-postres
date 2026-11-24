@@ -109,7 +109,7 @@ Revisar cambios y CI del SHA mostrado antes de activar:
 & $AtajoAbadion iniciar
 ```
 
-La actualización toma el bloqueo exclusivo y verifica la base actual; publica un backup y vuelve a validar hash, identidad e integridad. Exporta el commit a una carpeta de versión, instala dependencias en su propio entorno y comprueba hashes del código. El Python candidato abre la base en **sólo lectura** para validar UUID, esquema e integridad. Sólo entonces cambia `activa.json`. No ejecuta inicializadores ni modifica saldos, catálogo o historial. Un fallo de backup, instalación, código o esquema deja la versión activa anterior. No se actualiza con el servidor en uso. Conservar el mensaje que informa commit y nombre de backup.
+La actualización toma el bloqueo exclusivo y verifica la base actual; publica un backup y vuelve a validar hash, identidad e integridad. Exporta el commit a una carpeta de versión, instala dependencias en su propio entorno y comprueba hashes del código. El Python candidato abre la base en **sólo lectura** para validar UUID, esquema e integridad. Sólo entonces cambia `activa.json`. No ejecuta inicializadores ni modifica saldos, catálogo o historial. Un fallo de backup, instalación, código o esquema deja la versión activa anterior. No se actualiza con el servidor en uso. Repetir el mismo SHA conserva el destino anterior de rollback, después de verificar el backup y el candidato. Conservar el mensaje que informa commit y nombre de backup.
 
 ## 5. Volver a la versión anterior sin perder operaciones
 
