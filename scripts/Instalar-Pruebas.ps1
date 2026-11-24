@@ -14,12 +14,12 @@ if ($LASTEXITCODE -ne 0 -or $CambiosAbadion) { throw 'El código tiene cambios l
 $AncestroAbadion = $DestinoAbadion
 while ($AncestroAbadion) {
     if (Test-Path -LiteralPath $AncestroAbadion) {
-        if ((Get-Item -LiteralPath $AncestroAbadion).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'No se admiten enlaces en la ruta.' }
+        if ((Get-Item -Force -LiteralPath $AncestroAbadion).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'No se admiten enlaces en la ruta.' }
     }
     $AncestroAbadion = Split-Path -Parent $AncestroAbadion
 }
 New-Item -ItemType Directory -Path $DestinoAbadion | Out-Null
-if ((Get-Item -LiteralPath $DestinoAbadion).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'No se admiten enlaces.' }
+if ((Get-Item -Force -LiteralPath $DestinoAbadion).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'No se admiten enlaces.' }
 $UsuarioAbadion = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 & icacls.exe $DestinoAbadion /inheritance:r /grant:r "${UsuarioAbadion}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo restringir el acceso privado.' }
