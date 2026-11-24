@@ -142,6 +142,11 @@ def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, 
                             assert "exceptionDetails" not in resultado, resultado
                             return resultado["result"].get("value")
 
+                        def capturar():
+                            png = cdp("Page.captureScreenshot", format="png")
+                            return base64.b64decode(png["data"])
+
+                        evaluar.captura = capturar
                         if viewport:
                             cdp("Emulation.setDeviceMetricsOverride", width=viewport[0], height=viewport[1],
                                 deviceScaleFactor=1, mobile=True)
@@ -336,6 +341,7 @@ def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
     tocar_campo("#observacionMenu", "Bien cocida <sin salsa>")
     texto("#totalPersonalizado", "13.000")
     clic("#accept")
+    clic("#accept")
     clic("#resumenCocina")
     for detalle in ("Clásica doble", "Papas fritas dobles", "Sin tomate", "Cheddar extra en plato principal",
                     "Cheddar extra en papas fritas", "Bien cocida <sin salsa>"):
@@ -362,6 +368,7 @@ def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
     assert not evaluar("Boolean(document.querySelector('#opcionesReales select'))")
     assert evaluar("document.querySelector('#observacionMenu').value") == ""
     clic("#accept")
+    clic("#accept")
 
     clic("#validarPedido")
     texto("#estadoPedido", "22.000,00")
@@ -370,6 +377,114 @@ def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
     texto("#lineasCocina", "Entregar primero")
     texto("#lineasCocina", "Napo de carne con puré")
     assert evaluar("document.querySelector('#lineasCocina').children.length") == 2
+
+
+@pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
+def test_pos_web_comidas_complementos_y_cancelacion(controles_pos):
+    evaluar, clic, texto, _ = controles_pos
+
+    def agregar(nombre):
+        esperar(lambda: evaluar(f"""
+            (() => {{
+                const titulo = [...document.querySelectorAll('#cardsReal h3')]
+                    .find(t => t.textContent === {json.dumps(nombre)});
+                if (!titulo) return false;
+                titulo.closest('article').querySelector('button').focus();
+                titulo.closest('article').querySelector('button').click();
+                return true;
+            }})()
+        """))
+
+    def paso_complementos():
+        texto("#dialogTitle", "¿Querés agregar una bebida o un postre?")
+        texto("#ofertaComplementos", "Manaos Cola 600ml")
+        texto("#ofertaComplementos", "Oreo chico")
+
+    def captura(paso):
+        ruta = os.getenv("POS_UI_CAPTURAS")
+        if ruta:
+            carpeta = Path(ruta)
+            carpeta.mkdir(parents=True, exist_ok=True)
+            (carpeta / f"abadion-paso-{paso}.png").write_bytes(evaluar.captura())
+
+    texto("#cardsReal", "Milanesas al plato")
+    assert evaluar("[...document.querySelectorAll('#tabsReal button')].map(b => b.textContent.trim())") == [
+        "Todas", "Sándwiches", "Al plato", "Hamburguesas", "Pizzas", "Conos", "Postres", "Bebidas"
+    ]
+    assert evaluar("""
+        (() => {
+            const todas = [...document.querySelectorAll('#cardsReal h3')].map(h => h.textContent);
+            const botones = [...document.querySelectorAll('#tabsReal button')];
+            const agrupadas = botones.slice(1).flatMap(boton => {
+                boton.click();
+                return [...document.querySelectorAll('#cardsReal h3')].map(h => h.textContent);
+            });
+            botones[0].click();
+            return JSON.stringify(todas) === JSON.stringify(agrupadas);
+        })()
+    """)
+
+    agregar("Hamburguesas")
+    captura(1)
+    clic("#closeDialog")
+    assert evaluar("document.activeElement.closest('article')?.dataset.familia") == "Hamburguesas"
+
+    agregar("Hamburguesas")
+    clic("#accept")
+    texto("#totalPersonalizado", "Total por unidad")
+    captura(2)
+    clic('input[name="quitarReal"][value="Tomate"]')
+    evaluar("document.querySelector('#observacionMenu').value = 'Probar retroceso'")
+    clic("#accept")
+    paso_complementos()
+    evaluar("""
+        const bebida = document.querySelector('[aria-label="Cantidad de Manaos Cola 600ml"]');
+        bebida.value = 2;
+        bebida.dispatchEvent(new Event('input', {bubbles: true}));
+        const postre = document.querySelector('[aria-label="Cantidad de Oreo chico"]');
+        postre.value = 1;
+        postre.dispatchEvent(new Event('input', {bubbles: true}));
+    """)
+    captura(3)
+    clic("#dialogActions button:nth-child(3)")
+    texto("#totalPersonalizado", "Total por unidad")
+    assert evaluar("document.querySelector('#observacionMenu').value") == "Probar retroceso"
+    assert evaluar("document.querySelector('input[name=quitarReal][value=Tomate]').checked")
+    clic("#accept")
+    paso_complementos()
+    assert evaluar("document.querySelector('[aria-label=\"Cantidad de Manaos Cola 600ml\"]').value") == "2"
+    assert evaluar("document.querySelector('[aria-label=\"Cantidad de Oreo chico\"]').value") == "1"
+    evaluar("""
+        const confirmar = document.querySelector('#accept');
+        confirmar.click();
+        confirmar.click();
+    """)
+    texto("#lines", "Manaos Cola 600ml × 2")
+    texto("#lines", "Oreo chico × 1")
+    texto("#otherTotal", "5.600")
+    assert evaluar("document.querySelectorAll('#lines .row').length") == 3
+
+    for nombre, variantes in [("Sándwiches", True), ("Milanesas al plato", True),
+                              ("Mozzarella", False), ("Conos", False)]:
+        agregar(nombre)
+        if variantes:
+            clic("#accept")
+        texto("#totalPersonalizado", "Total por unidad")
+        clic("#accept")
+        paso_complementos()
+        clic("#closeDialog")
+        assert evaluar("document.querySelectorAll('#lines .row').length") == 3
+
+    agregar("Mozzarella")
+    texto("#totalPersonalizado", "Total por unidad")
+    evaluar("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))")
+    assert evaluar("document.querySelector('#overlay').hidden")
+
+    for nombre in ("Manaos Cola 600ml", "Oreo chico"):
+        agregar(nombre)
+        texto("#totalPersonalizado", "Total por unidad")
+        clic("#accept")
+        assert evaluar("document.querySelector('#overlay').hidden")
 
 
 @pytest.mark.parametrize("navegador_pos", ["caja_diaria"], indirect=True)
@@ -439,7 +554,7 @@ def test_pos_web_confirmacion_explicita_de_stock_faltante(controles_pos):
     with closing(obtener_conexion()) as db, db:
         db.execute("UPDATE productos SET stock = 0 WHERE nombre = 'Comida ficticia'")
     iniciar_sesion("ventas")
-    clic("#cardsReal .card:first-child button")
+    clic("#cardsReal .card:nth-child(2) button")
     clic("#accept")
     clic("#payments button:nth-child(2)")
     clic("#validarPedido")
