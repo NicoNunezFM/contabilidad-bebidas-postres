@@ -28,9 +28,12 @@ class PagoPos(BaseModel):
     medio_pago: Medio
     importe_centavos: Centavos
     referencia: str | None = Field(default=None, min_length=1, max_length=120)
+    envio_directo: bool = Field(default=False, strict=True, exclude_if=lambda v: not v)
 
     @model_validator(mode="after")
     def comprobar_receptor(self):
+        if self.envio_directo and self.medio_pago != 'efectivo':
+            raise ValueError('La retención directa del envío requiere efectivo.')
         if self.receptor.removesuffix(SUFIJO_TRANSITO).endswith("_efectivo") != (self.medio_pago == "efectivo"):
             raise ValueError("El efectivo requiere una caja y el pago digital una cuenta.")
         return self
@@ -278,7 +281,13 @@ def registrar_rendicion(conexion, id_cobro, entrada, usuario):
 
 
 def registrar_pagos(conexion, evento, venta, pagos):
+    from pos_delivery import existe as existe_delivery
     for pago in pagos:
+        if pago.referencia and existe_delivery(conexion) and conexion.execute(
+            'SELECT 1 FROM pos_delivery_movimientos WHERE receptor=? AND referencia=?',
+            (pago.receptor, pago.referencia),
+        ).fetchone():
+            raise HTTPException(409, "La referencia ya fue registrada para delivery en esa cuenta.")
         if pago.referencia and conexion.execute("""
             SELECT 1 FROM pos_movimientos_simulados WHERE receptor = ? AND referencia = ?
         """, (pago.receptor, pago.referencia)).fetchone():
@@ -308,6 +317,7 @@ def unidades_devueltas(conexion, id_venta):
 
 
 def estado_cuenta(conexion, venta, pedido, anulada=False):
+    from pos_delivery import es_sencillo, estado_delivery
     devengado = dict.fromkeys(SECCIONES, 0)
     devueltas = unidades_devueltas(conexion, venta)
     if not anulada:
@@ -328,7 +338,13 @@ def estado_cuenta(conexion, venta, pedido, anulada=False):
     atribuido = imputar(devengado, cobrado)
     total = sum(devengado.values())
     saldo = total - cobrado
+    delivery = estado_delivery(conexion, venta, pedido, anulada) if es_sencillo(pedido) else None
     return {
+        **({"delivery": delivery, "saldo_cliente_centavos": saldo + delivery["saldo_cliente_centavos"],
+            "estado_cliente": ('anulada' if anulada else 'devuelta' if total + delivery['cargo_centavos'] == 0
+                               else 'saldado' if saldo + delivery['saldo_cliente_centavos'] == 0
+                               else 'parcial' if cobrado + delivery['cobrado_centavos'] else 'pendiente'),
+            "total_cliente_centavos": total + delivery["cargo_centavos"]} if delivery is not None else {}),
         "importe_original_centavos": pedido["total_centavos"],
         "importe_vigente_centavos": total,
         "cobrado_centavos": cobrado,
@@ -359,6 +375,10 @@ def resumen_libro(conexion, *, hasta_periodo=None):
         WHERE periodo <= ?
         GROUP BY caja, receptor ORDER BY caja, receptor
     """, (periodo,)).fetchall()
+    from pos_delivery import resumen_delivery
+    custodia = {f['receptor']: f['custodia_centavos'] for f in resumen_delivery(conexion, periodo)}
+    saldos = [(caja, receptor, saldo - custodia.get(receptor, 0), cobros)
+              for caja, receptor, saldo, cobros in saldos]
     secciones = {}
     for caja, devengado, cobrado in zip(SECCIONES, (dev_comidas, dev_bebidas), (cob_comidas, cob_bebidas)):
         disponible = sum(saldo for seccion, _, saldo, _ in saldos if seccion == caja)
@@ -374,6 +394,8 @@ def resumen_libro(conexion, *, hasta_periodo=None):
         "secciones": secciones,
         "receptores": [
             {"caja": caja, "receptor": receptor, "saldo_centavos": saldo,
+             **({"fondos_delivery_centavos": custodia[receptor],
+                 "saldo_total_centavos": saldo + custodia[receptor]} if receptor in custodia else {}),
              "recibido_neto_centavos": cobros, "transferencia_neta_centavos": saldo - cobros}
             for caja, receptor, saldo, cobros in saldos
         ],

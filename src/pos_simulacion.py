@@ -20,7 +20,8 @@ from pos_cobros import (
 from pos_envios import CargoEnvio, resumen_fondos_reparto
 from pos_entrenamiento_db import clientes_activos
 from pos_pedidos import PedidoPos, calcular_pedido_pos
-from pos_seguimiento import AltaPedido, EntregaPedido, datos_conversion, estimar_pedido, iniciar_seguimiento
+from pos_seguimiento import AltaPedido, EntregaPedido, datos_conversion, estimar_pedido, iniciar_seguimiento, normalizar_envio_sencillo
+from pos_delivery import es_sencillo, registrar_pago_conjunto, reembolsar_delivery, resumen_delivery, historial_delivery
 
 
 ID_SQLITE_SIMULACION = 0x41425031
@@ -55,6 +56,7 @@ class VentaSimuladaEntrada(PedidoPos):
             raise ValueError("Indicá el cliente o identificador para registrar el fiado.")
         if self.entrega and self.entrega.modalidad == "retiro" and self.envio:
             raise ValueError("El cargo de envío requiere entrega a domicilio.")
+        self.envio = normalizar_envio_sencillo(self.entrega, self.envio)
         return self
 
 
@@ -268,11 +270,12 @@ def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estad
             if entrada.envio.titular == "negocio":
                 pedido["total_centavos"] += entrada.envio.importe_centavos
                 subtotales["comidas"] += entrada.envio.importe_centavos
-        if pedido["total_centavos"] != entrada.total_esperado_centavos:
+        total_cliente = pedido["total_centavos"] + (entrada.envio.importe_centavos if es_sencillo(pedido) else 0)
+        if total_cliente != entrada.total_esperado_centavos:
             raise HTTPException(409, {
                 "codigo": "TOTAL_MODIFICADO",
                 "mensaje": "Cambió el total. Volvé a validar el pedido.",
-                "total_centavos": pedido["total_centavos"],
+                "total_centavos": total_cliente,
             })
 
         faltantes = pedido.get("faltantes_stock", {})
@@ -316,8 +319,10 @@ def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estad
                         importe_centavos=subtotal)
                 for caja, subtotal in subtotales.items()
             ]
+            if es_sencillo(pedido) and entrada.envio.importe_centavos:
+                raise HTTPException(422, "Para delivery elegí el receptor real del cobro conjunto.")
         cobrado = sum(pago.importe_centavos for pago in pagos)
-        if cobrado > pedido["total_centavos"] or entrada.fiado != (cobrado < pedido["total_centavos"]):
+        if cobrado > total_cliente or entrada.fiado != (cobrado < total_cliente):
             raise HTTPException(422, "Los cobros deben cubrir el total o dejar un saldo en la modalidad fiada.")
         medios = {pago.medio_pago for pago in pagos}
         pedido["medio_pago"] = medios.pop() if len(medios) == 1 and not entrada.fiado else None
@@ -340,7 +345,7 @@ def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estad
             conexion.execute("INSERT INTO pos_ventas_clientes VALUES (?, ?)", (id_venta, entrada.id_cliente))
         evento, _ = iniciar_evento(conexion, "venta", usuario, entrada, id_venta, usar_uuid=False)
         try:
-            registrar_pagos(conexion, evento, id_venta, pagos)
+            registrar_pago_conjunto(conexion, evento, id_venta, pedido, pagos, usuario)
         except HTTPException as error:
             error.headers = {"X-POS-Resultado": "PAGO_RECHAZADO"}
             raise
@@ -371,9 +376,9 @@ def abonar_venta_simulada(id_venta, entrada, usuario):
         if previo is not None:
             return previo
         antes = estado_cuenta(conexion, id_venta, pedido, anulada)
-        if sum(pago.importe_centavos for pago in entrada.pagos) > antes["saldo_pendiente_centavos"]:
+        if sum(pago.importe_centavos for pago in entrada.pagos) > antes.get("saldo_cliente_centavos", antes["saldo_pendiente_centavos"]):
             raise HTTPException(409, "El abono supera el saldo pendiente.")
-        registrar_pagos(conexion, evento, id_venta, entrada.pagos)
+        registrar_pago_conjunto(conexion, evento, id_venta, pedido, entrada.pagos, usuario)
         despues = estado_cuenta(conexion, id_venta, pedido)
         return terminar_evento(conexion, evento, {"id_venta": id_venta, **despues}, antes=antes, despues=despues)
 
@@ -424,6 +429,8 @@ def revertir_venta_simulada(id_venta, entrada, usuario, *, tipo):
             raise HTTPException(409, "Falta un producto cuyo stock debe restaurarse.")
 
         devengado_restante = sum(estado_cuenta(conexion, id_venta, pedido)["devengado_centavos"].values())
+        reembolso_envio = (reembolsar_delivery(conexion, id_venta, pedido, usuario, evento)
+                           if not devengado_restante else 0)
         a_reembolsar = max(0, antes["cobrado_centavos"] - devengado_restante)
         reembolsado = a_reembolsar
         for movimiento, receptor, medio, disponible in pagos_reversibles(conexion, id_venta):
@@ -441,7 +448,7 @@ def revertir_venta_simulada(id_venta, entrada, usuario, *, tipo):
             """, (id_venta, usuario["id_usuario"], entrada.motivo))
         despues = estado_cuenta(conexion, id_venta, pedido, tipo == "anulacion")
         resultado = {"id_venta": id_venta, "anulada": tipo == "anulacion",
-                     "reembolsado_centavos": reembolsado, **despues}
+                     "reembolsado_centavos": reembolsado + reembolso_envio, **despues}
         return terminar_evento(conexion, evento, resultado, antes=antes, despues=despues)
 
 
@@ -457,7 +464,8 @@ def transferir_simulado(entrada, usuario):
         if fisica != entrada.destino.endswith("_efectivo") and caja_diaria_activa(conexion):
             raise HTTPException(422, "Elegí dos cajas físicas o dos cuentas digitales.")
         resumen = resumen_libro(conexion)
-        disponible = next((r["saldo_centavos"] for r in resumen["receptores"] if r["receptor"] == entrada.origen), 0)
+        disponible = next((min(r["saldo_centavos"], r.get("saldo_total_centavos", r["saldo_centavos"]))
+                           for r in resumen["receptores"] if r["receptor"] == entrada.origen), 0)
         por_distribuir = resumen["secciones"][destino]["por_distribuir_centavos"]
         if entrada.importe_centavos > min(disponible, por_distribuir):
             raise HTTPException(409, "La transferencia supera el saldo disponible o la distribución pendiente.")
@@ -554,6 +562,7 @@ def consultar_historial_simulado(usuario, antes_de, limite):
                       if pedido.get("envio", {}).get("titular") == "repartidor" else {})
             ventas.append({
                 **fondos, "id_venta": id_venta, "fecha": fecha, "id_usuario": autor, "anulada": anulador is not None,
+                **({"historial_delivery": historial_delivery(conexion, id_venta)} if es_sencillo(pedido) else {}),
                 "fiado_historico": bool(pedido.get("deudor") and not pedido.get("id_cliente")),
                 "anulacion": {"id_usuario": anulador, "fecha": fecha_anulacion, "motivo": motivo} if anulador else None,
                 **pedido, **estado_cuenta(conexion, id_venta, pedido, anulador is not None),
@@ -574,8 +583,10 @@ def consultar_cajas_simuladas(conexion=None, *, hasta_periodo=None):
         GROUP BY caja, medio_pago ORDER BY caja, medio_pago
     """, (resumen["periodo_abierto"],)).fetchall()
     fondos_reparto = resumen_fondos_reparto(conexion, periodo=resumen["periodo_abierto"])
+    delivery = resumen_delivery(conexion, resumen["periodo_abierto"])
     return {
         **resumen,
+        **({"delivery": delivery} if delivery else {}),
         **({"fondos_reparto": fondos_reparto} if fondos_reparto else {}),
         "saldos": [{"caja": caja, "medio_pago": medio, "saldo_centavos": saldo} for caja, medio, saldo in filas],
     }
