@@ -163,9 +163,9 @@ son tareas operativas pendientes; no se configura ninguna tarea programada ni ac
 Windows, Python 3.12.9: **336 casos únicos aprobados y 19 omitidos**, verificados por
 tramos. El tramo inicial aprobó 247 con 2 omitidos; desde compatibilidad de tablet hasta
 el final se aprobaron 91 con 17 omitidos, con 2 casos comunes entre tramos. La verificación
-de JavaScript mediante Node requiere `PYTHONUTF8=1` en esta PC. Los casos omitidos
-requieren herramientas/condiciones de navegador o laboratorio no disponibles para esas
-pruebas locales; no constituyen una aceptación visual de la candidata.
+de JavaScript mediante Node requiere `PYTHONUTF8=1` en esta PC. Los 19 casos visuales
+se omitieron al no estar configurado `POS_TEST_BROWSER` con Edge o Chrome para la
+ejecución local; no constituyen una aceptación visual de la candidata.
 
 Las **11 pruebas nuevas** cubren historial vacío, usuarios privados, stock cero,
 rechazo de rutas y bases ajenas, idempotencia de venta/compra, compra cruzada entre cajas,
