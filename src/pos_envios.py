@@ -2,7 +2,7 @@
 from typing import Literal
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pos_cobros import Centavos, ReversionEntrada, iniciar_evento, terminar_evento
 
@@ -16,7 +16,14 @@ class CargoEnvio(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     titular: Literal["negocio", "repartidor"]
-    importe_centavos: Centavos
+    importe_centavos: int = Field(strict=True, ge=0, le=310_000_000_000_000_000)
+    motivo_bonificacion: str | None = Field(default=None, min_length=1, max_length=300, exclude_if=lambda v: v is None)
+
+    @model_validator(mode="after")
+    def bonificacion(self):
+        if self.importe_centavos == 0 and not (self.motivo_bonificacion or "").strip():
+            raise ValueError("Indicá el motivo de la bonificación del envío.")
+        return self
 
 
 class MovimientoReparto(ReversionEntrada):
@@ -69,6 +76,8 @@ def resumen_fondos_reparto(db, *, periodo=None, id_venta=None):
 
 
 def registrar_fondo_reparto(db, id_venta, pedido, entrada, usuario, *, tipo, anulada=False):
+    if pedido.get("entrega", {}).get("circuito") == "sencillo":
+        raise HTTPException(409, "El delivery sencillo se cobra con la venta y se entrega al confirmar el reparto.")
     evento, previo = iniciar_evento(
         db, "transferencia_interna", usuario, entrada,
         contexto={"operacion_reparto": tipo, "id_venta": id_venta},

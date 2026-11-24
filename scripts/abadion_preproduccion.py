@@ -83,7 +83,7 @@ def crear_app(carpeta, detener=None, *, intervalo=3600):
         integridad(db)
     pagina = RUTA_POS.read_text(encoding="utf-8").replace("<title>Abadion POS", "<title>PREPRODUCCIÓN Abadion", 1)
     pagina = pagina.replace("</head>", ESTILO + "</head>", 1).replace("<body>",
-        '<body><p id="entrenamientoAviso">PREPRODUCCIÓN PERSISTENTE — DATOS FICTICIOS — SIN VALIDEZ CONTABLE</p>', 1)
+        '<body data-pedidos-sencillos="1"><p id="entrenamientoAviso">PREPRODUCCIÓN PERSISTENTE — DATOS FICTICIOS — SIN VALIDEZ CONTABLE</p>', 1)
 
     @asynccontextmanager
     async def vida(app):

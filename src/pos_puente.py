@@ -72,19 +72,28 @@ def conciliar_pos(conexion, pos):
         "SELECT id_evento FROM pos_fondos_reparto"
         if "pos_fondos_reparto" in tablas else "SELECT NULL WHERE 0"
     )
+    delivery = ("SELECT id_evento, id_movimiento, receptor, importe_centavos FROM pos_delivery_movimientos"
+                if "pos_delivery_movimientos" in tablas else "SELECT NULL, NULL, NULL, NULL WHERE 0")
     for evento, in conexion.execute(f"""
         WITH rendicion(id_evento, id_cobro, importe) AS ({rendiciones}),
-             reparto(id_evento) AS ({fondos})
+             reparto(id_evento) AS ({fondos}),
+             delivery(id_evento, id_movimiento, receptor, importe) AS ({delivery})
         SELECT e.id_evento FROM pos_eventos_simulados AS e
         LEFT JOIN pos_movimientos_simulados AS m USING (id_evento)
         LEFT JOIN rendicion AS r ON r.id_evento = e.id_evento
         LEFT JOIN reparto AS f ON f.id_evento = e.id_evento
+        LEFT JOIN delivery AS d ON d.id_evento = e.id_evento
         LEFT JOIN pos_movimientos_simulados AS origen ON origen.id_movimiento = r.id_cobro
         GROUP BY e.id_evento
         HAVING e.resultado IS NULL OR e.periodo > ?
-            OR COALESCE(SUM(m.importe_centavos), 0) <> e.cobrado_comidas + e.cobrado_bebidas
+            OR COALESCE(SUM(m.importe_centavos), 0) - CASE WHEN d.id_movimiento IS NOT NULL THEN d.importe ELSE 0 END <> e.cobrado_comidas + e.cobrado_bebidas
             OR SUM(m.id_venta IS NOT e.id_venta AND m.id_movimiento IS NOT NULL) > 0
             OR (e.tipo = 'transferencia_interna' AND NOT CASE
+                WHEN d.id_evento IS NOT NULL AND d.receptor='repartidor_directo' THEN COUNT(m.id_movimiento)=0 AND d.id_movimiento IS NULL
+                    AND r.id_evento IS NULL AND f.id_evento IS NULL
+                WHEN d.id_evento IS NOT NULL THEN COUNT(m.id_movimiento)=1 AND COUNT(m.medio_pago)=0
+                    AND m.id_movimiento=d.id_movimiento AND m.receptor=d.receptor
+                    AND m.importe_centavos=d.importe AND r.id_evento IS NULL AND f.id_evento IS NULL
                 WHEN f.id_evento IS NOT NULL THEN COUNT(m.id_movimiento) = 0 AND r.id_evento IS NULL
                 WHEN r.id_evento IS NOT NULL THEN
                     origen.id_movimiento IS NOT NULL AND origen.id_evento < e.id_evento
@@ -102,6 +111,8 @@ def conciliar_pos(conexion, pos):
         ORDER BY e.id_evento
     """, (pos["periodo_abierto"],)):
         diferencias.append({"codigo": "EVENTO_POS_DESCUADRADO", "id_evento": evento})
+    from pos_delivery import conciliar_delivery
+    diferencias.extend(conciliar_delivery(conexion))
 
     for movimiento, in conexion.execute("""
         SELECT m.id_movimiento

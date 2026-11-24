@@ -15,6 +15,7 @@ class EntregaPedido(BaseModel):
 
     origen: Literal["mostrador", "whatsapp"]
     modalidad: Literal["retiro", "envio"]
+    circuito: Literal["avanzado", "sencillo"] = Field(default="avanzado", exclude_if=lambda v: v == "avanzado")
     direccion: str | None = Field(default=None, min_length=1, max_length=250)
     referencias: str | None = Field(default=None, min_length=1, max_length=300)
     observacion: str | None = Field(default=None, min_length=1, max_length=300)
@@ -36,6 +37,7 @@ class AltaPedido(PedidoPos, SolicitudContable):
     def comprobar_envio(self):
         if self.envio and self.entrega.modalidad != "envio":
             raise ValueError("El cargo de envío requiere entrega a domicilio.")
+        self.envio = normalizar_envio_sencillo(self.entrega, self.envio)
         return self
 
 
@@ -45,6 +47,15 @@ class TransicionPedido(SolicitudContable):
     confirmar_pendiente: bool = Field(default=False, strict=True)
     saldo_confirmado_centavos: int | None = Field(default=None, strict=True, ge=0, le=2**63 - 1)
     motivo: str | None = Field(default=None, min_length=1, max_length=300)
+    receptor_reparto: str | None = Field(default=None, exclude_if=lambda v: v is None)
+
+
+def normalizar_envio_sencillo(entrega, envio):
+    if entrega and entrega.circuito == "sencillo" and entrega.modalidad == "envio":
+        envio = envio or CargoEnvio(titular="repartidor", importe_centavos=200_000)
+        if envio.titular != "repartidor":
+            raise ValueError("En el circuito sencillo el envío siempre corresponde al repartidor.")
+    return envio
 
 
 def columnas_seguimiento(db):
@@ -127,7 +138,7 @@ def estimar_pedido(db, entrada, *, advertir_faltantes=False):
     estimacion["entrega"] = entrada.entrega.model_dump()
     if entrada.envio:
         estimacion["envio"] = entrada.envio.model_dump()
-        if entrada.envio.titular == "negocio":
+        if entrada.envio.titular == "negocio" or entrada.entrega.circuito == "sencillo":
             estimacion["total_centavos"] += entrada.envio.importe_centavos
     return estimacion
 
@@ -178,8 +189,9 @@ def leer_pedido(db, venta, *, con_historial=True):
     saldo = (estado_cuenta(db, id_venta, pedido, anulada) if id_venta is not None else
              {"estado": "sin_venta", "saldo_pendiente_centavos": 0})
     envio = pedido.get("envio")
+    sencillo = pedido.get("entrega", {}).get("circuito") == "sencillo"
     pendiente_reparto = 0
-    if envio and envio["titular"] == "repartidor" and not anulada:
+    if envio and envio["titular"] == "repartidor" and not anulada and not sencillo:
         fondos = resumen_fondos_reparto(db, id_venta=id_venta) if id_venta is not None else []
         abonado = sum(f["recibido_centavos"] - f["reembolsado_centavos"]
                       + f.get("pagado_directo_centavos", 0) for f in fondos)
@@ -189,8 +201,11 @@ def leer_pedido(db, venta, *, con_historial=True):
         "total_estimado_centavos": json.loads(estimacion or datos)["total_centavos"], "estado": estado, "version": version, "fecha": fecha,
         **pedido["entrega"], "items": pedido["items"], "envio": pedido.get("envio"),
         "id_cliente": pedido.get("id_cliente"),
-        "estado_cobro": saldo["estado"], "saldo_pendiente_centavos": saldo["saldo_pendiente_centavos"],
+        "estado_cobro": saldo.get("estado_cliente", saldo["estado"]), "saldo_pendiente_centavos": saldo["saldo_pendiente_centavos"],
         "saldo_reparto_centavos": pendiente_reparto,
+        "circuito": pedido.get("entrega", {}).get("circuito", "avanzado"),
+        **({"delivery": saldo["delivery"], "saldo_cliente_centavos": saldo["saldo_cliente_centavos"]}
+           if "delivery" in saldo else {}),
     }
     if con_historial:
         resultado["historial"] = [
@@ -239,26 +254,40 @@ def cambiar_estado_pedido(db, venta, cambio, usuario):
     if pedido["version"] != cambio.version:
         raise HTTPException(409, "El pedido cambió. Actualizá su estado.")
     actual = pedido["estado"]
+    sencillo = pedido["circuito"] == "sencillo"
     siguiente = {
         "pendiente": "preparacion", "preparacion": "listo",
         "listo": "en_camino" if pedido["modalidad"] == "envio" else "entregado",
         "en_camino": "entregado",
     }.get(actual)
+    if sencillo and siguiente:
+        siguiente = "entregado"
     if cambio.estado == "cancelado":
         if usuario["rol"] != "admin":
             raise HTTPException(403, "Solo Administración puede cancelar pedidos.")
         if not cambio.motivo:
             raise HTTPException(422, "Indicá el motivo de la cancelación.")
+        if sencillo and pedido["id_venta"] is not None and pedido["estado_cobro"] not in ("anulada", "devuelta"):
+            raise HTTPException(409, "Anulá la venta y sus cobros antes de cancelar el pedido.")
     if siguiente is None or cambio.estado not in (siguiente, "cancelado"):
         raise HTTPException(409, "La transición no corresponde al estado actual.")
     saldo = (pedido["total_estimado_centavos"] if pedido["id_venta"] is None
-             else pedido["saldo_pendiente_centavos"]) + pedido["saldo_reparto_centavos"]
+             else pedido.get("saldo_cliente_centavos", pedido["saldo_pendiente_centavos"])) + pedido["saldo_reparto_centavos"]
+    if sencillo and cambio.estado == "entregado" and pedido["id_venta"] is None:
+        raise HTTPException(409, "Confirmá la venta antes de entregar el pedido.")
     if cambio.estado == "entregado" and saldo > 0 and (
         not cambio.confirmar_pendiente or cambio.saldo_confirmado_centavos != saldo
     ):
         raise HTTPException(409, {"codigo": "ENTREGA_CON_SALDO", "saldo_centavos": saldo})
+    if sencillo and cambio.estado == "entregado" and saldo > 0 and not cambio.motivo:
+        raise HTTPException(422, "Indicá el motivo de la entrega fiada.")
     if cambio.estado != "cancelado" and pedido["estado_cobro"] == "anulada":
         raise HTTPException(409, "La venta ya fue anulada.")
+    if sencillo and cambio.estado == "entregado" and pedido["estado_cobro"] == "devuelta":
+        raise HTTPException(409, "La venta fue devuelta por completo. Cancelá el pedido en lugar de entregarlo.")
+    if sencillo and cambio.estado == "entregado" and pedido.get("envio"):
+        from pos_delivery import entregar_delivery
+        entregar_delivery(db, pedido["id_venta"], cambio, usuario)
     version = cambio.version + 1
     db.execute("UPDATE pos_seguimiento_pedidos SET estado = ?, version = ? WHERE id_pedido = ?",
                (cambio.estado, version, venta))

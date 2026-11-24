@@ -11,6 +11,7 @@ from pos_cobros import (
     estado_cuenta, imputar, iniciar_evento, registrar_movimiento, registrar_pagos, terminar_evento,
 )
 from pos_simulacion import eventos_venta, transaccion_simulacion
+from pos_delivery import es_sencillo, existe as existe_delivery, mover as mover_delivery, registrar_pago_conjunto
 
 
 class AltaCliente(SolicitudContable):
@@ -143,7 +144,9 @@ def ficha_cliente(id_cliente):
         cliente = obtener_cliente(db, id_cliente)
         saldo = dict.fromkeys(SECCIONES, 0)
         ventas = []
+        deuda_delivery = 0
         for venta, fecha, pedido, estado in ventas_cliente(db, id_cliente):
+            deuda_delivery += estado.get('delivery', {}).get('saldo_cliente_centavos', 0)
             for seccion in SECCIONES:
                 saldo[seccion] += estado["pendiente_por_seccion_centavos"][seccion]
             ventas.append({"id_venta": venta, "fecha": fecha, "items": pedido["items"], **estado,
@@ -155,7 +158,8 @@ def ficha_cliente(id_cliente):
                 WHERE id_cliente = ? AND tipo <> 'alta' ORDER BY rowid DESC
             """, (id_cliente,))
         ]
-        return {**cliente, "saldo_centavos": sum(saldo.values()), "saldo_por_seccion_centavos": saldo,
+        return {**cliente, "saldo_centavos": sum(saldo.values()) + deuda_delivery, "saldo_por_seccion_centavos": saldo,
+                **({'saldo_delivery_centavos': deuda_delivery} if deuda_delivery else {}),
                 "ventas": ventas, "operaciones": operaciones}
 
 
@@ -163,7 +167,7 @@ def planificar(db, cliente, pago):
     pendiente = pago.importe_centavos
     plan = []
     for venta, _, pedido, estado in ventas_cliente(db, cliente):
-        importe = min(pendiente, estado["saldo_pendiente_centavos"])
+        importe = min(pendiente, estado.get("saldo_cliente_centavos", estado["saldo_pendiente_centavos"]))
         if importe <= 0:
             continue
         plan.append((venta, pedido, estado, importe))
@@ -178,9 +182,11 @@ def planificar(db, cliente, pago):
 def mostrar_plan(cliente, pago, plan):
     reparto = []
     for venta, _, estado, importe in plan:
-        atribuido = imputar(estado["devengado_centavos"], estado["cobrado_centavos"] + importe)
+        parte_productos = min(importe, estado['saldo_pendiente_centavos'])
+        atribuido = imputar(estado["devengado_centavos"], estado["cobrado_centavos"] + parte_productos)
         reparto.append({"id_venta": venta, "importe_centavos": importe,
-                        "saldo_anterior_centavos": estado["saldo_pendiente_centavos"],
+                        "saldo_anterior_centavos": estado.get("saldo_cliente_centavos", estado["saldo_pendiente_centavos"]),
+                        **({'delivery_centavos': importe - parte_productos} if 'delivery' in estado else {}),
                         "por_seccion_centavos": {
                             s: atribuido[s] - estado["cobrado_atribuido_centavos"][s] for s in SECCIONES
                         }})
@@ -215,7 +221,12 @@ def abonar_cliente(cliente, entrada, usuario):
             # El comprobante corresponde al cobro global. Solo una fila reserva su referencia única.
             parte = pago.model_copy(update={"importe_centavos": importe,
                                            "referencia": pago.referencia if indice == 0 else None})
-            registrar_pagos(db, evento, venta, [parte])
+            if es_sencillo(pedido):
+                registrar_pago_conjunto(db, evento, venta, pedido, [parte], usuario)
+            else:
+                if parte.envio_directo:
+                    raise HTTPException(422, 'La retención de efectivo corresponde al delivery sencillo.')
+                registrar_pagos(db, evento, venta, [parte])
             despues = estado_cuenta(db, venta, pedido)
             terminar_evento(db, evento, {"id_venta": venta, **despues}, antes=antes, despues=despues)
         return resultado
@@ -241,13 +252,27 @@ def corregir_abono(cliente, uuid_abono, entrada: ReversionEntrada, usuario):
             WHERE s.uuid = ? AND s.tipo = 'abono' AND s.id_cliente = ?
             ORDER BY m.id_movimiento
         """, (uuid_abono, cliente)).fetchall()
-        if not filas:
+        delivery = db.execute('''
+            SELECT d.id_evento, d.id_venta, d.receptor, d.importe_centavos FROM pos_delivery_movimientos d
+            JOIN pos_eventos_clientes c ON c.id_evento=d.id_evento_cobro
+            WHERE c.uuid=? AND d.tipo='recepcion' AND EXISTS (
+                SELECT 1 FROM pos_solicitudes_clientes WHERE uuid=c.uuid AND id_cliente=?)
+        ''', (uuid_abono, cliente)).fetchall() if existe_delivery(db) else []
+        if not filas and not delivery:
             raise HTTPException(404, "Abono global no encontrado.")
+        if db.execute("SELECT 1 FROM pos_solicitudes_clientes WHERE tipo='correccion' AND json_extract(resultado,'$.uuid_abono')=?",
+                      (uuid_abono,)).fetchone():
+            raise HTTPException(409, 'El abono ya fue corregido.')
         if any(anulada or revertido for *_, anulada, revertido in filas):
             raise HTTPException(409, "El abono ya fue corregido o tiene un reembolso asociado.")
         resultado = {"uuid_abono": uuid_abono, "motivo": entrada.motivo,
-                     "importe_centavos": sum(fila[4] for fila in filas)}
+                     "importe_centavos": sum(fila[4] for fila in filas) + sum(fila[3] for fila in delivery)}
         guardar_solicitud(db, "correccion", entrada, usuario, cliente, resultado)
+        for origen, venta, receptor, importe in delivery:
+            if db.execute('''SELECT 1 FROM pos_delivery_movimientos WHERE id_venta=? AND tipo='reembolso' ''', (venta,)).fetchone():
+                raise HTTPException(409, 'El envío ya tiene un reembolso; revisá el historial antes de corregirlo.')
+            mover_delivery(db, venta, 'reembolso', receptor, -importe, usuario,
+                           f'correccion:{entrada.id_solicitud}:{origen}', entrada.motivo)
         for movimiento, venta, receptor, medio, importe, pedido, _, _ in filas:
             datos = json.loads(pedido)
             antes = estado_cuenta(db, venta, datos)
