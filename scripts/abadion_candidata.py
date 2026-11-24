@@ -20,13 +20,14 @@ from pos_entrenamiento_db import comprobar_archivo
 from pos_preproduccion import integridad, leer_catalogo_preproduccion
 
 ARCHIVO = 'abadion-produccion-candidata.db'
-MODO = 'PRODUCCION-CANDIDATA-BLOQUEADA-V1'
+MODO = 'PRODUCCION-CANDIDATA-BLOQUEADA-V2'
 APP_ID = 0x41424331
 CATALOGO_SHA = '36bb753a5980a9fa445728ae13471e56b7325edea047e9e4b48a98eecff43486'
 CONFIG = {'productos', 'adicionales_catalogo', 'usuarios_pos',
           'pos_catalogo_entrenamiento', 'pos_adicionales_producto',
-          'pos_inicio_caja_diaria', 'candidata_corte', 'candidata_validaciones'}
-PENDIENTES = ('efectivo_comidas', 'efectivo_bebidas_postres', 'cuentas_digitales',
+          'pos_inicio_caja_diaria', 'candidata_corte', 'candidata_validaciones',
+          'pos_saldos_iniciales', 'pos_stock_progresivo'}
+PENDIENTES = ('saldo_comidas', 'saldo_bebidas_postres', 'conciliacion_sin_duplicados',
               'stock_controlado', 'deudas_vigentes', 'corte_y_exclusion_bot')
 
 
@@ -36,6 +37,13 @@ def huella(path):
 
 def ruta_segura(path):
     path = Path(path).absolute()
+    if '..' in path.parts:
+        raise ValueError('No se admiten rutas indirectas.')
+    # Expand Windows 8.3 names only after rejecting every indirect ancestor.
+    for item in (path, *path.parents):
+        if item.exists() and (item.is_symlink() or item.is_junction()):
+            raise ValueError('No se admiten enlaces ni junctions.')
+    path = path.resolve()
     if (path.name != 'ProduccionCandidata' or path.resolve() != path
             or str(path).startswith(('\\\\', '//'))
             or any(p.casefold().startswith('onedrive') for p in path.parts)):
@@ -112,6 +120,10 @@ def validar_db(db):
     if (db.execute('PRAGMA application_id').fetchone()[0] != APP_ID
             or db.execute('PRAGMA user_version').fetchone()[0] != VERSION_ESQUEMA_SIMULACION):
         raise ValueError('Identidad o esquema ajeno.')
+    if db.execute('SELECT * FROM pos_saldos_iniciales ORDER BY caja').fetchall() != [('bebidas_postres', None, None, None), ('comidas', None, None, None)]:
+        raise ValueError('Saldos unificados deben continuar desconocidos.')
+    if db.execute('SELECT id_producto,habilitado FROM pos_stock_progresivo ORDER BY id_producto').fetchall() != [(p,0) for p, in db.execute("SELECT id_producto FROM productos WHERE lower(trim(categoria))='bebidas' ORDER BY id_producto")]:
+        raise ValueError('Bebidas deben continuar sin reposición validada.')
     corte = db.execute('SELECT * FROM candidata_corte').fetchall()
     if len(corte) != 1 or corte[0][1] != MODO or corte[0][3] is not None or corte[0][4] != CATALOGO_SHA:
         raise ValueError('Corte no pendiente o catálogo ajeno.')
@@ -183,6 +195,8 @@ def preparar(path):
             db.execute('DELETE FROM usuarios_pos')
             db.executemany('INSERT INTO usuarios_pos(usuario,rol,password_hash,activo) VALUES (?,?,?,0)',
                            [(u, r, generar_hash(p)) for u, r, p in usuarios])
+            from pos_saldo_unificado import crear_esquema
+            crear_esquema(db)
             db.execute('CREATE TABLE candidata_corte(id TEXT PRIMARY KEY, modo TEXT NOT NULL, preparada_utc TEXT NOT NULL, corte_efectivo TEXT, catalogo_sha256 TEXT NOT NULL)')
             db.execute('INSERT INTO candidata_corte VALUES (?,?,?,NULL,?)',
                        (str(uuid4()), MODO, datetime.now(timezone.utc).isoformat(), CATALOGO_SHA))

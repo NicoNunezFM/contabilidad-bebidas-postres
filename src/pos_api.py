@@ -40,6 +40,9 @@ from pos_cobros import (
 from pos_contabilidad import calcular_periodo, corte_contable, etapa_contable_activa, fecha_local
 from pos_compras_caja import CompraCajaEntrada, ReversoCompraCaja, listar_compras_caja, operar_compra
 from pos_puente import consultar_puente_ficticio
+from pos_saldo_unificado import (
+    PagoDeuda, ValidarReposicion, pagar_deuda, resumen as resumen_unificado, validar_reposicion,
+)
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
     VentaSimuladaEntrada,
@@ -220,6 +223,9 @@ def validar_pedido_pos(pedido: PedidoPos, advertir_faltantes: bool = False):
 def estado_simulacion_pos():
     with transaccion_simulacion() as db:
         estado = {"ok": True, "simulacion": True}
+        from pos_saldo_unificado import existe
+        if existe(db):
+            estado["saldo_unificado"] = True
         if caja_diaria_activa(db):
             estado["caja_diaria"] = True
         if etapa_contable_activa(db):
@@ -771,6 +777,13 @@ def consultar_productos_pos(request: Request):
     if RUTA_ENTRENAMIENTO.get() is not None:
         with closing(obtener_conexion()) as db:
             opciones = consultar_catalogo_entrenamiento(db)
+            from pos_saldo_unificado import existe
+            if existe(db):
+                bloqueadas = {p for p, in db.execute("SELECT p.id_producto FROM productos p LEFT JOIN pos_stock_progresivo s USING(id_producto) WHERE lower(trim(p.categoria))='bebidas' AND COALESCE(s.habilitado,0)=0")}
+                for p in productos:
+                    if p['id_producto'] in bloqueadas or (p['categoria'].strip().lower() in ('postres','bebidas') and p['stock'] <= 0):
+                        anterior = opciones.get(p['id_producto'], ('disponible', None))
+                        opciones[p['id_producto']] = ('sin_stock', anterior[1])
         productos = [
             dict(producto, estado_entrenamiento=estado, promo_postres_chicos=grupo is not None,
                  **({"familia_menu": familia, "variante_menu": variante} if familia else {}))
@@ -1078,3 +1091,25 @@ def actualizar_precio_adicional_pos(
 
     finally:
         conexion.close()
+
+
+@router.get("/simulacion/saldo-unificado", dependencies=[Depends(evitar_cache_pos)])
+def consultar_saldo_unificado(usuario: dict = Depends(exigir_usuario_pos)):
+    with transaccion_simulacion() as db:
+        return resumen_unificado(db)
+
+
+@router.post("/simulacion/saldo-unificado/deudas/{numero}/pago", dependencies=[Depends(comprobar_origen)])
+def pagar_deuda_apertura(numero: int, datos: PagoDeuda, usuario: dict = Depends(exigir_administrador_pos),
+                        x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return pagar_deuda(db, numero, datos, usuario)
+
+
+@router.post("/simulacion/saldo-unificado/bebidas/{producto}/validar", dependencies=[Depends(comprobar_origen)])
+def validar_stock_bebida(producto: int, datos: ValidarReposicion, usuario: dict = Depends(exigir_administrador_pos),
+                       x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return validar_reposicion(db, producto, datos, usuario)

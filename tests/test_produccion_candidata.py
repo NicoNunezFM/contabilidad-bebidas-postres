@@ -39,7 +39,9 @@ def test_vacia_catalogo_roles_y_corte(candidata):
 
 @pytest.mark.parametrize('table', ['ventas', 'compras', 'gastos', 'movimientos_caja',
     'cuentas_deuda_negocio', 'pos_ventas_simuladas', 'pos_diario_caja',
-    'productos', 'usuarios_pos', 'candidata_corte', 'candidata_validaciones'])
+    'productos', 'usuarios_pos', 'candidata_corte', 'candidata_validaciones',
+    'pos_saldos_iniciales', 'pos_deudas_apertura', 'pos_pagos_deuda_apertura',
+    'pos_stock_progresivo', 'pos_validaciones_stock'])
 def test_sql_directo_bloqueado(candidata, table):
     before = c.huella(candidata / c.ARCHIVO)
     with closing(sqlite3.connect(candidata / c.ARCHIVO)) as db:
@@ -194,3 +196,22 @@ def test_catalogo_exportado_independiente_de_autocrlf():
         '--format=zip', 'HEAD', 'scripts/catalogo-comercial.json'], cwd=c.ROOT)
     with zipfile.ZipFile(io.BytesIO(archive)) as content:
         assert c.hashlib.sha256(content.read('scripts/catalogo-comercial.json')).hexdigest() == c.CATALOGO_SHA
+
+
+def test_saldos_y_deudas_no_precargados(candidata):
+    with closing(c.abrir(candidata)) as db:
+        assert db.execute('SELECT * FROM pos_saldos_iniciales ORDER BY caja').fetchall() == [
+            ('bebidas_postres', None, None, None), ('comidas', None, None, None)]
+        for tabla in ('pos_deudas_apertura','pos_pagos_deuda_apertura','pos_validaciones_stock'):
+            assert db.execute(f'SELECT COUNT(*) FROM {tabla}').fetchone() == (0,)
+        assert not db.execute('SELECT 1 FROM pos_stock_progresivo WHERE habilitado<>0').fetchall()
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Alias 8.3 de Windows')
+def test_ruta_temporal_windows_abreviada(candidata):
+    import ctypes
+    buffer = ctypes.create_unicode_buffer(32768)
+    assert ctypes.windll.kernel32.GetShortPathNameW(str(candidata.parent), buffer, len(buffer))
+    alias = Path(buffer.value) / 'ProduccionCandidata'
+    assert c.ruta_segura(alias) == candidata.resolve()
+    assert c.comprobar(alias)['habilitada'] is False

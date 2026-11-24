@@ -153,6 +153,8 @@ def calcular_pedido_pos(conexion, pedido, *, advertir_faltantes=False):
             raise HTTPException(404, f"Producto no encontrado (ID {id_producto}).")
 
         nombre, categoria, precio, stock, controla_stock = producto
+        from pos_saldo_unificado import validar_stock
+        validar_stock(conexion, id_producto, categoria, stock, cantidad, controla_stock)
         estado, grupo = opciones.get(id_producto, ("disponible", None))
         if estado == "sin_stock":
             raise HTTPException(409, f"Sin stock: {nombre}.")

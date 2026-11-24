@@ -31,7 +31,9 @@ su nombre no significa que se hayan importado prácticas. Se eliminan las identi
 - Roles Administración y Ventas con contraseñas aleatorias y hash PBKDF2; ambas cuentas deshabilitadas.
   Las credenciales quedan exclusivamente en la carpeta privada. No se imprimen, suben ni incluyen en snapshots.
 - Esquema para cajas `comidas` (Rotisería) y `bebidas_postres` (Postres/Bebidas), sin jornadas abiertas.
-  Efectivo y cuentas digitales siguen diferenciados por receptor; los fondos del repartidor no son ingreso propio.
+  Un saldo unificado por sector, sin abrir efectivo/cuentas en la interfaz. Los medios históricos se
+  conservan en los registros existentes; un cobro nuevo unificado usa receptor propio sin atribuirle un
+  medio físico o digital que nadie declaró. Los fondos del repartidor no son ingreso propio.
 - Marca de preparación UTC y `corte_efectivo=NULL`. Seis validaciones pendientes sin importes precargados.
 - Bloqueos INSERT/UPDATE/DELETE para todas las tablas, incluidas configuración y aceptación.
   La conexión general también rechaza el identificador o marcador de candidata, incluso renombrada.
@@ -94,12 +96,15 @@ Una implementación posterior deberá registrar responsable, evidencia privada, 
 UUID, versión, hash de catálogo y aprobación de cada rubro en una transacción. Este cambio no implementa
 esa habilitación ni permite sustituirla por una casilla o variable de entorno.
 
-1. Contar por separado efectivo real de Rotisería y de Postres/Bebidas, con hora y responsable.
-2. Conciliar todas las cuentas digitales vigentes con extractos a la misma hora. Identificar titular/cuenta,
-   fondos pendientes, transferencias en tránsito y asignación por caja. Una cuenta compartida se cuenta una sola vez;
-   la suma de sus asignaciones debe coincidir con el extracto. Confirmar ceros expresamente; desconocido no es cero.
-3. Contar las nueve variantes controladas; registrar fecha y cada cantidad, diferencias y agotados.
-   Revisar y aceptar el modelo de las otras 29 y decidir si requieren control adicional antes de vender.
+1. Confirmar **un saldo total de Rotisería y un saldo total de Postres y Bebidas**, a la misma hora,
+   con responsable y evidencia privada. No exigir desglose efectivo/virtual en la pantalla de apertura.
+2. Conciliar privadamente el origen de esos totales y excluir fondos de terceros o en tránsito. Una cuenta
+   compartida se cuenta una sola vez; sus asignaciones deben sumar su saldo conciliado. No sumar al total
+   de apertura los componentes que ya incluye. Confirmar ceros expresamente; desconocido no es cero.
+3. Contar los seis SKU de postres por separado; registrar fecha, cantidad, diferencias y agotados.
+   Mantener bebidas bloqueadas hasta reposición registrada, conteo positivo por SKU y validación de
+   Administración con referencia. Stock técnico cero y control pendiente no significan existencia.
+   Rotisería mantiene su modelo sin inventario por ingrediente, sujeto a aceptación expresa.
 4. Relevar obligaciones pendientes y créditos a cobrar, contrapartes, concepto, sección, moneda y saldo al corte.
    Si no existen, confirmar una lista vacía expresamente. Conservar comprobantes en privado.
    Es una foto de apertura nueva, **no importar ventas/compras/gastos antiguos** ni recalcular ingresos históricos.
@@ -135,7 +140,7 @@ No continuar hasta dejar documentado qué libro conserva cada operación. Esta g
 - [ ] Carpeta exclusiva local y ACL comprobadas; ninguna instalación existente reutilizada.
 - [ ] Identidad propia, 38 variantes y hash correctos; cero transacciones; usuarios inactivos.
 - [ ] Fecha de corte efectiva sigue pendiente hasta la confirmación real.
-- [ ] Efectivo de ambas cajas y totalidad de cuentas digitales conciliados y aprobados.
+- [ ] Dos saldos unificados conciliados y aprobados, sin repetir componentes ni incluir custodia de terceros.
 - [ ] Stock físico y modelo de control aceptados; deudas y créditos vigentes relevados expresamente.
 - [ ] Bot contable excluido y pendientes asignados a un solo libro.
 - [ ] Backup externo y restore aislado verificados; contraseñas privadas recuperables o renovables.
@@ -165,3 +170,79 @@ No continuar hasta dejar documentado qué libro conserva cada operación. Esta g
   exportados, sin cambiar productos ni precios. Se añadió un control de `git archive` con autocrlf deshabilitado.
   El ensayo persistente Windows del código `760791f` también aprobó preparación, dos procesos nuevos,
   restore aislado y rechazo de reutilización; la SQLite original conservó su hash.
+
+
+## Continuación de Work: dos saldos y control progresivo (24/11/2026)
+
+Se mantiene el mismo PR borrador #37, basado en #36: la UX y la contabilidad completan la candidata
+bloqueada que ese PR prepara. No se fusiona ninguna rama. La candidata V2 se crea en un destino nuevo;
+no hay migración ni actualización automática de candidatas V1 o instalaciones de Pruebas.
+
+La revisión inicial de la CI `45475795367` encontró Linux aprobado, Edge aprobado y candidata Windows
+fallida. La causa fue el directorio temporal abreviado 8.3 (`RUNNER~1`), distinto de su ruta resuelta.
+El creador ahora rechaza enlaces/junctions **antes** de resolver el nombre abreviado; sigue rechazando
+rutas sincronizadas y destinos existentes. No se debilita la ACL privada para acomodar al entorno.
+
+La V2 prepara dos filas de saldos **NULL**, sin corte ni responsable; cero deudas de apertura y cero pagos.
+Todos los bloqueos SQL se conservan, también sobre las tablas nuevas. Las API operativas continúan
+aceptando exclusivamente identidades ficticias existentes; la conexión general rechaza la candidata.
+No hay ruta para cargar saldos reales, fijar el corte ni habilitarla. Los escenarios con apertura y deuda
+se construyen únicamente en fixtures temporales de ensayo.
+
+El resumen presenta dos saldos propios y la custodia del repartidor por separado. Incluye cobros,
+reversos, compras/reintegros y movimientos manuales una sola vez. La apertura no integra ingresos,
+compras, gastos, resultado ni base del diezmo. El pago único de una deuda de apertura exige el saldo
+completo, fondos en el sector responsable, sesión de Administración, motivo y UUID idempotente.
+Guarda autor, fecha y solicitud; reduce disponible y pendiente sin repetir el gasto original.
+No se implementó corrección/anulación de ese pago: queda pendiente definir un reverso auditable antes
+de aceptar un circuito productivo de pagos de deuda. Nunca corregirlo borrando filas.
+
+Compatibilidad interna: los receptores nuevos terminan en `_saldo_unificado`. El medio del movimiento
+SQLite queda NULL (no identificado), mientras la solicitud y el pedido conservan `saldo_unificado`.
+Los informes y la conciliación reconocen estos cobros por receptor y venta vinculada. NULL en una
+transferencia o entrega de delivery sigue teniendo su significado anterior. No se recodifica ningún
+movimiento histórico como unificado, efectivo o transferencia.
+
+Postres se descuentan por SKU en la transacción de venta; una anulación devuelve sólo lo descontado.
+La política nueva impide confirmar faltantes por API. Una bebida sin reposición validada se rechaza
+aunque una pantalla antigua la envíe. Registrar una compra repone stock y paga desde una de las dos
+cajas; no habilita automáticamente bebidas. La acción de Administración compara el conteo positivo
+con la existencia registrada y deja referencia, autor y fecha antes de habilitar ese SKU.
+
+Los datos financieros y de stock informados en la conversación son **referencias privadas pendientes**.
+No se incorporan al catálogo, fixtures, base candidata ni código del repositorio. En el corte se deberán
+reconfirmar ambos saldos, ausencia de fiados, deuda sólo de Rotisería con pago único y vencimiento,
+los seis conteos de postres y la ausencia inicial de bebidas. Ninguna venta anterior al instante efectivo
+se importa o se registra de nuevo; las obligaciones anteriores se representan sólo por su saldo de apertura.
+
+### Condiciones pendientes para el 25/11/2026
+
+El 25/11 es una fecha potencial, **no una habilitación viable sin completar estas condiciones**:
+
+- [ ] Revisión humana y CI verde del SHA exacto, incluyendo Windows/Edge.
+- [ ] Reconformar datos a la hora real del corte en Buenos Aires, identidad y responsable.
+- [ ] Implementar/revisar por separado el registro atómico de apertura y el mecanismo de activación.
+- [ ] Resolver aceptación del reverso auditable de pagos de deuda y el cierre operativo de saldo unificado.
+- [ ] Ensayar fiados, delivery, permisos individuales, recuperación, dispositivos y reinicio físico de Windows.
+- [ ] Confirmar exclusión del bot y asignar cada pendiente a un único libro. No tocar el bot para comprobarlo.
+- [ ] Aprobación explícita de corte, importes, conteos, respaldos y posterior habilitación.
+
+La jornada física anterior sigue disponible sólo para compatibilidad de instalaciones ficticias existentes;
+la pantalla unificada no ofrece arqueo separado por medio. El cierre operativo definitivo del saldo total
+requiere una revisión propia: no presentar un arqueo de efectivo como cierre del saldo unificado.
+
+
+### Evidencia local de esta continuación
+
+- Ensayo completo SQLite/API: 449 aprobadas, 30 omitidas y dos diferencias de contrato en el estado
+  público de instalaciones anteriores. Ambas tenían la misma causa: agregar `saldo_unificado:false`.
+  Se corrigió omitiendo el campo cuando el modelo no existe; ambos casos pasaron al repetirse.
+- Verificación focal final: **49 aprobadas** sobre candidata, saldos, deuda, stock, corte con zona horaria,
+  concurrencia, sesión cambiada y Edge. Incluye uno de los dos casos anteriores; el otro pasó por separado.
+  No sumar estas cifras como casos únicos ni atribuir a la ejecución inicial las pruebas agregadas después.
+- Edge con perfil temporal: dos saldos sin desglose por medio, venta de postre confirmada con doble clic
+  una sola vez, saldo actualizado y captura `abadion-paso-saldo-unificado.png` con datos ficticios.
+- Candidata: 38 controles específicos, incluidos cinco nuevos bloqueos SQL, filas de apertura NULL,
+  bebidas no habilitadas, permisos privados Windows y alias de ruta 8.3. Backup/restore siguen bloqueados.
+- Sintaxis Python y diff verificados; demo estática generada comparada con su fuente, sin diferencias.
+- CI remota debe verificar de nuevo el commit publicado; ningún resultado local habilita Producción.

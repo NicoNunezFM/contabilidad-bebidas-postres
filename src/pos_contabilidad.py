@@ -137,7 +137,7 @@ def calcular_periodo(db, desde, hasta):
             SELECT m.receptor, m.medio_pago, SUM(m.importe_centavos)
             FROM pos_movimientos_simulados AS m JOIN pos_eventos_simulados AS e USING (id_evento)
             WHERE e.id_evento > ? AND date(e.fecha, '-3 hours') BETWEEN ? AND ?
-              AND m.medio_pago IS NOT NULL
+              AND (m.medio_pago IS NOT NULL OR m.receptor LIKE '%_saldo_unificado' AND m.id_venta IS NOT NULL)
             GROUP BY m.receptor, m.medio_pago ORDER BY m.receptor, m.medio_pago
         """, eventos)
     ]

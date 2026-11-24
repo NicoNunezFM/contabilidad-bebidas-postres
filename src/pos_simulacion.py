@@ -214,6 +214,9 @@ def transaccion_simulacion(*, escritura=False):
             conexion.execute("PRAGMA query_only = ON")
         with conexion:
             conexion.execute("BEGIN IMMEDIATE" if escritura else "BEGIN")
+            from pos_saldo_unificado import existe, exigir
+            if escritura and existe(conexion):
+                exigir(conexion)
             yield conexion
     finally:
         conexion.close()
@@ -579,7 +582,7 @@ def consultar_cajas_simuladas(conexion=None, *, hasta_periodo=None):
     filas = conexion.execute("""
         SELECT caja, medio_pago, SUM(importe_centavos) FROM pos_movimientos_simulados
         JOIN pos_eventos_simulados USING (id_evento)
-        WHERE medio_pago IS NOT NULL AND periodo <= ?
+        WHERE (medio_pago IS NOT NULL OR receptor LIKE '%_saldo_unificado' AND pos_movimientos_simulados.id_venta IS NOT NULL) AND periodo <= ?
         GROUP BY caja, medio_pago ORDER BY caja, medio_pago
     """, (resumen["periodo_abierto"],)).fetchall()
     fondos_reparto = resumen_fondos_reparto(conexion, periodo=resumen["periodo_abierto"])

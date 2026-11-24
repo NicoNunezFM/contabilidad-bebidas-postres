@@ -9,8 +9,9 @@ from pos_caja_diaria import vincular_movimiento_pos
 
 
 Seccion = Literal["comidas", "bebidas_postres"]
-Medio = Literal["efectivo", "transferencia", "mercado_pago"]
+Medio = Literal["efectivo", "transferencia", "mercado_pago", "saldo_unificado"]
 Receptor = Literal[
+    "comidas_saldo_unificado", "bebidas_postres_saldo_unificado",
     "comidas_efectivo", "comidas_banco", "comidas_mercado_pago",
     "bebidas_postres_efectivo", "bebidas_postres_banco", "bebidas_postres_mercado_pago",
 ]
@@ -32,6 +33,8 @@ class PagoPos(BaseModel):
 
     @model_validator(mode="after")
     def comprobar_receptor(self):
+        if (self.medio_pago == "saldo_unificado") != self.receptor.endswith("_saldo_unificado"):
+            raise ValueError("El saldo unificado requiere su caja responsable.")
         if self.envio_directo and self.medio_pago != 'efectivo':
             raise ValueError('La retención directa del envío requiere efectivo.')
         if self.receptor.removesuffix(SUFIJO_TRANSITO).endswith("_efectivo") != (self.medio_pago == "efectivo"):
@@ -210,6 +213,9 @@ def registrar_movimiento(conexion, evento, venta, receptor, medio, importe, *, r
 
 
 def _insertar_movimiento(conexion, evento, venta, receptor, medio, importe, referencia, revierte):
+    if receptor.endswith("_saldo_unificado"):
+        from pos_saldo_unificado import exigir
+        exigir(conexion)
     cursor = conexion.execute("""
         INSERT INTO pos_movimientos_simulados
             (id_evento, id_venta, receptor, caja, medio_pago, importe_centavos, referencia, revierte)
@@ -283,6 +289,8 @@ def registrar_rendicion(conexion, id_cobro, entrada, usuario):
 def registrar_pagos(conexion, evento, venta, pagos):
     from pos_delivery import existe as existe_delivery
     for pago in pagos:
+        from pos_saldo_unificado import validar_pago
+        validar_pago(conexion, pago.receptor, pago.medio_pago)
         if pago.referencia and existe_delivery(conexion) and conexion.execute(
             'SELECT 1 FROM pos_delivery_movimientos WHERE receptor=? AND referencia=?',
             (pago.receptor, pago.referencia),
@@ -292,7 +300,7 @@ def registrar_pagos(conexion, evento, venta, pagos):
             SELECT 1 FROM pos_movimientos_simulados WHERE receptor = ? AND referencia = ?
         """, (pago.receptor, pago.referencia)).fetchone():
             raise HTTPException(409, "La referencia ya fue registrada en esa cuenta.")
-        registrar_movimiento(conexion, evento, venta, pago.receptor, pago.medio_pago,
+        registrar_movimiento(conexion, evento, venta, pago.receptor, None if pago.medio_pago == "saldo_unificado" else pago.medio_pago,
                              pago.importe_centavos, referencia=pago.referencia)
 
 
@@ -369,7 +377,7 @@ def resumen_libro(conexion, *, hasta_periodo=None):
     """, (periodo,)).fetchone()
     saldos = conexion.execute("""
         SELECT caja, receptor, SUM(importe_centavos),
-               SUM(CASE WHEN medio_pago IS NOT NULL THEN importe_centavos ELSE 0 END)
+               SUM(CASE WHEN medio_pago IS NOT NULL OR receptor LIKE '%_saldo_unificado' AND pos_movimientos_simulados.id_venta IS NOT NULL THEN importe_centavos ELSE 0 END)
         FROM pos_movimientos_simulados
         JOIN pos_eventos_simulados USING (id_evento)
         WHERE periodo <= ?
