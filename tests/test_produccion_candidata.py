@@ -215,3 +215,16 @@ def test_ruta_temporal_windows_abreviada(candidata):
     alias = Path(buffer.value) / 'ProduccionCandidata'
     assert c.ruta_segura(alias) == candidata.resolve()
     assert c.comprobar(alias)['habilitada'] is False
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='ACL nativa de Windows')
+@pytest.mark.parametrize('reglas', [
+    ['/grant', '*S-1-1-0:(OI)(CI)R'],
+    ['/inheritance:e'],
+])
+def test_acl_extra_o_heredada_se_rechaza(reglas):
+    with TemporaryDirectory() as temp:
+        carpeta = c.carpeta_nueva(Path(temp) / 'ProduccionCandidata')
+        subprocess.run(['icacls.exe', str(carpeta), *reglas], check=True, capture_output=True)
+        with pytest.raises(ValueError, match='acceso exclusivo'):
+            c.verificar_permisos(carpeta)

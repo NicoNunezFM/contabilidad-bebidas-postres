@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import secrets
 import sqlite3
 import subprocess
@@ -77,14 +76,62 @@ def verificar_permisos(path):
             raise ValueError('La carpeta no es privada.')
         return
     sid = subprocess.check_output(['whoami', '/user', '/fo', 'csv', '/nh'], text=True).strip().split(',')[-1].strip('"')
-    with TemporaryDirectory(prefix='abadion-acl-') as temp:
-        saved = Path(temp) / 'acl.txt'
-        subprocess.run(['icacls.exe', str(path), '/save', str(saved)], check=True, capture_output=True)
-        acl = saved.read_text(encoding='utf-16-le').lstrip('\ufeff')
-    dacl = acl.split('D:', 1)[-1].split('S:', 1)[0].strip()
-    entries = re.findall(r'\(([^)]+)\)', dacl)
-    if not dacl.startswith('P') or sorted(entries) != sorted((f'A;OICI;FA;;;{sid}', 'A;OICI;FA;;;SY')):
+    protegida, entradas = permisos_windows(path)
+    esperado = sorted([(sid, 0x1F01FF, 0, 3), ('S-1-5-18', 0x1F01FF, 0, 3)])
+    if not protegida or entradas != esperado:
         raise ValueError('No se pudo verificar acceso exclusivo del usuario y SYSTEM.')
+
+
+def permisos_windows(path):
+    """Leer SIDs numéricos, máscara y flags reales: SDDL puede abreviar cuentas como LA/SY.
+
+    https://learn.microsoft.com/windows/win32/api/aclapi/nf-aclapi-getnamedsecurityinfow
+    No cambia el descriptor ni admite ACEs adicionales, heredadas o de otros tipos.
+    """
+    import ctypes as ct
+    from ctypes import wintypes as wt
+    import struct
+    api = ct.WinDLL('advapi32', use_last_error=True)
+    memoria = ct.WinDLL('kernel32', use_last_error=True)
+    puntero = ct.c_void_p
+    api.GetNamedSecurityInfoW.argtypes = [wt.LPWSTR, wt.DWORD, wt.DWORD] + [ct.POINTER(puntero)] * 5
+    api.GetNamedSecurityInfoW.restype = wt.DWORD
+    api.GetSecurityDescriptorControl.argtypes = [puntero, ct.POINTER(wt.WORD), ct.POINTER(wt.DWORD)]
+    api.GetSecurityDescriptorControl.restype = wt.BOOL
+    api.GetAce.argtypes = [puntero, wt.DWORD, ct.POINTER(puntero)]
+    api.GetAce.restype = wt.BOOL
+    api.ConvertSidToStringSidW.argtypes = [puntero, ct.POINTER(wt.LPWSTR)]
+    api.ConvertSidToStringSidW.restype = wt.BOOL
+    memoria.LocalFree.argtypes = [puntero]
+    memoria.LocalFree.restype = puntero
+    descriptor, dacl = puntero(), puntero()
+    error = api.GetNamedSecurityInfoW(str(path), 1, 4, None, None, ct.byref(dacl), None, ct.byref(descriptor))
+    if error:
+        raise OSError(error, 'No se pudo leer la ACL de la candidata.')
+    try:
+        control, revision = wt.WORD(), wt.DWORD()
+        if not dacl.value or not api.GetSecurityDescriptorControl(descriptor, ct.byref(control), ct.byref(revision)):
+            raise ValueError('Descriptor de acceso inválido.')
+        # ACL header: revision, padding, size, AceCount, padding (8 bytes).
+        cantidad = struct.unpack('<BBHHH', ct.string_at(dacl, 8))[3]
+        entradas = []
+        for indice in range(cantidad):
+            ace, texto = puntero(), wt.LPWSTR()
+            if not api.GetAce(dacl, indice, ct.byref(ace)):
+                raise ValueError('No se pudo leer una regla de acceso.')
+            tipo, flags, tamano = struct.unpack('<BBH', ct.string_at(ace, 4))
+            if tipo != 0 or tamano < 16:
+                raise ValueError('Tipo de regla de acceso no permitido.')
+            mascara = struct.unpack('<I', ct.string_at(ace.value + 4, 4))[0]
+            if not api.ConvertSidToStringSidW(ace.value + 8, ct.byref(texto)):
+                raise ValueError('SID de acceso inválido.')
+            try:
+                entradas.append((texto.value, mascara, tipo, flags))
+            finally:
+                memoria.LocalFree(ct.cast(texto, puntero))
+        return bool(control.value & 0x1000), sorted(entradas)
+    finally:
+        memoria.LocalFree(descriptor)
 
 
 def tablas(db):

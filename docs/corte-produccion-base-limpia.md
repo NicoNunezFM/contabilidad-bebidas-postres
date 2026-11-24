@@ -257,3 +257,12 @@ requiere una revisión propia: no presentar un arqueo de efectivo como cierre de
   dentro del plazo original, sin finalizar procesos a la fuerza; los errores de ruta no se reintentan.
   Los tres controles deterministas de esa carrera y el ensayo real de inicio/reinicio/cierre en Windows
   pasaron (4 casos). Se incorporan a CI y se requiere una ejecución nueva del commit corregido.
+
+- En `e2dd09b`, Linux aprobó 464 casos (31 omitidos) y Windows/Edge aprobó sus 149 casos de flujo.
+  La etapa de candidata rechazó la representación textual de ACL del runner. La comprobación ahora
+  lee el descriptor nativo de Windows y compara los SIDs numéricos, máscara de control completo,
+  tipo de ACE y flags de herencia, con DACL protegida y exactamente usuario actual más SYSTEM.
+  No acepta alias textuales como prueba de acceso ni agrega excepciones para administradores.
+  Los 38 controles de candidata pasaron localmente con ese lector, y dos ataques de permisos
+  (acceso extra de terceros y herencia reactivada) fueron rechazados. CI comprueba ahora la candidata
+  antes de iniciar los ensayos Edge para detectar pronto errores de permisos.
