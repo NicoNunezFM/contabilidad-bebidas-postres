@@ -408,11 +408,12 @@ def test_pos_web_comidas_complementos_y_cancelacion(controles_pos):
     def cantidad(nombre):
         return f'[aria-label="Cantidad de {nombre}"]'
 
-    def mas(nombre):
-        return cantidad(nombre) + ' button:last-child'
+    def mas(nombre, contenedor="#dialogBody"):
+        return contenedor + ' ' + cantidad(nombre) + ' button:last-child'
 
-    def valor(nombre):
-        return evaluar(f"document.querySelector({json.dumps(cantidad(nombre) + ' output')}).value")
+    def valor(nombre, contenedor="#dialogBody"):
+        selector = contenedor + ' ' + cantidad(nombre) + ' output'
+        return evaluar(f"document.querySelector({json.dumps(selector)}).value")
 
     def punto(selector):
         return evaluar(f"""
@@ -517,15 +518,15 @@ def test_pos_web_comidas_complementos_y_cancelacion(controles_pos):
     assert evaluar("document.querySelectorAll('#lines .row').length") == 6
 
     evaluar(f"""
-        for (let i = 0; i < 24; i++) document.querySelector({json.dumps('#lines ' + mas(chica))}).click();
+        for (let i = 0; i < 24; i++) document.querySelector({json.dumps(mas(chica, '#lines'))}).click();
     """)
-    assert valor(chica) == "24"
-    assert evaluar(f"document.querySelector({json.dumps('#lines ' + mas(chica))}).disabled")
+    assert valor(chica, "#lines") == "24"
+    assert evaluar(f"document.querySelector({json.dumps(mas(chica, '#lines'))}).disabled")
     evaluar(f"""
         for (let i = 0; i < 22; i++)
             document.querySelector({json.dumps('#lines ' + cantidad(chica) + ' button:first-child')}).click();
     """)
-    assert valor(chica) == "2"
+    assert valor(chica, "#lines") == "2"
 
     for nombre, variantes in [("Sándwiches", True), ("Milanesas al plato", True),
                               ("Mozzarella", False), ("Conos", False)]:
@@ -539,6 +540,7 @@ def test_pos_web_comidas_complementos_y_cancelacion(controles_pos):
         clic(mas("Oreo chico"))
         clic("#closeDialog")
         assert evaluar("document.querySelectorAll('#lines .row').length") == 6
+        assert valor("Oreo chico", "#lines") == "1"
 
     agregar("Especial")
     texto("#dialogTitle", "Personalizar: Especial")
