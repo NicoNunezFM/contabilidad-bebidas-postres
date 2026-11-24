@@ -17,3 +17,8 @@ whatsapp-bot/.welcome_state.json.tmp
 backups/
 gmail_credentials.json
 gmail_token.json
+credenciales.json
+manifiesto.json
+*.db-wal
+*.db-shm
+*.db-journal

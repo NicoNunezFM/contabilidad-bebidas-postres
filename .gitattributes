@@ -1,2 +1,4 @@
 # Conservar la identidad binaria de la demo al descargar o hacer checkout en Windows.
 pos-web/demo-tablet.html text eol=lf
+# El catalogo aprobado tiene identidad SHA-256 CRLF, tambien en Linux y git archive.
+scripts/catalogo-comercial.json text eol=crlf

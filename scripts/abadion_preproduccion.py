@@ -221,6 +221,22 @@ def iniciar(carpeta, sin_edge=False):
     print(MODO, URL + "/pos/", carpeta / ARCHIVO)
 
 
+def esperar_cierre(carpeta, timeout=45):
+    """El socket puede cerrarse antes de que el worker libere uso.lock."""
+    limite = time.monotonic() + timeout
+    while time.monotonic() < limite:
+        if not ocupado():
+            try:
+                with bloquear_entrenamiento(carpeta):
+                    return
+            except ValueError as error:
+                # Sólo reintentar la contención del lock; rutas inseguras fallan de inmediato.
+                if not isinstance(error.__cause__, OSError):
+                    raise
+        time.sleep(.1)
+    raise RuntimeError("Cierre pendiente: revisá el log. No se forzó ningún proceso.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--carpeta", type=Path)
@@ -259,13 +275,8 @@ def main():
             if ocupado():
                 consulta(carpeta)
                 consulta(carpeta, "stop")
-                limite = time.monotonic() + 45
-                while ocupado() and time.monotonic() < limite:
-                    time.sleep(.2)
-                if ocupado():
-                    raise RuntimeError("Cierre pendiente: revisá el log. No se forzó ningún proceso.")
-            with bloquear_entrenamiento(carpeta):
-                print("PREPRODUCCIÓN detenida. Datos conservados.")
+            esperar_cierre(carpeta)
+            print("PREPRODUCCIÓN detenida. Datos conservados.")
         elif args.accion == "backup" and ocupado():
             consulta(carpeta)
             print(consulta(carpeta, "backup"))

@@ -27,7 +27,7 @@ class CompraCajaEntrada(SolicitudContable):
         if total > 1_000_000_000_000 or self.pagado_centavos > total:
             raise ValueError("El importe pagado debe estar dentro del total admitido.")
         if self.pagado_centavos:
-            sufijo = {"efectivo": "_efectivo", "transferencia": "_banco", "mercado_pago": "_mercado_pago"}
+            sufijo = {"efectivo": "_efectivo", "transferencia": "_banco", "mercado_pago": "_mercado_pago", "saldo_unificado": "_saldo_unificado"}
             if not self.medio_pago or not self.pagador or not self.pagador.endswith(sufijo[self.medio_pago]):
                 raise ValueError("Indicá una cuenta pagadora compatible con el medio de pago.")
         elif self.pagador or self.medio_pago or self.referencia:
@@ -82,6 +82,13 @@ def preparar_compras_caja(db):
 
 
 def movimiento_fisico(db, pagador, medio, importe, momento, usuario, motivo):
+    if not importe:
+        return None
+    from pos_saldo_unificado import validar_pago, existe, resumen
+    if medio == "saldo_unificado" or existe(db):
+        validar_pago(db, pagador, medio)
+        if importe < 0 and resumen(db)["cajas"][caja_receptora(pagador)]["saldo_centavos"] < -importe:
+            raise HTTPException(409, "Saldo insuficiente en la caja pagadora.")
     if medio != "efectivo":
         return None
     jornada = exigir_jornada_actual(db, caja_receptora(pagador), momento[:10])

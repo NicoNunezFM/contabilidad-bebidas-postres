@@ -103,7 +103,7 @@ def conciliar_pos(conexion, pos):
                     AND SUM(m.receptor || '_en_transito' = origen.receptor AND m.importe_centavos = r.importe) = 1
                 ELSE COUNT(m.id_movimiento) = 2 AND COUNT(DISTINCT m.caja) = 2 AND COUNT(m.medio_pago) = 0
             END)
-            OR (e.id_venta IS NOT NULL AND COUNT(m.id_movimiento) <> COUNT(m.medio_pago))
+            OR (e.id_venta IS NOT NULL AND COUNT(m.id_movimiento) <> SUM(CASE WHEN m.medio_pago IS NOT NULL OR (m.receptor IN ('comidas_saldo_unificado','bebidas_postres_saldo_unificado') AND m.id_venta IS NOT NULL) THEN 1 ELSE 0 END))
             OR (e.id_venta IS NULL AND (e.devengado_comidas <> 0 OR e.devengado_bebidas <> 0
                 OR e.cobrado_comidas <> 0 OR e.cobrado_bebidas <> 0))
             OR (e.tipo = 'cierre' AND (COUNT(m.id_movimiento) <> 0 OR NOT EXISTS (

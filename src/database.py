@@ -29,6 +29,11 @@ def obtener_ruta_base():
 def obtener_conexion():
 
     ruta = obtener_ruta_base()
+    if ruta.is_file():
+        with closing(sqlite3.connect(ruta.resolve().as_uri() + "?mode=ro", uri=True)) as candidata:
+            if (candidata.execute("PRAGMA application_id").fetchone()[0] == 0x41424331
+                    or candidata.execute("SELECT 1 FROM sqlite_schema WHERE name='candidata_corte'").fetchone()):
+                raise ValueError("Candidata de producción bloqueada: no admite operaciones.")
     if contexto := RUTA_PREPRODUCCION.get():
         from pos_preproduccion import abrir_base
         conexion = abrir_base(*contexto)

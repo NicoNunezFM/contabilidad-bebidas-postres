@@ -598,6 +598,7 @@ svg.ui-icon {
   var simulacionActiva = false;
   var clientesActivos = false;
   var cajaDiariaActiva = false;
+  var saldoUnificado = false;
   var contabilidadActiva = false;
   var sesionPos = null;
   var validacionPos = null;
@@ -1877,7 +1878,7 @@ function mostrarPedidoReal() {
     el('clientesPos').hidden = !clientesActivos || !sesionPos;
     el('historialSimulado').hidden = !simulacionActiva || !sesionPos;
     el('seguimientoPos').hidden = !simulacionActiva || !sesionPos || !el('entrenamientoAviso');
-    el('cajasSimuladas').hidden = !simulacionActiva || !sesionAdmin;
+    el('cajasSimuladas').hidden = saldoUnificado || !simulacionActiva || !sesionAdmin;
     el('contabilidadPos').hidden = !contabilidadActiva || !sesionAdmin;
     el('comprasPos').hidden = !contabilidadActiva || !sesionAdmin;
     el('cajaDiariaPos').hidden = !cajaDiariaActiva || !sesionPos;
@@ -2708,6 +2709,7 @@ if (modoReal) {
 
   function nombreReceptorPos(receptor) {
     if (receptor === 'repartidor_directo') return 'Efectivo retenido por quien reparte';
+    if (receptor.endsWith('_saldo_unificado')) return receptor.startsWith('comidas_') ? 'Rotisería' : 'Postres y Bebidas';
     var caja = receptor.startsWith('comidas_') ? 'comidas' : 'bebidas_postres';
     var tipo = {efectivo: 'Caja de efectivo', efectivo_en_transito: 'Efectivo en tránsito', banco: 'Cuenta bancaria', mercado_pago: 'Cuenta Mercado Pago'};
     return nombresCajas[caja] + ' · ' + tipo[receptor.slice(caja.length + 1)];
@@ -2722,6 +2724,7 @@ if (modoReal) {
   }
 
   function receptoresPos(medio) {
+    if (saldoUnificado) return {comidas_saldo_unificado: 'Rotisería', bebidas_postres_saldo_unificado: 'Postres y Bebidas'};
     var receptores = {};
     for (var caja of Object.keys(nombresCajas)) {
       var tipos = medio === 'efectivo' ? ['efectivo'] : medio ? ['banco', 'mercado_pago']
@@ -3031,7 +3034,7 @@ if (modoReal) {
         + ' · Período ' + evento.periodo + ' · Usuario #' + evento.id_usuario);
       if (evento.motivo) movimiento.append(nodoPos('p', evento.motivo));
       evento.movimientos.forEach(function (pago) {
-        movimiento.append(nodoPos('p', mediosSimulados[pago.medio_pago] + ' · '
+        movimiento.append(nodoPos('p', (mediosSimulados[pago.medio_pago] || (saldoUnificado ? 'Saldo de caja' : '')) + ' · '
           + nombreReceptorPos(pago.receptor) + ' · ' + importePos(pago.importe_centavos)
           + (pago.referencia ? ' · ' + pago.referencia : '')));
       });
@@ -3302,7 +3305,7 @@ if (modoReal) {
       campos.prepend(producto.label);
       campos.append(costo.label, pagado.label, medio.label, pagador.label);
       function actualizarPagador() {
-        const sufijo = {efectivo: '_efectivo', transferencia: '_banco', mercado_pago: '_mercado_pago'};
+        const sufijo = {efectivo: '_efectivo', transferencia: '_banco', mercado_pago: '_mercado_pago', saldo_unificado: '_saldo_unificado'};
         pagador.select.replaceChildren(...Object.entries(receptoresPos(medio.select.value))
           .filter(([clave]) => clave.endsWith(sufijo[medio.select.value]))
           .map(([clave, nombre]) => new Option(nombre, clave)));
@@ -3458,6 +3461,7 @@ if (modoReal) {
   }
 
   async function mostrarCajaDiaria(mensaje) {
+    if (saldoUnificado) return mostrarSaldoUnificado();
     var usuario = sesionPos;
     if (!cajaDiariaActiva || !usuario) return;
     var cuerpo = abrirConsultaPos('Caja diaria · Simulación');
@@ -3500,6 +3504,80 @@ if (modoReal) {
     }
   }
 
+  async function mostrarSaldoUnificado() {
+    const cuerpo = abrirConsultaPos('Dos cajas · Saldo unificado');
+    try {
+      const datos = await consultarPos('/simulacion/saldo-unificado');
+      const conciliacion = sesionAdmin ? await consultarPos('/simulacion/saldo-unificado/conciliacion') : null;
+      if (!cuerpo.isConnected) return;
+      for (const [caja, saldo] of Object.entries(conciliacion ? conciliacion.cajas : datos.cajas)) {
+        const fila = nodoPos('section', undefined, 'row');
+        fila.dataset.saldoUnificado = caja;
+        fila.append(nodoPos('h3', nombresCajas[caja]), nodoPos('strong', importePos(saldo.saldo_centavos)));
+        if (saldo.custodia_reparto_centavos) fila.append(nodoPos('p', 'Pendiente del repartidor · ' + importePos(saldo.custodia_reparto_centavos)));
+        if (conciliacion) {
+          const anteriores = conciliacion.cierres.filter(c => c.caja === caja);
+          const ultimo = anteriores.at(-1);
+          if (ultimo) fila.append(nodoPos('p', 'Último cierre #' + ultimo.secuencia + ' · Diferencia ' + importePos(ultimo.diferencia_centavos) + ' · Diferencia de custodia ' + importePos(ultimo.diferencia_custodia_centavos)));
+          fila.append(botonCajaDiaria('Conciliar y cerrar ' + nombresCajas[caja], () => abrirOperacionPos(
+            'Cierre · ' + nombresCajas[caja], '/simulacion/saldo-unificado/cierres', sesionPos, campos => {
+              campos.append(nodoPos('p', 'Saldo del libro ' + importePos(saldo.saldo_centavos) + '. Este cierre guarda el conteo y sus diferencias; no ajusta el saldo. Si hubo movimientos, cerrá esta ventana y volvé a consultar.'));
+              const contado = importeEntradaPos('Saldo total contado en pesos');
+              const custodia = importeEntradaPos('Fondos del repartidor contados en pesos');
+              campos.append(contado.label, custodia.label);
+              const referencia = campoClientePos(campos, 'Referencia del conteo', 120, 'referenciaCierreUnificado');
+              const motivo = motivoOperacionPos(campos);
+              return () => ({caja, revision: conciliacion.revision, secuencia: anteriores.length + 1,
+                saldo_contado_centavos: leerCentavosPos(contado.input.value, true),
+                custodia_contada_centavos: leerCentavosPos(custodia.input.value, true),
+                referencia: referencia.value.trim(), motivo: motivo()});
+            }, mostrarSaldoUnificado)));
+        }
+        cuerpo.append(fila);
+      }
+      const inventario = nodoPos('details');
+      inventario.append(nodoPos('summary', 'Stock por producto'));
+      for (const sku of datos.stock) {
+        const fila = nodoPos('article');
+        fila.append(nodoPos('p', sku.nombre + ' · ' + sku.cantidad + ' unidades' + (!sku.habilitado ? ' · Sin reposición validada' : '')));
+        if (sesionAdmin && !sku.habilitado && sku.cantidad > 0) {
+          fila.append(botonCajaDiaria('Validar reposición', () => abrirOperacionPos('Validar stock · ' + sku.nombre,
+            '/simulacion/saldo-unificado/bebidas/' + sku.id_producto + '/validar', sesionPos, campos => {
+              campos.append(nodoPos('p', 'Verificá físicamente ' + sku.cantidad + ' unidades antes de habilitar las ventas.'));
+              const referencia = motivoOperacionPos(campos);
+              return () => ({cantidad: sku.cantidad, referencia: referencia()});
+            }, mostrarSaldoUnificado)));
+        }
+        inventario.append(fila);
+      }
+      cuerpo.append(inventario);
+      for (const deuda of datos.deudas) {
+        const fila = nodoPos('section', undefined, 'row');
+        fila.append(nodoPos('p', nombresCajas[deuda.caja] + ' · ' + deuda.concepto + ' · Vence ' + deuda.vencimiento + ' · Pendiente ' + importePos(deuda.pendiente_centavos)));
+        if (sesionAdmin && deuda.pendiente_centavos) {
+          fila.append(botonCajaDiaria('Pagar deuda completa', () => abrirOperacionPos('Pagar deuda · ' + deuda.concepto,
+            '/simulacion/saldo-unificado/deudas/' + deuda.id_deuda + '/pago', sesionPos, campos => {
+              campos.append(nodoPos('p', 'Se descontará de ' + nombresCajas[deuda.caja] + ': ' + importePos(deuda.pendiente_centavos)));
+              const motivo = motivoOperacionPos(campos);
+              return () => ({importe_centavos: deuda.pendiente_centavos, motivo: motivo()});
+            }, mostrarSaldoUnificado)));
+        }
+        cuerpo.append(fila);
+      }
+      for (const pago of datos.pagos_deuda) {
+        const fila = nodoPos('section');
+        fila.append(nodoPos('p', 'Pago de deuda #' + pago.id_pago + ' · ' + importePos(pago.importe_centavos) + ' · ' + pago.fecha + (pago.revertido ? ' · Revertido' : ' · Vigente')));
+        if (sesionAdmin && !pago.revertido) fila.append(botonCajaDiaria('Revertir pago #' + pago.id_pago, () => abrirOperacionPos(
+          'Revertir pago de deuda', '/simulacion/saldo-unificado/pagos/' + pago.id_pago + '/reverso', sesionPos, campos => {
+            campos.append(nodoPos('p', 'Confirmá que el pago no se realizó o fue devuelto. Se restituirán el saldo de la caja y la deuda; el pago original se conserva.'));
+            const motivo = motivoOperacionPos(campos);
+            return () => ({motivo: motivo()});
+          }, mostrarSaldoUnificado)));
+        cuerpo.append(fila);
+      }
+    } catch (error) { cuerpo.append(nodoPos('p', error.message)); }
+  }
+
   async function mostrarContabilidadPos() {
     var cuerpo = abrirConsultaPos('Contabilidad ficticia');
     var estado = nodoPos('p', 'Cargando informe…', 'muted');
@@ -3531,7 +3609,7 @@ if (modoReal) {
       cuerpo.append(nodoPos('h3', 'Ventas por sección'), secciones);
       var receptores = nodoPos('ul');
       datos.cobros_por_receptor.forEach(fila => receptores.append(nodoPos('li', nombreReceptorPos(fila.receptor)
-        + ' · ' + mediosSimulados[fila.medio_pago] + ' · ' + importePos(fila.neto_centavos))));
+        + ' · ' + (mediosSimulados[fila.medio_pago] || (saldoUnificado ? 'Saldo de caja' : '')) + ' · ' + importePos(fila.neto_centavos))));
       cuerpo.append(nodoPos('h3', 'Cobros por receptor'),
         receptores.childElementCount ? receptores : nodoPos('p', 'Sin cobros en el período.'));
     } catch (error) {
@@ -4424,6 +4502,13 @@ if (modoReal) {
         var estadoSimulacion = await consultarPos('/simulacion/estado');
         simulacionActiva = estadoSimulacion.simulacion === true;
         clientesActivos = estadoSimulacion.clientes === true;
+        saldoUnificado = estadoSimulacion.saldo_unificado === true;
+        if (saldoUnificado) {
+          nombresCajas = {comidas: 'Rotisería', bebidas_postres: 'Postres y Bebidas'};
+          mediosSimulados = {saldo_unificado: 'Saldo de caja'};
+          modalidadesSimuladas = {...mediosSimulados, fiado: 'Pendiente / Fiado'};
+          el('cajaDiariaPos').querySelector('span').textContent = 'Saldos de cajas';
+        }
         cajaDiariaActiva = estadoSimulacion.caja_diaria === true;
         contabilidadActiva = estadoSimulacion.contabilidad === true;
       } catch (error) {

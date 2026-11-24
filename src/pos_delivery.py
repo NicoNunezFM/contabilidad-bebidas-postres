@@ -133,7 +133,8 @@ def entregar_delivery(db, venta, cambio, usuario):
     # Validar contra receptores concretos, nunca inferir la caja que paga.
     try:
         PagoPos(receptor=receptor, medio_pago=('efectivo' if (receptor or '').endswith('_efectivo') else
-                'mercado_pago' if (receptor or '').endswith('_mercado_pago') else 'transferencia'), importe_centavos=importe)
+                'mercado_pago' if (receptor or '').endswith('_mercado_pago') else
+                'saldo_unificado' if (receptor or '').endswith('_saldo_unificado') else 'transferencia'), importe_centavos=importe)
     except ValueError:
         raise HTTPException(422, 'Elegí la caja o cuenta desde donde se entrega el envío al repartidor.')
     if receptor.endswith('_en_transito'):
@@ -150,6 +151,11 @@ def disponible_receptor(db, receptor):
     from pos_caja_diaria import caja_diaria_activa, exigir_jornada_actual, ahora_local, saldo_fisico
     from pos_cobros import caja_receptora
 
+    if receptor.endswith('_saldo_unificado'):
+        from pos_saldo_unificado import resumen
+        # Custodia recibida también está disponible para pagar SU envío.
+        caja = resumen(db)['cajas'][caja_receptora(receptor)]
+        return caja['saldo_centavos'] + caja['custodia_reparto_centavos']
     if receptor.endswith('_efectivo') and caja_diaria_activa(db):
         jornada = exigir_jornada_actual(db, caja_receptora(receptor), ahora_local()[:10])
         disponible = saldo_fisico(db, jornada)['esperado_centavos']
