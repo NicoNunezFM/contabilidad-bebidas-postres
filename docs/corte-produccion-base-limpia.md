@@ -251,3 +251,9 @@ requiere una revisión propia: no presentar un arqueo de efectivo como cierre de
   Se reutiliza la definición de custodia del motor de delivery: una entrega ya realizada no es custodia
   negativa y su salida sí reduce el saldo propio del sector pagador. Los cobros posteriores restituyen
   fondos al receptor elegido sin alterar la deuda del cliente dos veces.
+
+- CI Linux del código `afca240`: 460 aprobadas, 31 omitidas, un fallo en el ensayo previo de cierre/reinicio
+  de Preproducción. El puerto se liberaba antes que `uso.lock`. El comando de cierre ahora espera ambos
+  dentro del plazo original, sin finalizar procesos a la fuerza; los errores de ruta no se reintentan.
+  Los tres controles deterministas de esa carrera y el ensayo real de inicio/reinicio/cierre en Windows
+  pasaron (4 casos). Se incorporan a CI y se requiere una ejecución nueva del commit corregido.
