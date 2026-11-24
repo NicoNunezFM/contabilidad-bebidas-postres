@@ -146,7 +146,8 @@ def abrir(path):
     archivo = path / ARCHIVO
     comprobar_archivo(archivo)
     for suffix in ('-wal', '-shm', '-journal'):
-        if archivo.with_name(archivo.name + suffix).exists():
+        auxiliar = archivo.with_name(archivo.name + suffix)
+        if auxiliar.exists() or auxiliar.is_symlink():
             raise ValueError('Se requiere snapshot offline sin auxiliares SQLite.')
     return sqlite3.connect(archivo.as_uri() + '?mode=ro', uri=True)
 
@@ -213,8 +214,13 @@ def backup(path):
     with closing(abrir(path)) as origen, closing(sqlite3.connect(copia)) as db:
         origen.backup(db)
         estado = validar_db(db)
+    with copia.open('r+b') as f:
+        os.fsync(f.fileno())
     meta = {'sha256': huella(copia), 'id': estado['id'], 'modo': MODO}
-    (destino / 'manifiesto.json').write_text(json.dumps(meta), encoding='utf-8')
+    with (destino / 'manifiesto.json').open('x', encoding='utf-8') as f:
+        json.dump(meta, f)
+        f.flush()
+        os.fsync(f.fileno())
     return destino
 
 
@@ -224,7 +230,8 @@ def restaurar(origen, destino):
         comprobar_archivo(file)
     meta = json.loads((origen / 'manifiesto.json').read_text(encoding='utf-8'))
     copia = origen / ARCHIVO
-    if any(copia.with_name(copia.name + s).exists() for s in ('-wal', '-shm', '-journal')):
+    if any(copia.with_name(copia.name + s).exists() or copia.with_name(copia.name + s).is_symlink()
+           for s in ('-wal', '-shm', '-journal')):
         raise ValueError('Snapshot con auxiliares rechazado.')
     if meta.get('sha256') != huella(copia):
         raise ValueError('Backup alterado.')
