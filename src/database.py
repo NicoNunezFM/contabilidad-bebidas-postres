@@ -29,13 +29,21 @@ def obtener_conexion():
 
     ruta = obtener_ruta_base()
     if RUTA_ENTRENAMIENTO.get() is not None:
-        from pos_entrenamiento_db import abrir_base_entrenamiento
-
-        conexion = abrir_base_entrenamiento(ruta)
+        if ruta.name == "abadion-preproduccion.db":
+            from pos_preproduccion import abrir_base
+            conexion = abrir_base(ruta.parent)
+        else:
+            from pos_entrenamiento_db import abrir_base_entrenamiento
+            conexion = abrir_base_entrenamiento(ruta)
     else:
         if ruta.name.casefold() == "abadion-entrenamiento.db":
             raise ValueError("Usá el launcher de Abadion Entrenamiento para esta base.")
+        if ruta.name.casefold() == "abadion-preproduccion.db":
+            raise ValueError("Usá el launcher de Preproducción para esta base.")
         conexion = sqlite3.connect(ruta)
+        if conexion.execute("SELECT 1 FROM sqlite_schema WHERE name = 'pos_preproduccion'").fetchone():
+            conexion.close()
+            raise ValueError("Preproducción no admite la conexión general ni el bot.")
 
     conexion.execute("PRAGMA foreign_keys = ON")
 
