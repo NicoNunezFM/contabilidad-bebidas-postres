@@ -470,10 +470,17 @@ def test_pos_web_comidas_complementos_y_cancelacion(controles_pos):
     assert valor(chica) == "1"
     clic(mas(chica))
     clic(grupo("Manaos grande (2,25 l)") + " summary")
-    evaluar(f"document.querySelector({json.dumps(mas(grande))}).focus()")
-    for evento in ("keyDown", "keyUp"):
-        evaluar.cdp("Input.dispatchKeyEvent", type=evento, key="Enter", code="Enter", windowsVirtualKeyCode=13)
-    assert valor(grande) == "1"
+    assert evaluar(f"""
+        (() => {{
+            const boton = document.querySelector({json.dumps(mas(grande))});
+            boton.focus();
+            return document.activeElement === boton;
+        }})()
+    """)
+    for evento in ("rawKeyDown", "keyUp"):
+        evaluar.cdp("Input.dispatchKeyEvent", type=evento, key=" ", code="Space",
+                    windowsVirtualKeyCode=32, nativeVirtualKeyCode=32)
+    esperar(lambda: valor(grande) == "1")
     captura("3-bebidas")
     clic(grupo("Manaos chica (600 ml)") + " summary")
     clic(grupo("Manaos grande (2,25 l)") + " summary")
@@ -981,7 +988,7 @@ def test_pos_web_entrenamiento_promocion_fiado_devolucion_y_cierre(controles_pos
 @pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
 def test_pos_web_seguimiento_retiro_de_mostrador(controles_pos):
     evaluar, clic, texto, _ = controles_pos
-    texto("#cardsReal", "Oreo chico")
+    texto("#cardsReal", "Oreo")
     clic("#adminAccess")
     usuario, _, clave = USUARIOS[0]
     evaluar(f"""
@@ -990,10 +997,8 @@ def test_pos_web_seguimiento_retiro_de_mostrador(controles_pos):
     """)
     clic("#accept")
     texto("#adminAccess", usuario)
-    evaluar("""
-        [...document.querySelectorAll('#cardsReal article')]
-            .find(t => t.querySelector('h3')?.textContent === 'Oreo chico').querySelector('button').click();
-    """)
+    clic('[data-familia="Oreo"] button')
+    clic('#variantesPostre [aria-label="Aumentar cantidad de Oreo chico"]')
     clic("#accept")
     clic("#validarPedido")
     texto("#estadoPedido", "3.000")
@@ -1024,7 +1029,7 @@ def test_pos_web_seguimiento_retiro_de_mostrador(controles_pos):
 @pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
 def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
     evaluar, clic, texto, _ = controles_pos
-    texto("#cardsReal", "Oreo chico")
+    texto("#cardsReal", "Oreo")
     clic("#adminAccess")
     usuario, _, clave = USUARIOS[0]
     evaluar(f"""
@@ -1033,10 +1038,8 @@ def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
     """)
     clic("#accept")
     texto("#adminAccess", usuario)
-    evaluar("""
-        [...document.querySelectorAll('#cardsReal article')]
-            .find(t => t.querySelector('h3')?.textContent === 'Oreo chico').querySelector('button').click();
-    """)
+    clic('[data-familia="Oreo"] button')
+    clic('#variantesPostre [aria-label="Aumentar cantidad de Oreo chico"]')
     clic("#accept")
     clic("#validarPedido")
     texto("#estadoPedido", "3.000")
@@ -1085,7 +1088,7 @@ def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
 def test_pos_web_tablet_carrito_funciona_sin_javascript(controles_pos):
     """El control nativo de HTML alterna el carrito aun si el JS del POS falla."""
     evaluar, _, texto, _ = controles_pos
-    texto("#cardsReal", "Oreo chico")
+    texto("#cardsReal", "Oreo")
     assert evaluar("""
         (() => {
             document.documentElement.classList.add('tablet-mode');
