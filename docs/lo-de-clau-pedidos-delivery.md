@@ -72,3 +72,14 @@ if ($LASTEXITCODE -ne 0) { throw 'Revisar el ensayo fallido; no usar con datos r
 Para la regresión completa: `& $pythonEnsayo -m pytest -q --junitxml=regresion-qa.xml`. Las pruebas heredadas que requieren el puerto fijo 8078 lo omiten si está ocupado; el ensayo nuevo no lo usa. No restaurar estas bases sobre la instalación actual. No fusionar este PR ni habilitar producción. El catálogo comercial, las compras con tarjeta y WhatsApp quedan fuera de este cambio.
 
 La validación automatizada comprueba eventos y movimientos registrados; el operador sigue siendo responsable de confirmar que efectivamente entregó el dinero. No se conecta a bancos ni realiza transferencias reales. Quedan pendientes la aceptación familiar y el ensayo físico con pantalla táctil y reinicio del equipo.
+
+## Resultados locales — 24/11/2026
+
+- Regresión completa: **380 aprobadas, 25 omitidas, 0 fallidas** (403 s). La conversión anónima agregada durante esa ejecución se verificó aparte y también pasó. Las omisiones corresponden a pruebas que requieren navegador u opciones de entorno; no se presentan como ejecutadas.
+- Circuito final de Lo de Clau: **20 aprobadas, 0 omitidas**: 18 de API/SQLite/proceso y 2 de Edge (87 s). Incluye el bloqueo de entrega de una venta totalmente devuelta.
+- Regresión de cuentas corrientes, junto con delivery: **20 aprobadas, 0 omitidas** (56 s), antes de agregar el último caso de conversión. Conserva la prueba de rollback intermedio de FIFO.
+- Bloque amplio Windows/Edge: **79 aprobadas y 1 timeout al capturar una pantalla** en la primera ejecución (231 s). La prueba de captura se repitió completa y pasó; también pasó la conversión nueva en esa reverificación (**2 aprobadas**, 11 s). Las suites se solapan: no sumar sus cantidades.
+- Sintaxis Python/JavaScript y `git diff --check`: correctos.
+- [Controles automáticos actuales del PR #34](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/34/checks). El PR mantiene la condición de borrador contra #33. Sus controles ejecutan las suites de SQLite y Windows/Edge, incluyendo todos los casos nuevos.
+
+Todos los respaldos/restauraciones del ensayo usan identidades y carpetas temporales nuevas. Ninguna prueba valida todavía el reinicio físico de la PC, la pantalla táctil real ni la aceptación del negocio.

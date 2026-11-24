@@ -283,6 +283,8 @@ def cambiar_estado_pedido(db, venta, cambio, usuario):
         raise HTTPException(422, "Indicá el motivo de la entrega fiada.")
     if cambio.estado != "cancelado" and pedido["estado_cobro"] == "anulada":
         raise HTTPException(409, "La venta ya fue anulada.")
+    if sencillo and cambio.estado == "entregado" and pedido["estado_cobro"] == "devuelta":
+        raise HTTPException(409, "La venta fue devuelta por completo. Cancelá el pedido en lugar de entregarlo.")
     if sencillo and cambio.estado == "entregado" and pedido.get("envio"):
         from pos_delivery import entregar_delivery
         entregar_delivery(db, pedido["id_venta"], cambio, usuario)

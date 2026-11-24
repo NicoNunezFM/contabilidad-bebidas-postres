@@ -109,6 +109,9 @@ def test_reembolso_antes_y_despues_del_reparto(circuito, entregada, tipo):
     assert r.json()['reembolsado_centavos'] == (1_250_000 if entregada else 1_450_000)
     assert r.json()['saldo_cliente_centavos'] == 0
     assert r.json()['delivery']['custodia_centavos'] == 0
+    if not entregada:
+        assert c.post(SIM+f"/pedidos/{v['id_pedido']}/estado",json=solicitud(
+            version=1,estado='entregado',receptor_reparto='comidas_efectivo')).status_code==409
     cuadrado(c)
 
 
