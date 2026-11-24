@@ -76,7 +76,8 @@ def verificar_permisos(path):
         return
     sid = subprocess.check_output(['whoami', '/user', '/fo', 'csv', '/nh'], text=True).strip().split(',')[-1].strip('"')
     protegida, entradas = permisos_windows(path)
-    esperado = sorted([(sid, 0x1F01FF, 0, 3), ('S-1-5-18', 0x1F01FF, 0, 3)])
+    flags = 3 if path.is_dir() else 0
+    esperado = sorted([(sid, 0x1F01FF, 0, flags), ('S-1-5-18', 0x1F01FF, 0, flags)])
     if not protegida or entradas != esperado:
         reglas = [(('usuario' if principal == sid else 'SYSTEM' if principal == 'S-1-5-18' else 'otro'),
                    hex(mascara), tipo, flags) for principal, mascara, tipo, flags in entradas]
@@ -84,7 +85,7 @@ def verificar_permisos(path):
 
 
 def restringir_permisos_windows(path, sid):
-    """Reemplazar la DACL exclusivamente al crear un directorio nuevo, antes de escribir secretos."""
+    """Reemplazar la DACL exclusivamente al crear un archivo/directorio nuevo."""
     import ctypes as ct
     from ctypes import wintypes as wt
     api = ct.WinDLL('advapi32', use_last_error=True)
@@ -99,7 +100,8 @@ def restringir_permisos_windows(path, sid):
     memoria.LocalFree.argtypes = [puntero]
     memoria.LocalFree.restype = puntero
     descriptor, dacl = puntero(), puntero()
-    sddl = f'D:P(A;OICI;FA;;;{sid})(A;OICI;FA;;;SY)'
+    flags = 'OICI' if path.is_dir() else ''
+    sddl = f'D:P(A;{flags};FA;;;{sid})(A;{flags};FA;;;SY)'
     if not api.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, ct.byref(descriptor), None):
         raise ValueError('No se pudo construir la ACL privada.')
     try:
@@ -111,6 +113,16 @@ def restringir_permisos_windows(path, sid):
             raise OSError(error, 'No se pudo establecer la ACL privada.')
     finally:
         memoria.LocalFree(descriptor)
+
+
+def proteger_nuevo(path):
+    """Sólo para objetos recién creados; comprobar nunca repara permisos existentes."""
+    if os.name == 'nt':
+        sid = subprocess.check_output(['whoami', '/user', '/fo', 'csv', '/nh'], text=True).strip().split(',')[-1].strip('"')
+        restringir_permisos_windows(path, sid)
+    else:
+        path.chmod(0o700 if path.is_dir() else 0o600)
+    verificar_permisos(path)
 
 
 def permisos_windows(path):
@@ -238,6 +250,11 @@ def abrir(path):
     verificar_permisos(path)
     archivo = path / ARCHIVO
     comprobar_archivo(archivo)
+    verificar_permisos(archivo)
+    credenciales = path / 'credenciales.json'
+    if credenciales.exists():
+        comprobar_archivo(credenciales)
+        verificar_permisos(credenciales)
     for suffix in ('-wal', '-shm', '-journal'):
         auxiliar = archivo.with_name(archivo.name + suffix)
         if auxiliar.exists() or auxiliar.is_symlink():
@@ -267,6 +284,9 @@ def preparar(path):
     with TemporaryDirectory(dir=path, prefix='.preparar-') as temp:
         nueva = Path(temp) / ARCHIVO
         construir_base(nueva, catalogo)
+        # Windows conserva la DACL del archivo al moverlo desde TemporaryDirectory.
+        # Fijarla sobre el archivo nuevo antes de guardar las cuentas de la candidata.
+        proteger_nuevo(nueva)
         with closing(sqlite3.connect(nueva)) as db, db:
             db.execute('PRAGMA foreign_keys=ON')
             for table in ('pos_entrenamiento', 'pos_puente_ficticio'):
@@ -291,6 +311,7 @@ def preparar(path):
             validar_db(db)
         # Credentials never enter reports, backups, Git or command output; users stay disabled.
         with (path / 'credenciales.json').open('x', encoding='utf-8') as f:
+            proteger_nuevo(path / 'credenciales.json')
             json.dump({u: p for u, _, p in usuarios}, f)
             f.flush()
             os.fsync(f.fileno())
@@ -305,7 +326,10 @@ def backup(path):
     # Every snapshot uses a new directory; partial pairs are never accepted.
     destino = path / ('backup-' + uuid4().hex)
     destino.mkdir()
+    proteger_nuevo(destino)
     copia = destino / ARCHIVO
+    with copia.open('xb'):
+        proteger_nuevo(copia)
     with closing(abrir(path)) as origen, closing(sqlite3.connect(copia)) as db:
         origen.backup(db)
         estado = validar_db(db)
@@ -313,6 +337,7 @@ def backup(path):
         os.fsync(f.fileno())
     meta = {'sha256': huella(copia), 'id': estado['id'], 'modo': MODO}
     with (destino / 'manifiesto.json').open('x', encoding='utf-8') as f:
+        proteger_nuevo(destino / 'manifiesto.json')
         json.dump(meta, f)
         f.flush()
         os.fsync(f.fileno())
@@ -335,7 +360,10 @@ def restaurar(origen, destino):
         if meta != {'sha256': huella(copia), 'id': estado['id'], 'modo': MODO}:
             raise ValueError('Backup de identidad ajena.')
         destino = carpeta_nueva(destino)
-        with closing(sqlite3.connect(destino / ARCHIVO)) as nueva:
+        archivo = destino / ARCHIVO
+        with archivo.open('xb'):
+            proteger_nuevo(archivo)
+        with closing(sqlite3.connect(archivo)) as nueva:
             db.backup(nueva)
             validar_db(nueva)
     return comprobar(destino)

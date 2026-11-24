@@ -156,6 +156,35 @@ def test_permisos_privados(candidata):
         assert candidata.stat().st_mode & 0o077 == 0
 
 
+def test_permisos_archivos_tras_mover_backup_y_restore(candidata):
+    before = c.huella(candidata / c.ARCHIVO)
+    snapshot = c.backup(candidata)
+    for path in (candidata / c.ARCHIVO, candidata / 'credenciales.json', snapshot,
+                 snapshot / c.ARCHIVO, snapshot / 'manifiesto.json'):
+        c.verificar_permisos(path)
+    with TemporaryDirectory() as temp:
+        restored = Path(temp) / 'ProduccionCandidata'
+        c.restaurar(snapshot, restored)
+        c.verificar_permisos(restored / c.ARCHIVO)
+    assert c.huella(candidata / c.ARCHIVO) == before
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='ACL nativa de archivos Windows')
+@pytest.mark.parametrize('archivo', [c.ARCHIVO, 'credenciales.json'])
+def test_acl_archivo_extra_se_rechaza_sin_reparar(archivo):
+    with TemporaryDirectory() as temp:
+        carpeta = Path(temp) / 'ProduccionCandidata'
+        c.preparar(carpeta)
+        path = carpeta / archivo
+        subprocess.run(['icacls.exe', str(path), '/grant', '*S-1-1-0:R'], check=True, capture_output=True)
+        permisos = c.permisos_windows(path)
+        before = c.huella(carpeta / c.ARCHIVO)
+        with pytest.raises(ValueError, match='acceso exclusivo'):
+            c.comprobar(carpeta)
+        assert c.permisos_windows(path) == permisos
+        assert c.huella(carpeta / c.ARCHIVO) == before
+
+
 def test_fallo_permisos_no_crea_db_ni_credenciales(monkeypatch):
     def fallo(_):
         raise ValueError('Permisos ficticios inseguros')

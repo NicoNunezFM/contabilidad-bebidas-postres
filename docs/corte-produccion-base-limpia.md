@@ -354,10 +354,26 @@ con corte y saldos NULL, usuarios deshabilitados, stock cero pendiente y ninguna
 
 ### Validación de V3
 
-- Windows, última revisión local del protocolo y bloqueos: **69 pruebas aprobadas** en
+La verificación adicional del instalador detectó que mover la SQLite desde `TemporaryDirectory`
+en Windows conserva su DACL de origen, aunque la carpeta de destino tenga la ACL exacta.
+Se corrigió la creación: la SQLite nueva recibe DACL protegida con sólo usuario y SYSTEM antes
+de cargar sus cuentas y de moverla. Credenciales, archivos de respaldo y restore también reciben
+permisos exactos. `comprobar` valida el archivo SQLite y las credenciales, además de la carpeta;
+rechaza reglas adicionales y no repara archivos existentes. La primera carpeta V3 ensayada se
+conserva bloqueada para diagnóstico, sin actualizarla; la versión corregida requiere otro destino nuevo.
+
+La primera CI de `7cc70b1` aprobó Linux (492 casos, 34 omitidos), 45 controles Windows y 172
+casos de flujo. Falló un caso previo de catálogo por timeout en `Page.navigate`, antes de sus
+aserciones. Ese catálogo y el flujo nuevo pasaron juntos al repetirse localmente sin cambiar código.
+Se reintentó el job fallido; la corrección posterior de ACL requiere CI del nuevo SHA, independientemente
+del resultado de ese reintento. No se cambiaron ni omitieron aserciones por aquel timeout.
+
+- Windows, revisión local con la corrección de ACL de archivos: **72 pruebas aprobadas** en
   `test_preparacion_unificada.py` y `test_produccion_candidata.py`. Incluye rollback en el último
   INSERT, concurrencia, revisión obsoleta aun con movimientos compensados, custodia separada,
   roles, historial inmutable, reinicio de conexiones, procesos nuevos y restauración ficticia.
+  Incluye permisos exactos de SQLite, credenciales, backup y restore, y rechazo sin reparación de
+  permisos adicionales en ambos archivos críticos.
 - Edge: circuito de venta, pago de deuda, reverso y cierre con doble clic aprobado en un perfil
   temporal; sin duplicados ni ajuste de saldo por el cierre. Sintaxis JavaScript del POS aprobada.
 - Una ejecución anterior de los tres módulos focales aprobó 70 casos y omitió uno de navegador,
