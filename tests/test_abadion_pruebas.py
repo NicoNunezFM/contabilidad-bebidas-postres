@@ -142,8 +142,11 @@ def test_actualizacion_backup_rollback_sin_perder_historia(nueva,monkeypatch):
     monkeypatch.setattr(p,'preparar_release',lambda *args:dos)
     p.actualizar(nueva,ROOT,'b'*40)
     assert snapshot(nueva)==before
+    pointer=(nueva/'activa.json').read_bytes()
+    p.actualizar(nueva,ROOT,'b'*40)
+    assert (nueva/'activa.json').read_bytes()==pointer
     backups=list((nueva/'backups').glob('*pre-actualizacion.db'))
-    assert len(backups)==1
+    assert len(backups)==2
     validar_respaldo(nueva,backups[0].name)
     with closing(abrir_base(nueva,configuracion(nueva)['id'])) as db,db:
         db.execute('UPDATE productos SET stock=9 WHERE controla_stock=1')

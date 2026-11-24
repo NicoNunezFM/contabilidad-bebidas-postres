@@ -193,7 +193,12 @@ def activar(carpeta, release):
     pointer = carpeta / 'activa.json'
     if pointer.exists():
         comprobar_archivo(pointer)
-        old = json.loads(pointer.read_text(encoding='utf-8'))['commit']
+        current = json.loads(pointer.read_text(encoding='utf-8'))
+        old = current['commit']
+        if current['instancia'] != comprobar(carpeta)['id'] or not re.fullmatch('[0-9a-f]{40}', old):
+            raise ValueError('La versión activa no coincide con esta instancia.')
+        if old == meta['commit']:
+            return  # Repeated activation must preserve the previous rollback target.
     guardar(pointer, {'commit': meta['commit'], 'anterior': old, 'instancia': comprobar(carpeta)['id']})
     auditar(carpeta, 'version-activada', commit=meta['commit'], anterior=old)
 
