@@ -118,6 +118,15 @@ directo al archivo requiere cuenta/ACL de Windows, pendiente de preparar en el d
 
 ## Comandos para una instalación de ensayo posterior
 
+Durante la publicación apareció también el [PR #29](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/29),
+una implementación paralela basada en el mismo commit. Define módulos y lanzadores
+homónimos y propone la misma carpeta predeterminada de datos, con otra configuración.
+Son alternativas que requieren comparación, no dos cambios acumulativos para fusionar.
+Los comandos siguientes usan una carpeta adicional exclusiva para esta candidata:
+`%LOCALAPPDATA%\Abadion\AuditoriaV1\Preproduccion`. No dirigirlos a una instalación
+de la otra propuesta ni alternar versiones sobre su SQLite. La preparación rechaza una
+carpeta que ya existe. No se ha inspeccionado el contenido de la instalación del PR #29.
+
 Ejecutar desde el checkout de esta rama, con sus dependencias instaladas. Estos comandos
 son instrucciones de operación; no se ejecutaron contra la instalación de la PC durante
 la auditoría. No apuntar a la carpeta de Entrenamiento ni copiar `negocio.db`.
@@ -125,7 +134,7 @@ la auditoría. No apuntar a la carpeta de Entrenamiento ni copiar `negocio.db`.
 ```powershell
 $env:PYTHON_DOTENV_DISABLED = '1'
 $env:PYTHONUTF8 = '1'
-$datosEnsayo = Join-Path $env:LOCALAPPDATA 'Abadion\Preproduccion'
+$datosEnsayo = Join-Path $env:LOCALAPPDATA 'Abadion\AuditoriaV1\Preproduccion'
 $catalogoRevisado = Join-Path $env:TEMP 'abadion-catalogo-revisado.json'
 Copy-Item -LiteralPath .\scripts\catalogo-entrenamiento.json -Destination $catalogoRevisado
 notepad.exe $catalogoRevisado
