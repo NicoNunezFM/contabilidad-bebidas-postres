@@ -1,6 +1,6 @@
 {
   "commit_codigo": "da354070765ddc5a7fa3fef228dc34867f889dea",
-  "criterio": "Resultado más reciente ejecutado por caso; omitir no reemplaza una ejecución. No equivale a una corrida única. Repeticiones no sumadas.",
+  "criterio": "Resultado m\u00e1s reciente ejecutado por caso; omitir no reemplaza una ejecuci\u00f3n. No equivale a una corrida \u00fanica. Repeticiones no sumadas.",
   "corridas": [
     {
       "archivo": "abadion-fiado-regresion-api.xml",
@@ -37,6 +37,18 @@
       "time": "33.499",
       "timestamp": "2026-11-24T14:33:28.921303-03:00",
       "hostname": "NotebookKelyx"
+    },
+    {
+      "archivo": "abadion-fiado-demo-final.xml",
+      "sha256": "9dc6770714a64bef5f03f326aef52be03bdfa383c440a5cce6780221584156e3",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "8",
+      "time": "23.164",
+      "timestamp": "2026-11-24T14:38:38.332397-03:00",
+      "hostname": "NotebookKelyx"
     }
   ],
   "casos_unicos": 443,
@@ -44,5 +56,6 @@
     "aprobado": 443,
     "fallo": 0,
     "omitido": 0
-  }
+  },
+  "ajuste_posterior": "Demo regenerada para sincronizar dos reglas CSS; los 8 casos adicionales aprobados son repeticiones de identidades ya contadas."
 }
