@@ -1,0 +1,48 @@
+{
+  "commit_codigo": "da354070765ddc5a7fa3fef228dc34867f889dea",
+  "criterio": "Resultado más reciente ejecutado por caso; omitir no reemplaza una ejecución. No equivale a una corrida única. Repeticiones no sumadas.",
+  "corridas": [
+    {
+      "archivo": "abadion-fiado-regresion-api.xml",
+      "sha256": "f86111ad030b1079ddc82a5a910c68272ceb10fdf45610d1a6053a0c6d577b6d",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "29",
+      "tests": "443",
+      "time": "527.233",
+      "timestamp": "2026-11-24T14:27:41.332112-03:00",
+      "hostname": "NotebookKelyx"
+    },
+    {
+      "archivo": "abadion-fiado-regresion-edge.xml",
+      "sha256": "4085cb84ead3655d5fc91815920c750d868f58dce3012fa28285a39143d5fd91",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "2",
+      "skipped": "0",
+      "tests": "135",
+      "time": "427.209",
+      "timestamp": "2026-11-24T14:29:37.974519-03:00",
+      "hostname": "NotebookKelyx"
+    },
+    {
+      "archivo": "abadion-fiado-validacion-final.xml",
+      "sha256": "7f96532a4b74d3136931051d4957eed0d3d316167ff1af96b04a62da675e9bf5",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "5",
+      "time": "33.499",
+      "timestamp": "2026-11-24T14:33:28.921303-03:00",
+      "hostname": "NotebookKelyx"
+    }
+  ],
+  "casos_unicos": 443,
+  "resultado_por_casos": {
+    "aprobado": 443,
+    "fallo": 0,
+    "omitido": 0
+  }
+}
