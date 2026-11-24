@@ -351,6 +351,8 @@ svg.ui-icon {
   font: inherit;
 }
 .dialog select {min-height: 44px}
+#buscarClientePos, .alta-cliente-pos input {min-height: 44px}
+#coincidenciasClientePos button, #altaRapidaClientePos {max-width: 100%; overflow-wrap: anywhere}
 .filaPagoPos {min-width: 0; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; padding: 8px}
 .filaPagoPos button, .dialog details, .dialog .actions {margin-top: 8px}
 #camposOperacionPos > p, #errorOperacionPos, #errorVentaPos {margin: 8px 0}
@@ -3821,45 +3823,132 @@ if (modoReal) {
 
   function elegirClienteFiadoPos(campos, usuario, obligatorio = true) {
     let cliente;
-    const elegido = nodoPos('p', obligatorio ? 'Seleccioná o registrá un cliente para confirmar la deuda.'
-      : 'Seleccioná un cliente para vincularlo con la venta.');
+    let revision = 0, temporizador, buscando = false, enviando = false, pendiente;
+    let coincidencias = [];
+    const nombre = campoClientePos(campos, obligatorio ? '¿A quién se lo fiamos? Nombre o apodo'
+      : 'Cliente (opcional): nombre o apodo', 120, 'buscarClientePos');
+    nombre.autocomplete = 'off';
+    const lista = nodoPos('div');
+    lista.id = 'coincidenciasClientePos';
+    lista.setAttribute('aria-live', 'polite');
+    const elegido = nodoPos('p', 'Escribí un nombre y elegí un cliente o crealo aquí.');
     elegido.id = 'clienteElegidoPos';
     elegido.setAttribute('aria-live', 'polite');
-    campos.append(elegido);
+    campos.append(lista, elegido);
     function elegir(datos) {
+      if (sesionPos !== usuario || !campos.isConnected) return;
       cliente = datos;
-      elegido.textContent = etiquetaClientePos(datos);
+      elegido.textContent = 'Cliente seleccionado: ' + etiquetaClientePos(datos);
+      registrar.disabled = true;
+      registrar.textContent = 'Cliente seleccionado';
+      alta.hidden = true;
+      errorEl.textContent = '';
+      if (el('errorVentaPos')) el('errorVentaPos').textContent = '';
+      lista.replaceChildren();
+      if (obligatorio) el('accept').focus();
     }
-    buscarClientePos(campos, usuario, elegir);
-    const alta = nodoPos('details');
-    alta.append(nodoPos('summary', 'Alta rápida'));
-    const leer = camposAltaClientePos(alta);
-    const registrar = nodoPos('button', 'Guardar y seleccionar');
+    const alta = nodoPos('div');
+    alta.className = 'alta-cliente-pos';
+    const telefono = campoClientePos(alta, 'Teléfono (opcional)', 60);
+    telefono.type = 'tel';
+    const referencia = campoClientePos(alta, 'Referencia para distinguir homónimos (opcional)', 300);
+    const registrar = nodoPos('button', 'Crear cliente');
     registrar.type = 'button';
     registrar.id = 'altaRapidaClientePos';
+    registrar.disabled = true;
     const errorEl = nodoPos('p');
     errorEl.setAttribute('role', 'alert');
-    let pendiente;
-    registrar.onclick = async () => {
-      if (sesionPos !== usuario) return;
+    function bloquear(valor) {
+      nombre.disabled = telefono.disabled = referencia.disabled = valor;
+    }
+    async function buscar() {
+      const turno = ++revision;
+      const texto = nombre.value.trim();
+      registrar.disabled = true;
+      coincidencias = [];
+      if (!texto) { lista.replaceChildren(); buscando = false; return; }
+      buscando = true;
+      lista.textContent = 'Buscando clientes…';
+      try {
+        const datos = await consultarPos(rutaClientesPos + '?q=' + encodeURIComponent(texto));
+        if (turno !== revision || sesionPos !== usuario || !campos.isConnected) return;
+        coincidencias = datos.clientes;
+        lista.replaceChildren();
+        lista.append(nodoPos('p', coincidencias.length
+          ? 'Elegí por ID, teléfono o referencia. No se selecciona a nadie por su nombre.'
+          : 'Cliente nuevo: podés crearlo directamente.'));
+        for (const dato of coincidencias) {
+          const boton = nodoPos('button', 'Seleccionar ' + etiquetaClientePos(dato));
+          boton.type = 'button';
+          boton.onclick = () => elegir(dato);
+          lista.append(boton);
+        }
+        registrar.textContent = 'Crear cliente: ' + texto + (coincidencias.length ? ' (otra persona)' : '');
+        registrar.disabled = false;
+      } catch (error) {
+        if (turno === revision) lista.textContent = error.message + ' Volvé a escribir para reintentar la búsqueda.';
+      } finally {
+        if (turno === revision) buscando = false;
+      }
+    }
+    nombre.oninput = () => {
+      if (pendiente || enviando) return;
+      cliente = undefined;
+      alta.hidden = false;
+      elegido.textContent = 'Elegí un cliente o crealo antes de confirmar.';
       errorEl.textContent = '';
       registrar.disabled = true;
+      ++revision;
+      clearTimeout(temporizador);
+      lista.textContent = nombre.value.trim() ? 'Buscando clientes…' : '';
+      temporizador = setTimeout(buscar, 250);
+    };
+    nombre.onkeydown = event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      clearTimeout(temporizador);
+      if (!pendiente && !enviando) void buscar();
+    };
+    registrar.onclick = async () => {
+      if (sesionPos !== usuario || enviando || cliente || buscando || registrar.disabled) return;
+      errorEl.textContent = '';
+      enviando = true;
+      registrar.disabled = true;
       try {
-        pendiente ||= {...leer(), id_solicitud: uuidPos()};
+        if (!pendiente) {
+          const texto = nombre.value.trim();
+          if (!texto) throw new Error('Ingresá un nombre o apodo.');
+          if (coincidencias.some(c => c.nombre.trim().toLocaleLowerCase() === texto.toLocaleLowerCase())
+              && !telefono.value.trim() && !referencia.value.trim()) {
+            referencia.focus();
+            throw new Error('Ya existe ese nombre. Seleccioná su ficha o agregá teléfono o referencia para crear otra persona.');
+          }
+          pendiente = {nombre: texto, telefono: telefono.value.trim() || null,
+            referencia: referencia.value.trim() || null, id_solicitud: uuidPos()};
+        }
+        bloquear(true);
         elegir(await enviarPos(rutaClientesPos, pendiente, usuario));
         pendiente = null;
-        alta.open = false;
+        if (cliente) el('accept').focus();
       } catch (error) {
         if ([409, 422].includes(error.status) && error.codigo !== 'SESION_CAMBIADA') pendiente = null;
         errorEl.textContent = error.message;
       } finally {
-        registrar.disabled = false;
+        enviando = false;
+        bloquear(!!pendiente);
+        registrar.disabled = !!cliente;
+        if (pendiente) registrar.textContent = 'Reintentar la misma alta';
       }
     };
     alta.append(registrar, errorEl);
     campos.append(alta);
+    if (obligatorio) queueMicrotask(() => { if (nombre.isConnected) nombre.focus(); });
     return () => {
-      if (obligatorio && !cliente) throw new Error('Seleccioná un cliente registrado.');
+      if (enviando || pendiente) throw new Error('Completá o reintentá el alta del cliente antes de confirmar.');
+      if (obligatorio && !cliente) {
+        nombre.focus();
+        throw new Error('Elegí un cliente de la lista o presioná Crear cliente.');
+      }
       return cliente?.id_cliente;
     };
   }
@@ -4178,6 +4267,7 @@ if (modoReal) {
       const adicional = envio ? ' · Envío para ' + envio.titular + ': ' + importePos(envio.importe_centavos) : '';
       el('resumenVentaPos').textContent = importePos(validacion.total + (envio?.importe_centavos || 0))
         + ' · ' + modalidadesSimuladas[medio] + adicional;
+      if (leerPagos) actualizarSaldo();
     }
     var leerPagos;
     var deudor;
@@ -4199,6 +4289,7 @@ if (modoReal) {
         campos.append(label);
       }
       var resumen = nodoPos('p');
+      resumen.id = 'saldoFiadoPos';
       resumen.setAttribute('aria-live', 'polite');
       campos.append(resumen);
       function actualizarSaldo() {
@@ -4209,7 +4300,9 @@ if (modoReal) {
           const totalPropio = validacion.total + (envio && (envio.titular === 'negocio'
             || document.body.dataset.pedidosSencillos === '1') ? envio.importe_centavos : 0);
           resumen.textContent = cobrado > totalPropio ? 'Los pagos superan el total.'
-            : 'Cobrado ' + importePos(cobrado) + ' · Saldo ' + importePos(totalPropio - cobrado);
+            : 'Total ' + importePos(totalPropio) + ' · Pagado ' + importePos(cobrado)
+              + ' · Queda debiendo ' + importePos(totalPropio - cobrado);
+          if (medio === 'fiado') el('accept').textContent = 'Confirmar fiado · ' + importePos(totalPropio - cobrado);
         } catch (error) {
           resumen.textContent = 'Completá los importes para calcular el saldo.';
         }

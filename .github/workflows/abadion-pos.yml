@@ -52,7 +52,7 @@ jobs:
             throw 'No se encontró Microsoft Edge.'
           }
           $env:POS_UI_CAPTURAS = Join-Path $env:RUNNER_TEMP 'abadion-capturas'
-          python -m pytest -q tests/test_pos_web.py tests/test_demo_tablet.py tests/test_tablet_https.py tests/test_preproduccion.py tests/test_preproduccion_consolidacion.py tests/test_preproduccion_catalogo_edge.py tests/test_preproduccion_jornada_v1.py tests/test_lo_de_clau_delivery.py tests/test_lo_de_clau_edge.py tests/test_catalogo_comercial.py
+          python -m pytest -q tests/test_pos_web.py tests/test_demo_tablet.py tests/test_tablet_https.py tests/test_preproduccion.py tests/test_preproduccion_consolidacion.py tests/test_preproduccion_catalogo_edge.py tests/test_preproduccion_jornada_v1.py tests/test_lo_de_clau_delivery.py tests/test_lo_de_clau_edge.py tests/test_catalogo_comercial.py tests/test_abadion_pruebas.py tests/test_fiado_directo.py
       - name: Publicar capturas del flujo de ventas
         if: always()
         uses: actions/upload-artifact@v4
