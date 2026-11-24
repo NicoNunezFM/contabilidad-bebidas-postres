@@ -1,5 +1,9 @@
 # Abadion V1: preproducción persistente Windows / Edge
 
+> Ampliación candidata, sin instalar: [comparación #29/#30 y catálogo offline seguro](consolidacion-preproduccion-windows-v1.md).
+> Las instrucciones y evidencias originales siguientes corresponden a #29; no ejecutarlas
+> para actualizar la instalación existente sin autorización explícita.
+
 Base funcional y contable: PR #27, `integration/abadion-premium-edge`, commit
 `5d44eba6d18363789253d63df7cc58f448e849e1`. Rama independiente:
 `feature/abadion-v1-preproduccion-persistente`. No habilita producción ni migra datos.
