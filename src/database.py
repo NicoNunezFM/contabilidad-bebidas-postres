@@ -11,6 +11,7 @@ RUTA_BASE_PREDETERMINADA = (
 
 
 RUTA_ENTRENAMIENTO = ContextVar("ruta_entrenamiento", default=None)
+RUTA_PREPRODUCCION = ContextVar("ruta_preproduccion", default=None)
 
 
 def obtener_ruta_base():
@@ -28,11 +29,21 @@ def obtener_ruta_base():
 def obtener_conexion():
 
     ruta = obtener_ruta_base()
-    if RUTA_ENTRENAMIENTO.get() is not None:
+    if contexto := RUTA_PREPRODUCCION.get():
+        from pos_preproduccion import abrir_base
+        conexion = abrir_base(*contexto)
+    elif RUTA_ENTRENAMIENTO.get() is not None:
         from pos_entrenamiento_db import abrir_base_entrenamiento
 
         conexion = abrir_base_entrenamiento(ruta)
     else:
+        # Fail closed before opening a writable handle, including renamed copies.
+        if ruta.is_file():
+            with closing(sqlite3.connect(ruta.resolve().as_uri() + "?mode=ro", uri=True)) as prueba:
+                if prueba.execute("SELECT 1 FROM sqlite_schema WHERE name='pos_preproduccion'").fetchone():
+                    raise ValueError("Preproducción requiere su launcher y contexto exclusivos.")
+        if ruta.name.casefold() == "abadion-preproduccion.db":
+            raise ValueError("Preproducción requiere su launcher exclusivo.")
         if ruta.name.casefold() == "abadion-entrenamiento.db":
             raise ValueError("Usá el launcher de Abadion Entrenamiento para esta base.")
         conexion = sqlite3.connect(ruta)
