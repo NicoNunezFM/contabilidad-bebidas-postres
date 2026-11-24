@@ -66,6 +66,8 @@ def abrir_base_entrenamiento(ruta, *, solo_lectura=False):
     modo = "ro&immutable=1" if solo_lectura else "rw"
     db = sqlite3.connect(ruta.as_uri() + "?mode=" + modo, uri=True)
     try:
+        if db.execute("SELECT 1 FROM sqlite_schema WHERE name='pos_preproduccion'").fetchone():
+            raise ValueError("Preproducción no puede abrirse como Entrenamiento.")
         if (
             db.execute("PRAGMA application_id").fetchone()[0] != ID_SQLITE_SIMULACION
             or db.execute("PRAGMA user_version").fetchone()[0] != VERSION_ESQUEMA_SIMULACION

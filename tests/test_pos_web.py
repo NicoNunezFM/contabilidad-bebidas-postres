@@ -280,14 +280,14 @@ def test_pos_web_aviso_de_entrenamiento_visible_al_ingresar(controles_pos):
         })()
     """)
     clic("#adminAccess")
-    assert evaluar("""
+    esperar(lambda: evaluar("""
         (() => {
             const aviso = document.querySelector('#entrenamientoAviso');
             const rect = aviso.getBoundingClientRect();
             return !document.querySelector('#overlay').hidden
                 && document.elementFromPoint(rect.width / 2, rect.height / 2) === aviso;
         })()
-    """)
+    """))
     usuario, _, clave = USUARIOS[0]
     evaluar(f"""
         document.querySelector('#usuarioPos').value = {json.dumps(usuario)};
