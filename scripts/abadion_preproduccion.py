@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from pos_preproduccion import (
-    ARCHIVO, MODO, abrir_base, auditar, carpeta_segura, configuracion, integridad, respaldo, restaurar,
+    ARCHIVO, MODO, abrir_base, actualizar_catalogo, auditar, carpeta_segura, configuracion, integridad, respaldo, restaurar,
 )
 from pos_entrenamiento_db import bloquear_entrenamiento, comprobar_archivo
 
@@ -70,7 +70,7 @@ def preparar(carpeta):
     return carpeta / ARCHIVO
 
 
-def crear_app(carpeta, detener=None):
+def crear_app(carpeta, detener=None, *, intervalo=3600):
     from fastapi import FastAPI, Request, HTTPException
     from fastapi.responses import HTMLResponse, RedirectResponse
     from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -87,25 +87,26 @@ def crear_app(carpeta, detener=None):
 
     @asynccontextmanager
     async def vida(app):
+        fin = asyncio.Event()
+
         async def periodico():
-            while True:
-                await asyncio.sleep(3600)
+            while not fin.is_set():
                 try:
-                    await asyncio.to_thread(respaldo, carpeta, "automatico")
-                except Exception as exc:
-                    auditar(carpeta, "backup-fallido", error=type(exc).__name__)
-        respaldo(carpeta, "inicio")
+                    await asyncio.wait_for(fin.wait(), timeout=intervalo)
+                except TimeoutError:
+                    try:
+                        await asyncio.to_thread(respaldo, carpeta, "automatico")
+                    except Exception as exc:
+                        auditar(carpeta, "backup-fallido", error=type(exc).__name__)
+        await asyncio.to_thread(respaldo, carpeta, "inicio")
         tarea = asyncio.create_task(periodico())
         auditar(carpeta, "servidor-iniciado")
         try:
             yield
         finally:
-            tarea.cancel()
-            try:
-                await tarea
-            except asyncio.CancelledError:
-                pass
-            respaldo(carpeta, "detencion")
+            fin.set()
+            await tarea  # Wait for any running snapshot before releasing the process lock.
+            await asyncio.to_thread(respaldo, carpeta, "detencion")
             auditar(carpeta, "servidor-detenido")
 
     app = FastAPI(title=MODO, docs_url=None, redoc_url=None, openapi_url=None, lifespan=vida)
@@ -211,16 +212,28 @@ def iniciar(carpeta, sin_edge=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--carpeta", type=Path, default=Path(os.getenv("LOCALAPPDATA", str(Path.home()))) / "Abadion" / "Preproduccion")
-    parser.add_argument("accion", choices=["preparar", "iniciar", "detener", "estado", "backup", "restaurar", "worker"])
+    parser.add_argument("--carpeta", type=Path)
+    parser.add_argument("accion", choices=["preparar", "iniciar", "detener", "estado", "backup", "restaurar", "worker",
+                                           "validar-catalogo", "actualizar-catalogo"])
     parser.add_argument("--sin-edge", action="store_true")
     parser.add_argument("--archivo")
+    parser.add_argument("--catalogo", type=Path)
+    parser.add_argument("--sha256", help="Hash del JSON exacto revisado con validar-catalogo")
     parser.add_argument("--base-ausente", action="store_true", help="Recuperar sólo si no existe la base; requiere configuración y backup propios")
     args = parser.parse_args()
     try:
-        carpeta = carpeta_segura(args.carpeta)
+        carpeta = carpeta_segura(args.carpeta or Path(os.getenv("LOCALAPPDATA", str(Path.home()))) / "Abadion" / "Preproduccion")
         if args.accion == "preparar":
             print(preparar(carpeta))
+        elif args.accion in ("validar-catalogo", "actualizar-catalogo"):
+            if args.carpeta is None:
+                raise ValueError("Para mantenimiento de catálogo indicá --carpeta explícita.")
+            if not args.catalogo:
+                raise ValueError("Indicá --catalogo con un JSON revisado.")
+            if args.accion == "actualizar-catalogo" and not args.sha256:
+                raise ValueError("Indicá --sha256 con la huella devuelta por validar-catalogo.")
+            print(json.dumps(actualizar_catalogo(carpeta, args.catalogo,
+                validar=args.accion == "validar-catalogo", sha256=args.sha256), ensure_ascii=False))
         elif args.accion == "worker":
             import uvicorn
             with bloquear_entrenamiento(carpeta):
