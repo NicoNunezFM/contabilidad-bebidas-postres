@@ -3508,12 +3508,31 @@ if (modoReal) {
     const cuerpo = abrirConsultaPos('Dos cajas · Saldo unificado');
     try {
       const datos = await consultarPos('/simulacion/saldo-unificado');
+      const conciliacion = sesionAdmin ? await consultarPos('/simulacion/saldo-unificado/conciliacion') : null;
       if (!cuerpo.isConnected) return;
-      for (const [caja, saldo] of Object.entries(datos.cajas)) {
+      for (const [caja, saldo] of Object.entries(conciliacion ? conciliacion.cajas : datos.cajas)) {
         const fila = nodoPos('section', undefined, 'row');
         fila.dataset.saldoUnificado = caja;
         fila.append(nodoPos('h3', nombresCajas[caja]), nodoPos('strong', importePos(saldo.saldo_centavos)));
         if (saldo.custodia_reparto_centavos) fila.append(nodoPos('p', 'Pendiente del repartidor · ' + importePos(saldo.custodia_reparto_centavos)));
+        if (conciliacion) {
+          const anteriores = conciliacion.cierres.filter(c => c.caja === caja);
+          const ultimo = anteriores.at(-1);
+          if (ultimo) fila.append(nodoPos('p', 'Último cierre #' + ultimo.secuencia + ' · Diferencia ' + importePos(ultimo.diferencia_centavos) + ' · Diferencia de custodia ' + importePos(ultimo.diferencia_custodia_centavos)));
+          fila.append(botonCajaDiaria('Conciliar y cerrar ' + nombresCajas[caja], () => abrirOperacionPos(
+            'Cierre · ' + nombresCajas[caja], '/simulacion/saldo-unificado/cierres', sesionPos, campos => {
+              campos.append(nodoPos('p', 'Saldo del libro ' + importePos(saldo.saldo_centavos) + '. Este cierre guarda el conteo y sus diferencias; no ajusta el saldo. Si hubo movimientos, cerrá esta ventana y volvé a consultar.'));
+              const contado = importeEntradaPos('Saldo total contado en pesos');
+              const custodia = importeEntradaPos('Fondos del repartidor contados en pesos');
+              campos.append(contado.label, custodia.label);
+              const referencia = campoClientePos(campos, 'Referencia del conteo', 120, 'referenciaCierreUnificado');
+              const motivo = motivoOperacionPos(campos);
+              return () => ({caja, revision: conciliacion.revision, secuencia: anteriores.length + 1,
+                saldo_contado_centavos: leerCentavosPos(contado.input.value, true),
+                custodia_contada_centavos: leerCentavosPos(custodia.input.value, true),
+                referencia: referencia.value.trim(), motivo: motivo()});
+            }, mostrarSaldoUnificado)));
+        }
         cuerpo.append(fila);
       }
       const inventario = nodoPos('details');
@@ -3543,6 +3562,17 @@ if (modoReal) {
               return () => ({importe_centavos: deuda.pendiente_centavos, motivo: motivo()});
             }, mostrarSaldoUnificado)));
         }
+        cuerpo.append(fila);
+      }
+      for (const pago of datos.pagos_deuda) {
+        const fila = nodoPos('section');
+        fila.append(nodoPos('p', 'Pago de deuda #' + pago.id_pago + ' · ' + importePos(pago.importe_centavos) + ' · ' + pago.fecha + (pago.revertido ? ' · Revertido' : ' · Vigente')));
+        if (sesionAdmin && !pago.revertido) fila.append(botonCajaDiaria('Revertir pago #' + pago.id_pago, () => abrirOperacionPos(
+          'Revertir pago de deuda', '/simulacion/saldo-unificado/pagos/' + pago.id_pago + '/reverso', sesionPos, campos => {
+            campos.append(nodoPos('p', 'Confirmá que el pago no se realizó o fue devuelto. Se restituirán el saldo de la caja y la deuda; el pago original se conserva.'));
+            const motivo = motivoOperacionPos(campos);
+            return () => ({motivo: motivo()});
+          }, mostrarSaldoUnificado)));
         cuerpo.append(fila);
       }
     } catch (error) { cuerpo.append(nodoPos('p', error.message)); }

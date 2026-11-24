@@ -155,6 +155,23 @@ def test_edge_saldos_y_checkout_sin_desglose(unificado,tmp_path):
         if salida:
             Path(salida).mkdir(parents=True,exist_ok=True)
             (Path(salida)/'abadion-paso-saldo-unificado.png').write_bytes(evaluar.captura())
+        def boton_texto(texto):
+            evaluar("[...document.querySelectorAll('#consultaPos button')].find(b=>b.textContent==="+json.dumps(texto)+").click(); void 0")
+        boton_texto('Pagar deuda completa')
+        evaluar("document.querySelector('#camposOperacionPos textarea').value='Pago ficticio Edge'; document.querySelector('#accept').click(); document.querySelector('#accept').click(); void 0")
+        esperar(lambda:evaluar("document.querySelector('#consultaPos')?.textContent.includes('Pago de deuda #1')"))
+        assert saldos(unificado[1])['comidas']==2500000
+        boton_texto('Revertir pago #1')
+        evaluar("document.querySelector('#camposOperacionPos textarea').value='Pago no realizado QA'; document.querySelector('#accept').click(); document.querySelector('#accept').click(); void 0")
+        esperar(lambda:evaluar("document.querySelector('#consultaPos')?.textContent.includes('Revertido')"))
+        assert saldos(unificado[1])['comidas']==3000000
+        boton_texto('Conciliar y cerrar Rotisería')
+        evaluar("document.querySelectorAll('#camposOperacionPos input')[0].value='30000'; document.querySelectorAll('#camposOperacionPos input')[1].value='0'; document.querySelector('#referenciaCierreUnificado').value='Conteo ficticio Edge'; document.querySelector('#camposOperacionPos textarea').value='Cierre sintético'; document.querySelector('#accept').click(); document.querySelector('#accept').click(); void 0")
+        esperar(lambda:evaluar("document.querySelector('#consultaPos')?.textContent.includes('Último cierre #1')"))
+        assert saldos(unificado[1])['comidas']==3000000
+        assert len(unificado[1].get(RUTA+'/conciliacion').json()['cierres'])==1
+        if salida:
+            (Path(salida)/'abadion-paso-cierre-unificado.png').write_bytes(evaluar.captura())
 
 
 def test_deuda_insuficiente_no_mueve_fondos(unificado):

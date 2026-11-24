@@ -19,7 +19,7 @@ from pos_entrenamiento_db import comprobar_archivo
 from pos_preproduccion import integridad, leer_catalogo_preproduccion
 
 ARCHIVO = 'abadion-produccion-candidata.db'
-MODO = 'PRODUCCION-CANDIDATA-BLOQUEADA-V2'
+MODO = 'PRODUCCION-CANDIDATA-BLOQUEADA-V3'
 APP_ID = 0x41424331
 CATALOGO_SHA = '36bb753a5980a9fa445728ae13471e56b7325edea047e9e4b48a98eecff43486'
 CONFIG = {'productos', 'adicionales_catalogo', 'usuarios_pos',
@@ -194,6 +194,9 @@ def validar_catalogo(db):
 def validar_db(db):
     from pos_simulacion import VERSION_ESQUEMA_SIMULACION
     integridad(db)
+    requeridas = {'pos_apertura_ensayo', 'pos_reversos_deuda_apertura', 'pos_cierres_unificados'}
+    if not requeridas.issubset(tablas(db)):
+        raise ValueError('Falta el esquema de preparación V3; no migrar candidatas anteriores.')
     validar_catalogo(db)
     if (db.execute('PRAGMA application_id').fetchone()[0] != APP_ID
             or db.execute('PRAGMA user_version').fetchone()[0] != VERSION_ESQUEMA_SIMULACION):

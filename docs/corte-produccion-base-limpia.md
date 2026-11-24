@@ -1,6 +1,8 @@
 # Candidata de producción con contabilidad nueva
 
 Estado: **bloqueada, offline, sin fecha efectiva de corte ni operaciones habilitadas**.
+La preparación actual es V3 y sólo crea destinos nuevos. Las secciones de evidencia V1/V2
+son históricas; la continuación V3 al final describe el alcance vigente.
 La preparación no implica aprobación comercial, aceptación de saldos ni autorización de despliegue.
 No existe comando de inicio o activación. No eliminar los bloqueos SQL ni cambiar el application_id para utilizarla.
 
@@ -274,3 +276,96 @@ requiere una revisión propia: no presentar un arqueo de efectivo como cierre de
   Pasaron 40 controles de candidata y un control adicional con una regla explícita de terceros sobre
   carpeta ficticia recién creada: al crear la ACL exacta quedaron sólo usuario y SYSTEM. Los rechazos
   de terceros y herencia siguen vigentes. Requiere confirmar esta creación en la nueva CI Windows.
+
+## Continuación V3: protocolo de ensayo, reversos y conciliación
+
+Esta continuación completa la preparación del mismo PR #37, que permanece en borrador.
+**No hay activación productiva, servidor de candidata ni valores reales cargados.**
+La identidad ahora es `PRODUCCION-CANDIDATA-BLOQUEADA-V3`; se crea exclusivamente en un destino
+nuevo. No se migran ni actualizan candidatas V1/V2 o instalaciones existentes.
+
+### Apertura atómica ensayable
+
+`src/pos_apertura_ensayo.py` implementa un protocolo interno sin endpoint ni comando de instalación.
+Sólo admite una identidad de Preproducción **ficticia**, sin operaciones, stock previo ni pendientes.
+Rechaza el marcador de candidata independientemente de su application_id. No retira ningún bloqueo,
+cambia identidades, habilita usuarios ni constituye consentimiento para operar en producción.
+
+El modelo exige UUID, instancia, responsable, evidencia identificada por SHA-256, versión declarada,
+huella del catálogo consultado, instante no futuro con zona Buenos Aires, exactamente dos saldos,
+conteo completo de cada SKU de postres incluidos ceros, bebidas inicialmente sin existencias y bloqueadas,
+deuda tarjeta de Rotisería de pago único (o ausencia explícita), fiados previos cero y confirmaciones
+de conciliación sin duplicados, ausencia de tránsito y aceptación del modelo de Rotisería.
+Los importes de los ensayos son sintéticos y no reproducen las referencias privadas del usuario.
+
+El ensayo posee su transacción `BEGIN IMMEDIATE`: saldos, stock, deuda, corte contable y registro
+inmutable se confirman juntos. Un error al insertar el registro final revierte todos los cambios.
+Repetir el mismo UUID, contenido y autor devuelve el resultado original; un contenido o autor diferente
+es rechazado. No genera ventas, ingresos, gastos ni diezmo de apertura.
+
+La versión de código y la evidencia son declaraciones del ensayo: **no son firmas, aprobación humana,
+verificación del SHA ejecutado ni aceptación operativa**. La futura apertura real deberá vincular la
+identidad y manifiesto de la release, CI del SHA exacto, evidencia privada reconfirmada al corte y
+consentimiento humano explícito. El protocolo de ensayo no se puede usar para activar una candidata.
+Si hay fiados anteriores o circunstancias fuera del modelo acordado, se requiere revisión separada.
+
+### Reverso de pagos de deuda
+
+En la API ficticia, Administración puede registrar `/saldo-unificado/pagos/{id_pago}/reverso` con
+UUID y motivo obligatorio. Debe representar un pago no realizado o fondos efectivamente devueltos;
+no sirve para sumar disponibilidad sin conciliación. El pago original se conserva, el reverso queda
+vinculado a él y restituye saldo y obligación exactamente una vez, sin nuevo gasto o diezmo.
+Pago y reverso conservan autor, fecha, solicitud y resultado; SQL impide modificarlos o borrarlos.
+
+Puede registrarse después un nuevo pago completo con otro UUID, con fondos suficientes y en la caja
+responsable. Sólo puede existir un pago vigente por deuda. Un reintento del pago original después de
+su reverso devuelve su respuesta histórica, sin volver a descontar dinero; el resumen refleja el estado
+actual y muestra los pagos revertidos. Concurrencia y roles se verifican dentro de la transacción.
+
+### Cierre y conciliación del saldo total
+
+Administración consulta `/saldo-unificado/conciliacion` y confirma `/saldo-unificado/cierres`.
+La pantalla permite contar un saldo total por sector y, por separado, custodia del repartidor.
+Exige referencia, motivo, revisión vigente y secuencia siguiente. La revisión incorpora el libro de
+movimientos y cierres: movimientos compensados tampoco permiten confirmar una consulta desactualizada.
+Dos confirmaciones del mismo UUID producen un único cierre; otra solicitud con la revisión antigua se rechaza.
+
+El cierre es una constancia inmutable de conciliación con autor, fecha, saldo del libro, conteos y ambas
+diferencias. **No ajusta saldos, genera movimientos ni traslada diferencias al siguiente período.**
+Permite nuevas operaciones posteriores al instante registrado, como siguiente tramo de conciliación.
+Los reversos posteriores se ven en el tramo nuevo y no reescriben el cierre anterior. Las diferencias
+quedan pendientes de resolución documentada; no se corrigen borrando filas o con apertura nueva.
+No reemplaza ni presenta como equivalente el arqueo físico heredado por medio ni cierra automáticamente
+sus jornadas. El procedimiento operativo de entrega de turno y aceptación física sigue pendiente.
+
+### Condiciones de producción que continúan bloqueadas
+
+- [ ] Revisar código y CI del SHA exacto de V3; conservar PR borrador sin fusionar.
+- [ ] Diseñar y revisar la activación real separada; no reutilizar el consentimiento del ensayo.
+- [ ] Reconfirmar privadamente instante de corte, dos saldos, deuda/vencimiento, fiados y cada conteo físico.
+- [ ] Confirmar catálogo, asignaciones sin duplicación, ausencia de operaciones en tránsito y exclusión del bot.
+- [ ] Aceptar el procedimiento de cierre y resolución de diferencias, con responsables individuales.
+- [ ] Ensayar dispositivos reales, reinicio físico de Windows y recuperación tras corte de energía.
+- [ ] Verificar respaldo externo y recuperación en un destino nuevo, cuentas y permisos individuales.
+- [ ] Obtener consentimiento humano explícito para apertura y posterior habilitación.
+
+No se promete una fecha de inicio. Hasta completar esas condiciones, la candidata permanece bloqueada,
+con corte y saldos NULL, usuarios deshabilitados, stock cero pendiente y ninguna operación registrada.
+
+### Validación de V3
+
+- Windows, última revisión local del protocolo y bloqueos: **69 pruebas aprobadas** en
+  `test_preparacion_unificada.py` y `test_produccion_candidata.py`. Incluye rollback en el último
+  INSERT, concurrencia, revisión obsoleta aun con movimientos compensados, custodia separada,
+  roles, historial inmutable, reinicio de conexiones, procesos nuevos y restauración ficticia.
+- Edge: circuito de venta, pago de deuda, reverso y cierre con doble clic aprobado en un perfil
+  temporal; sin duplicados ni ajuste de saldo por el cierre. Sintaxis JavaScript del POS aprobada.
+- Una ejecución anterior de los tres módulos focales aprobó 70 casos y omitió uno de navegador,
+  ejecutado por separado. Las cifras se solapan y no representan casos únicos sumables.
+- Las primeras pruebas API dentro del entorno restringido no pudieron crear el socket interno de
+  asyncio en Windows. Se interrumpieron y se repitieron con conexiones locales disponibles;
+  ese bloqueo del entorno no se contó como aprobación ni se cambió el código para eludirlo.
+- La regresión completa y CI del nuevo SHA deben comprobarse antes de aceptar esta revisión.
+  Los resultados anteriores del SHA `2670023` no validan automáticamente V3.
+- Reinicio físico, pérdida de energía, checklist de dispositivos, valores reales, consentimiento
+  y activación productiva continúan pendientes. Ninguna base anterior ni bot se abrió o modificó.

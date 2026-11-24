@@ -41,7 +41,8 @@ def test_vacia_catalogo_roles_y_corte(candidata):
     'cuentas_deuda_negocio', 'pos_ventas_simuladas', 'pos_diario_caja',
     'productos', 'usuarios_pos', 'candidata_corte', 'candidata_validaciones',
     'pos_saldos_iniciales', 'pos_deudas_apertura', 'pos_pagos_deuda_apertura',
-    'pos_stock_progresivo', 'pos_validaciones_stock'])
+    'pos_stock_progresivo', 'pos_validaciones_stock', 'pos_apertura_ensayo',
+    'pos_reversos_deuda_apertura', 'pos_cierres_unificados'])
 def test_sql_directo_bloqueado(candidata, table):
     before = c.huella(candidata / c.ARCHIVO)
     with closing(sqlite3.connect(candidata / c.ARCHIVO)) as db:
@@ -202,9 +203,20 @@ def test_saldos_y_deudas_no_precargados(candidata):
     with closing(c.abrir(candidata)) as db:
         assert db.execute('SELECT * FROM pos_saldos_iniciales ORDER BY caja').fetchall() == [
             ('bebidas_postres', None, None, None), ('comidas', None, None, None)]
-        for tabla in ('pos_deudas_apertura','pos_pagos_deuda_apertura','pos_validaciones_stock'):
+        for tabla in ('pos_deudas_apertura','pos_pagos_deuda_apertura','pos_validaciones_stock',
+                      'pos_apertura_ensayo','pos_reversos_deuda_apertura','pos_cierres_unificados'):
             assert db.execute(f'SELECT COUNT(*) FROM {tabla}').fetchone() == (0,)
         assert not db.execute('SELECT 1 FROM pos_stock_progresivo WHERE habilitado<>0').fetchall()
+
+
+def test_ensayo_no_abre_candidata(candidata):
+    from fastapi import HTTPException
+    from pos_apertura_ensayo import ensayar_apertura
+    antes = c.huella(candidata / c.ARCHIVO)
+    with closing(sqlite3.connect(candidata / c.ARCHIVO)) as db:
+        with pytest.raises(HTTPException, match='Sólo se admite'):
+            ensayar_apertura(db, None, {'rol':'admin','id_usuario':1})
+    assert c.huella(candidata / c.ARCHIVO) == antes
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Alias 8.3 de Windows')

@@ -42,6 +42,7 @@ from pos_compras_caja import CompraCajaEntrada, ReversoCompraCaja, listar_compra
 from pos_puente import consultar_puente_ficticio
 from pos_saldo_unificado import (
     PagoDeuda, ValidarReposicion, pagar_deuda, resumen as resumen_unificado, validar_reposicion,
+    ReversoDeuda, revertir_deuda, CierreUnificado, cerrar_unificado, conciliacion as conciliacion_unificada,
 )
 from pos_simulacion import (
     AnulacionSimuladaEntrada,
@@ -1113,3 +1114,25 @@ def validar_stock_bebida(producto: int, datos: ValidarReposicion, usuario: dict 
     comprobar_usuario_simulacion(x_pos_usuario, usuario)
     with transaccion_simulacion(escritura=True) as db:
         return validar_reposicion(db, producto, datos, usuario)
+
+
+@router.post("/simulacion/saldo-unificado/pagos/{numero}/reverso", dependencies=[Depends(comprobar_origen)])
+def reversar_pago_apertura(numero: int, datos: ReversoDeuda, usuario: dict = Depends(exigir_administrador_pos),
+                          x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return revertir_deuda(db, numero, datos, usuario)
+
+
+@router.get("/simulacion/saldo-unificado/conciliacion", dependencies=[Depends(evitar_cache_pos)])
+def consultar_conciliacion_unificada(usuario: dict = Depends(exigir_administrador_pos)):
+    with transaccion_simulacion() as db:
+        return conciliacion_unificada(db)
+
+
+@router.post("/simulacion/saldo-unificado/cierres", dependencies=[Depends(comprobar_origen)])
+def cierre_saldo_unificado(datos: CierreUnificado, usuario: dict = Depends(exigir_administrador_pos),
+                          x_pos_usuario: int | None = Header(default=None)):
+    comprobar_usuario_simulacion(x_pos_usuario, usuario)
+    with transaccion_simulacion(escritura=True) as db:
+        return cerrar_unificado(db, datos, usuario)
