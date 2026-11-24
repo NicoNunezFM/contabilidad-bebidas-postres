@@ -189,3 +189,18 @@ def test_corte_no_admite_futuro_ni_fecha_sin_zona(unificado,corte):
     with closing(abrir_base(carpeta,configuracion(carpeta)['id'])) as db,db:
         db.execute('UPDATE pos_saldos_iniciales SET corte=?',(corte,))
     assert c.get(RUTA).status_code==409
+
+
+def test_delivery_fiado_adelanto_y_abono_en_otra_caja(unificado):
+    _,c,ids,_=unificado
+    titular=post(c,SIM+'/clientes',nombre='Cliente reparto ficticio')['id_cliente']
+    v=venta(c,ids,pagos=[],fiado=True,id_cliente=titular)
+    assert saldos(c)=={'comidas':3000000,'bebidas_postres':3000000}
+    entregar(c,v,'comidas_saldo_unificado',confirmar_pendiente=True,
+             saldo_confirmado_centavos=1450000,motivo='Adelanto ficticio del reparto')
+    assert saldos(c)=={'comidas':2800000,'bebidas_postres':3000000}
+    post(c,SIM+f"/ventas/{v['id_venta']}/abonos",pagos=[pago('bebidas_postres',1450000)])
+    assert saldos(c)=={'comidas':2800000,'bebidas_postres':4450000}
+    assert all(caja['custodia_reparto_centavos']==0 for caja in c.get(RUTA).json()['cajas'].values())
+    assert c.get(SIM+f'/clientes/{titular}').json()['saldo_centavos']==0
+    cuadrado(c)

@@ -75,7 +75,10 @@ def validar_pago(db, receptor, medio):
 
 
 def resumen(db):
+    from pos_cobros import periodo_abierto
+    from pos_delivery import resumen_delivery
     exigir(db)
+    reparto = resumen_delivery(db, periodo_abierto(db))
     cajas = {}
     for caja, inicial, corte, responsable in db.execute("SELECT * FROM pos_saldos_iniciales ORDER BY CASE caja WHEN 'comidas' THEN 0 ELSE 1 END"):
         # Cobros y sus reversos, transferencias y delivery se registran una sola vez en este libro.
@@ -91,9 +94,7 @@ def resumen(db):
         pagos = db.execute('''SELECT COALESCE(SUM(p.importe_centavos),0) FROM pos_pagos_deuda_apertura p
             JOIN pos_deudas_apertura d USING(id_deuda) WHERE d.caja=?''', (caja,)).fetchone()[0]
         # Custodia de terceros no se ofrece como saldo propio ni se cuenta como venta.
-        custodia = 0
-        if db.execute("SELECT 1 FROM sqlite_schema WHERE name='pos_delivery_movimientos'").fetchone():
-            custodia = db.execute("SELECT COALESCE(SUM(importe_centavos),0) FROM pos_delivery_movimientos WHERE receptor LIKE ?", (caja + '_%',)).fetchone()[0]
+        custodia = sum(r['custodia_centavos'] for r in reparto if r['receptor'].startswith(caja + '_'))
         cajas[caja] = {'saldo_centavos': inicial + movimientos + manual - compras - pagos - custodia,
                       'custodia_reparto_centavos': custodia, 'corte': corte}
     deudas = [dict(zip(('id_deuda','caja','concepto','vencimiento','pendiente_centavos'), f)) for f in db.execute('''

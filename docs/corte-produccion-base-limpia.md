@@ -238,7 +238,7 @@ requiere una revisión propia: no presentar un arqueo de efectivo como cierre de
   público de instalaciones anteriores. Ambas tenían la misma causa: agregar `saldo_unificado:false`.
   Se corrigió omitiendo el campo cuando el modelo no existe; ambos casos pasaron al repetirse.
 - Verificación focal final: **49 aprobadas** sobre candidata, saldos, deuda, stock, corte con zona horaria,
-  concurrencia, sesión cambiada y Edge. Incluye uno de los dos casos anteriores; el otro pasó por separado.
+  concurrencia, sesión cambiada, adelanto de delivery fiado cobrado en otra caja y Edge. Los dos casos anteriores pasaron por separado.
   No sumar estas cifras como casos únicos ni atribuir a la ejecución inicial las pruebas agregadas después.
 - Edge con perfil temporal: dos saldos sin desglose por medio, venta de postre confirmada con doble clic
   una sola vez, saldo actualizado y captura `abadion-paso-saldo-unificado.png` con datos ficticios.
@@ -246,3 +246,8 @@ requiere una revisión propia: no presentar un arqueo de efectivo como cierre de
   bebidas no habilitadas, permisos privados Windows y alias de ruta 8.3. Backup/restore siguen bloqueados.
 - Sintaxis Python y diff verificados; demo estática generada comparada con su fuente, sin diferencias.
 - CI remota debe verificar de nuevo el commit publicado; ningún resultado local habilita Producción.
+
+- La revisión final agregó el escenario de adelanto de delivery fiado con cobro posterior en otra caja.
+  Se reutiliza la definición de custodia del motor de delivery: una entrega ya realizada no es custodia
+  negativa y su salida sí reduce el saldo propio del sector pagador. Los cobros posteriores restituyen
+  fondos al receptor elegido sin alterar la deuda del cliente dos veces.
