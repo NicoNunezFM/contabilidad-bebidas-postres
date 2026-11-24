@@ -324,6 +324,10 @@ svg.ui-icon {
   background: #f9fafc;
   background: var(--paper);
 }
+.dialog-header {display: flex; align-items: flex-start; justify-content: space-between; gap: 12px}
+#closeDialog {min-width: 44px; min-height: 44px; padding: 0; font-size: 27px; flex: none}
+.dialog .complemento-pos {display: flex; align-items: center; justify-content: space-between; gap: 12px}
+.dialog input[type=number] {width: 5em; min-height: 44px}
 .dialog h3 {margin: 15px 0 5px}
 .check {display: flex; align-items: center; min-height: 49px; padding: 4px; border-bottom: 1px solid var(--line)}
 .check input[type=checkbox] {width: 24px; height: 24px; margin-right: 12px; flex: none; accent-color: #a26a0b}
@@ -510,7 +514,7 @@ svg.ui-icon {
 <button id="checkout" class="primary wide">Simular cobro →</button><p id="notice" class="notice" role="status"></p>
 </aside>
 </div></div></div>
-<div id="overlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><h2 id="dialogTitle"></h2><div id="dialogBody"></div><div class="actions" id="dialogActions"></div></section></div>
+<div id="overlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><header class="dialog-header"><h2 id="dialogTitle"></h2><button type="button" id="closeDialog" aria-label="Cerrar">×</button></header><div id="dialogBody"></div><div class="actions" id="dialogActions"></div></section></div>
 <script>
 (function () {
   'use strict';
@@ -631,6 +635,7 @@ svg.ui-icon {
   function show(title,body,action) {
     if (overlay.hidden) trigger = document.activeElement;
     el('dialogTitle').textContent = title;
+    el('dialogBody').onchange = null;
     el('dialogBody').innerHTML = body;
     el('dialogActions').innerHTML = button(action,'id','accept','class="primary"') + button('Cancelar','id','cancel');
     overlay.hidden = false;
@@ -691,7 +696,8 @@ svg.ui-icon {
     while (target && target !== document && target.tagName !== 'BUTTON') target = target.parentNode;
     if (!target || target === document) return;
     function value(name) { return target.getAttribute('data-' + name); }
-    if (target.id === 'cancel') close();
+    if (target.id === 'closeDialog') el('cancel').click();
+    else if (target.id === 'cancel') close();
     else if (value('category') !== null) { category = value('category'); el('search').value = ''; menu(); el('tabs').querySelector('.active').focus(); }
     else if (value('product') !== null) customize(-1,catalog[category][Number(value('product'))]);
     else if (value('edit') !== null) customize(Number(value('edit')));
@@ -705,7 +711,7 @@ svg.ui-icon {
   });
   document.addEventListener('keydown',function (event) {
     if (overlay.hidden) return;
-    if (event.key === 'Escape' || event.keyCode === 27) { close(); return; }
+    if (event.key === 'Escape' || event.keyCode === 27) { event.preventDefault(); el('cancel').click(); return; }
     if (event.key !== 'Tab' && event.keyCode !== 9) return;
     var controls = Array.from(overlay.querySelectorAll('input,textarea,select,button,summary'))
       .filter(function (control) { return !control.disabled && control.getClientRects().length; });

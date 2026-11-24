@@ -324,6 +324,10 @@ svg.ui-icon {
   background: #f9fafc;
   background: var(--paper);
 }
+.dialog-header {display: flex; align-items: flex-start; justify-content: space-between; gap: 12px}
+#closeDialog {min-width: 44px; min-height: 44px; padding: 0; font-size: 27px; flex: none}
+.dialog .complemento-pos {display: flex; align-items: center; justify-content: space-between; gap: 12px}
+.dialog input[type=number] {width: 5em; min-height: 44px}
 .dialog h3 {margin: 15px 0 5px}
 .check {display: flex; align-items: center; min-height: 49px; padding: 4px; border-bottom: 1px solid var(--line)}
 .check input[type=checkbox] {width: 24px; height: 24px; margin-right: 12px; flex: none; accent-color: #a26a0b}
@@ -523,7 +527,7 @@ svg.ui-icon {
 <button id="checkout" class="primary wide">Simular cobro →</button><p id="notice" class="notice" role="status"></p>
 </aside>
 </div></div></div>
-<div id="overlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><h2 id="dialogTitle"></h2><div id="dialogBody"></div><div class="actions" id="dialogActions"></div></section></div>
+<div id="overlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><header class="dialog-header"><h2 id="dialogTitle"></h2><button type="button" id="closeDialog" aria-label="Cerrar">×</button></header><div id="dialogBody"></div><div class="actions" id="dialogActions"></div></section></div>
 <script>
 (function () {
   'use strict';
@@ -661,15 +665,7 @@ function mostrarCategoriasReales() {
   var contenedor = el('tabsReal');
   contenedor.innerHTML = '';
 
-  var categorias = ['Todas'].concat(
-    Array.from(new Set(
-      productosReales.map(function (producto) {
-        return producto.categoria || 'Sin categoría';
-      })
-    )).sort(function (a, b) {
-      return a.localeCompare(b, 'es');
-    })
-  );
+  const categorias = ['Todas', ...ordenarCategoriasPos(productosReales.map(categoriaProductoPos))];
 
   categorias.forEach(function (nombre) {
     var boton = document.createElement('button');
@@ -709,18 +705,42 @@ function mostrarCategoriasReales() {
 }
   
 
+const ordenCategoriasPos = ['Sándwiches', 'Al plato', 'Hamburguesas', 'Pizzas', 'Conos', 'Postres', 'Bebidas'];
+
+function categoriaProductoPos(producto) {
+  return producto.categoria || 'Sin categoría';
+}
+
+function ordenarCategoriasPos(categorias) {
+  const presentes = new Set(categorias);
+  return ordenCategoriasPos.filter(categoria => presentes.delete(categoria)).concat([...presentes]);
+}
+
+function esBebidaOPostre(categoria) {
+  return ['bebidas', 'postres'].includes(String(categoria || '').trim().toLowerCase());
+}
+
 function productoDisponible(producto) {
   return producto.estado_entrenamiento !== 'sin_stock' &&
     (simulacionActiva || !producto.estado_entrenamiento || !producto.controla_stock || producto.stock > 0) &&
     Number.isFinite(producto.precio_venta) && producto.precio_venta > 0;
 }
 
-function elegirVarianteReal(producto, indicePedido) {
-  if (!producto.familia_menu) {
-    personalizarProductoReal(producto, indicePedido);
+function variantesProductoPos(producto) {
+  return producto.familia_menu ? productosReales.filter(actual =>
+    actual.familia_menu === producto.familia_menu && actual.categoria === producto.categoria) : [producto];
+}
+
+function elegirVarianteReal(producto, indicePedido, borrador) {
+  if (!borrador && overlay.hidden && !Number.isInteger(indicePedido) &&
+      !esBebidaOPostre(producto.categoria)) {
+    borrador = {lineasComida: new Map(), complementos: new Map()};
+  }
+  const variantes = variantesProductoPos(producto);
+  if (variantes.length < 2) {
+    personalizarProductoReal(producto, indicePedido, borrador);
     return;
   }
-  const variantes = productosReales.filter(actual => actual.familia_menu === producto.familia_menu);
   const atributos = Object.keys(producto.variante_menu);
   const elegidos = {...producto.variante_menu};
   el('dialogBody').onchange = null;
@@ -761,7 +781,7 @@ function elegirVarianteReal(producto, indicePedido) {
     continuar.disabled = !productoDisponible(elegida);
     const precio = Number.isFinite(elegida.precio_venta) ? money(elegida.precio_venta) : 'Precio pendiente';
     el('estadoVariante').textContent = continuar.disabled ? precio + ' · No disponible' : precio;
-    continuar.onclick = () => personalizarProductoReal(elegida, indicePedido);
+    continuar.onclick = () => personalizarProductoReal(elegida, indicePedido, borrador);
   }
   actualizar();
   selectores[0].focus();
@@ -836,7 +856,102 @@ function mostrarOpcionesMenu(contenedor, menu, anterior) {
   };
 }
 
-function personalizarProductoReal(producto, indicePedido) {
+function crearLineaReal(producto, cantidad) {
+  return {
+    id_producto: producto.id_producto,
+    nombre: producto.nombre,
+    familia_menu: producto.familia_menu,
+    cantidad,
+    categoria: producto.categoria,
+    precio_base: producto.precio_venta,
+    ingredientes_quitados: [],
+    adicionales: [],
+    total: producto.precio_venta
+  };
+}
+
+function agregarAccionDialogo(texto, accion) {
+  const boton = nodoPos('button', texto);
+  boton.type = 'button';
+  boton.onclick = accion;
+  el('dialogActions').insertBefore(boton, el('cancel'));
+  return boton;
+}
+
+function mostrarComplementosReal(producto, borrador, volver) {
+  const comida = borrador.lineasComida.get(producto.id_producto);
+  show('¿Querés agregar una bebida o un postre?',
+    '<p id="comidaComplementos"></p><div id="ofertaComplementos" class="menu-selector"></div>' +
+    '<p id="totalComplementos" role="status"></p>', 'Agregar al carrito');
+  el('comidaComplementos').textContent = comida.cantidad + ' × ' + comida.nombre;
+  const oferta = el('ofertaComplementos');
+  const campos = [];
+  const complementos = productosReales.filter(actual => esBebidaOPostre(actual.categoria));
+  for (const complemento of complementos) {
+    const etiqueta = nodoPos('label', '', 'complemento-pos');
+    const campo = nodoPos('input');
+    const variante = Object.values(complemento.variante_menu || {}).join(' · ');
+    const medida = [complemento.contenido, complemento.unidad_medida].filter(Boolean).join(' ');
+    const detalle = [variante || complemento.presentacion, medida].filter(valor =>
+      valor && !searchable(complemento.nombre).replace(/\s/g, '').includes(searchable(valor).replace(/\s/g, '')));
+    const nombre = [complemento.nombre, ...detalle].join(' · ');
+    const disponible = productoDisponible(complemento);
+    const enCarrito = pedidoReal.reduce((cantidad, linea) =>
+      linea.id_producto === complemento.id_producto ? cantidad + linea.cantidad : cantidad, 0);
+    const maximo = complemento.controla_stock ? Math.max(0, Math.min(99, complemento.stock - enCarrito)) : 99;
+    campo.type = 'number';
+    campo.min = '0';
+    campo.max = String(maximo);
+    campo.step = '1';
+    campo.required = true;
+    campo.inputMode = 'numeric';
+    campo.value = borrador.complementos.get(complemento.id_producto) || 0;
+    campo.disabled = !disponible || maximo === 0;
+    campo.setAttribute('aria-label', 'Cantidad de ' + complemento.nombre + (variante ? ' · ' + variante : ''));
+    const precio = Number.isFinite(complemento.precio_venta) ? money(complemento.precio_venta) : 'Sin precio';
+    etiqueta.append(nodoPos('span', nombre + ' · ' + precio + (campo.disabled ? ' · No disponible' : '')), campo);
+    oferta.append(etiqueta);
+    campos.push({producto: complemento, campo});
+  }
+  if (!campos.length) oferta.textContent = 'No hay bebidas ni postres en el catálogo.';
+
+  function seleccion() {
+    return campos.filter(({campo}) => !campo.disabled && campo.validity.valid && Number(campo.value) > 0)
+      .map(({producto, campo}) => crearLineaReal(producto, Number(campo.value)));
+  }
+
+  function actualizar() {
+    for (const {producto, campo} of campos) {
+      borrador.complementos.set(producto.id_producto, campo.value);
+    }
+    const total = [comida, ...seleccion()].reduce((suma, item) => suma + item.total * item.cantidad, 0);
+    el('totalComplementos').textContent = 'Total para agregar: ' + money(total);
+  }
+
+  function confirmar(complementosElegidos) {
+    if (borrador.confirmado || overlay.hidden) return;
+    borrador.confirmado = true;
+    pedidoReal.push(comida, ...complementosElegidos);
+    close();
+    mostrarPedidoReal();
+  }
+
+  oferta.oninput = actualizar;
+  actualizar();
+  el('accept').onclick = evento => {
+    if (evento.detail > 1) return;
+    if (campos.every(({campo}) => campo.disabled || campo.reportValidity())) confirmar(seleccion());
+  };
+  agregarAccionDialogo('No, gracias', evento => {
+    if (evento.detail <= 1) confirmar([]);
+  });
+  if (volver) agregarAccionDialogo('Volver', () => {
+    actualizar();
+    volver();
+  });
+}
+
+function personalizarProductoReal(producto, indicePedido, borrador) {
   // Si nos pasan un índice, editamos una línea existente.
   // Sin índice, agregamos una línea nueva al pedido de prueba.
   var editandoReal = Number.isInteger(indicePedido);
@@ -851,6 +966,9 @@ function personalizarProductoReal(producto, indicePedido) {
     return;
   }
 
+  const seleccionAnterior = borrador?.lineasComida.get(producto.id_producto) || itemExistente;
+  const volverVariantes = borrador && variantesProductoPos(producto).length > 1
+    ? () => elegirVarianteReal(producto, indicePedido, borrador) : null;
   var precioBase = producto.precio_venta;
   var numeroSolicitud = ++solicitudPersonalizacionReal;
 
@@ -867,10 +985,12 @@ function personalizarProductoReal(producto, indicePedido) {
     'Cargando opciones...</p>' +
     '<div id="opcionesReales"></div>' +
     '<p id="totalPersonalizado"></p>',
-    editandoReal ? 'Guardar cambios' : 'Agregar al pedido de prueba'
+    editandoReal ? 'Guardar cambios' : borrador ? 'Continuar' : 'Agregar al pedido de prueba'
   );
 
   el('accept').disabled = true;
+  el('closeDialog').focus();
+  const botonVolver = volverVariantes ? agregarAccionDialogo('Volver', volverVariantes) : null;
 
   fetch(
     '/pos-api/catalogo/productos/' +
@@ -909,6 +1029,28 @@ function personalizarProductoReal(producto, indicePedido) {
         ).values());
       }
 
+      const tieneOpciones = datos.ingredientes.length || datos.adicionales.some(extra =>
+        Number.isFinite(extra.precio_venta) && extra.precio_venta >= 0) ||
+        (menu && (menu.papas_dobles_centavos !== null || Object.keys(menu.destinos).length));
+      if (borrador && !tieneOpciones) {
+        borrador.lineasComida.set(producto.id_producto, crearLineaReal(producto, 1));
+        mostrarComplementosReal(producto, borrador, volverVariantes);
+        return;
+      }
+
+      let cantidadComida;
+      if (borrador) {
+        const etiqueta = nodoPos('label', 'Cantidad');
+        cantidadComida = nodoPos('input');
+        cantidadComida.type = 'number';
+        cantidadComida.min = '1';
+        cantidadComida.max = '99';
+        cantidadComida.required = true;
+        cantidadComida.value = seleccionAnterior?.cantidad || 1;
+        etiqueta.append(cantidadComida);
+        contenedor.append(etiqueta);
+      }
+
       if (editandoReal) {
         var aclaracion = document.createElement('p');
         aclaracion.className = 'muted';
@@ -934,8 +1076,7 @@ function personalizarProductoReal(producto, indicePedido) {
         casilla.name = 'quitarReal';
         casilla.value = ingrediente;
         casilla.checked = Boolean(
-          itemExistente &&
-          itemExistente.ingredientes_quitados.includes(ingrediente)
+          seleccionAnterior?.ingredientes_quitados.includes(ingrediente)
         );
 
         etiqueta.appendChild(casilla);
@@ -972,7 +1113,7 @@ function personalizarProductoReal(producto, indicePedido) {
         casilla.value = String(extra.id_adicional_catalogo);
         casilla.disabled = !valido;
         casilla.checked = valido && Boolean(
-          itemExistente && itemExistente.adicionales.some(function (guardado) {
+          seleccionAnterior?.adicionales.some(function (guardado) {
             return Number(guardado.id_adicional_catalogo) ===
                    Number(extra.id_adicional_catalogo);
           })
@@ -996,7 +1137,7 @@ function personalizarProductoReal(producto, indicePedido) {
         contenedor.appendChild(etiqueta);
       });
 
-      const opcionesMenu = menu ? mostrarOpcionesMenu(contenedor, menu, itemExistente) : null;
+      const opcionesMenu = menu ? mostrarOpcionesMenu(contenedor, menu, seleccionAnterior) : null;
 
       if (itemExistente) {
         var ingredientesDisponibles = new Set(datos.ingredientes);
@@ -1057,8 +1198,8 @@ function personalizarProductoReal(producto, indicePedido) {
 
       el('accept').disabled = false;
 
-      el('accept').onclick = function () {
-        if (opcionesMenu && !opcionesMenu.valido()) return;
+      function leerPersonalizacion() {
+        if ((opcionesMenu && !opcionesMenu.valido()) || (cantidadComida && !cantidadComida.reportValidity())) return null;
         var quitados = seleccionados('quitarReal').map(
           function (casilla) {
             return casilla.value;
@@ -1071,14 +1212,8 @@ function personalizarProductoReal(producto, indicePedido) {
           }
         ).filter(Boolean);
 
-        var itemActualizado = {
-          id_producto: producto.id_producto,
-          nombre: producto.nombre,
-          familia_menu: producto.familia_menu,
-          // Mantener la cantidad existente si estamos editando.
-          cantidad: editandoReal ? itemExistente.cantidad : 1,
-          categoria: producto.categoria,
-          precio_base: precioBase,
+        return {
+          ...crearLineaReal(producto, editandoReal ? itemExistente.cantidad : Number(cantidadComida?.value || 1)),
           ingredientes_quitados: quitados,
           adicionales: adicionales.map(function (extra) {
             return {
@@ -1091,6 +1226,25 @@ function personalizarProductoReal(producto, indicePedido) {
           ...(opcionesMenu ? opcionesMenu.datos() : {})
         };
 
+      }
+
+      if (botonVolver) botonVolver.onclick = () => {
+        const itemActualizado = leerPersonalizacion();
+        if (!itemActualizado) return;
+        borrador.lineasComida.set(producto.id_producto, itemActualizado);
+        volverVariantes();
+      };
+
+      el('accept').onclick = function (evento) {
+        if (borrador && evento.detail > 1) return;
+        const itemActualizado = leerPersonalizacion();
+        if (!itemActualizado) return;
+        if (borrador) {
+          borrador.lineasComida.set(producto.id_producto, itemActualizado);
+          mostrarComplementosReal(producto, borrador,
+            () => personalizarProductoReal(producto, indicePedido, borrador));
+          return;
+        }
         if (editandoReal) {
           pedidoReal[indicePedido] = itemActualizado;
         } else {
@@ -1108,7 +1262,7 @@ function personalizarProductoReal(producto, indicePedido) {
           numeroSolicitud === solicitudPersonalizacionReal &&
           el('estadoPersonalizacion')) {
         el('estadoPersonalizacion').textContent =
-          'No se pudieron cargar las opciones.';
+          'No se pudieron cargar las opciones. Cerrá la ventana y volvé a intentar.';
       }
     });
 }
@@ -1120,12 +1274,13 @@ function tarjetasCatalogo(productos) {
   for (const producto of productos) {
     if (!producto.familia_menu) {
       tarjetas.push({producto});
-    } else if (!familias.has(producto.familia_menu)) {
+    } else if (!familias.get(producto.categoria)?.has(producto.familia_menu)) {
       const tarjeta = {producto, familia: producto.familia_menu};
-      familias.set(tarjeta.familia, tarjeta);
+      if (!familias.has(producto.categoria)) familias.set(producto.categoria, new Map());
+      familias.get(producto.categoria).set(tarjeta.familia, tarjeta);
       tarjetas.push(tarjeta);
     } else {
-      const tarjeta = familias.get(producto.familia_menu);
+      const tarjeta = familias.get(producto.categoria).get(producto.familia_menu);
       if (!productoDisponible(tarjeta.producto) && productoDisponible(producto)) tarjeta.producto = producto;
     }
   }
@@ -1162,6 +1317,15 @@ function mostrarCatalogoReal() {
       : categoriaReal;
 
 
+  if (categoriaReal === 'Todas') {
+    const grupos = new Map();
+    for (const producto of visibles) {
+      const categoria = categoriaProductoPos(producto);
+      if (!grupos.has(categoria)) grupos.set(categoria, []);
+      grupos.get(categoria).push(producto);
+    }
+    visibles = ordenarCategoriasPos(grupos.keys()).flatMap(categoria => grupos.get(categoria));
+  }
   const tarjetas = tarjetasCatalogo(visibles);
   el('productCount').textContent = tarjetas.length + ' de ' + tarjetasCatalogo(productosReales).length + ' productos';
 
@@ -1215,9 +1379,10 @@ function mostrarCatalogoReal() {
 
     var botonAgregar = document.createElement('button');
     botonAgregar.type = 'button';
-    botonAgregar.textContent = familia ? 'Elegir variante' : '+ Agregar';
-    if (familia) {
-      const disponibles = productosReales.filter(actual => actual.familia_menu === familia && productoDisponible(actual));
+    const variantes = variantesProductoPos(producto);
+    botonAgregar.textContent = variantes.length > 1 ? 'Elegir variante' : '+ Agregar';
+    if (variantes.length > 1) {
+      const disponibles = variantes.filter(productoDisponible);
       precio.textContent = disponibles.length ? 'Desde ' + money(Math.min(...disponibles.map(actual => actual.precio_venta))) : '';
       aviso.textContent = disponibles.length ? '' : 'SIN STOCK';
     } else {
@@ -1386,8 +1551,7 @@ function mostrarPedidoReal() {
     var cantidad = item.cantidad || 1;
     var subtotalLinea = item.total * cantidad;
 
-    if (item.categoria === 'Bebidas' ||
-        item.categoria === 'Postres') {
+    if (esBebidaOPostre(item.categoria)) {
       totalPostresBebidas += subtotalLinea;
     } else {
       totalRotiseria += subtotalLinea;
@@ -1564,6 +1728,7 @@ function mostrarPedidoReal() {
   function show(title,body,action) {
     if (overlay.hidden) trigger = document.activeElement;
     el('dialogTitle').textContent = title;
+    el('dialogBody').onchange = null;
     el('dialogBody').innerHTML = body;
     el('dialogActions').innerHTML = button(action,'id','accept','class="primary"') + button('Cancelar','id','cancel');
     overlay.hidden = false;
@@ -4007,7 +4172,8 @@ if (modoReal) {
     while (target && target !== document && target.tagName !== 'BUTTON') target = target.parentNode;
     if (!target || target === document) return;
     function value(name) { return target.getAttribute('data-' + name); }
-    if (target.id === 'cancel') close();
+    if (target.id === 'closeDialog') el('cancel').click();
+    else if (target.id === 'cancel') close();
     else if (value('category') !== null) { category = value('category'); el('search').value = ''; menu(); el('tabs').querySelector('.active').focus(); }
     else if (value('product') !== null) customize(-1,catalog[category][Number(value('product'))]);
     else if (value('edit') !== null) customize(Number(value('edit')));
@@ -4021,7 +4187,7 @@ if (modoReal) {
   });
   document.addEventListener('keydown',function (event) {
     if (overlay.hidden) return;
-    if (event.key === 'Escape' || event.keyCode === 27) { close(); return; }
+    if (event.key === 'Escape' || event.keyCode === 27) { event.preventDefault(); el('cancel').click(); return; }
     if (event.key !== 'Tab' && event.keyCode !== 9) return;
     var controls = Array.from(overlay.querySelectorAll('input,textarea,select,button,summary'))
       .filter(control => !control.disabled && control.getClientRects().length);
