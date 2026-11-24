@@ -13,12 +13,13 @@ from pos_entrenamiento_db import bloquear_entrenamiento, comprobar_archivo
 
 ARCHIVO = "abadion-preproduccion.db"
 MODO = "PREPRODUCCION-FICTICIA-V1"
+MODO_PRUEBAS = "ABADION-PRUEBAS-FICTICIAS-V1"
 BACKUP_LOCK = threading.Lock()
 
 
-def carpeta_segura(carpeta):
+def carpeta_segura(carpeta, *, nombre="Preproduccion"):
     carpeta = Path(carpeta).absolute()
-    if carpeta.resolve() != carpeta or carpeta.name != "Preproduccion" or str(carpeta).startswith("\\\\"):
+    if nombre not in ("Preproduccion", "Pruebas") or carpeta.resolve() != carpeta or carpeta.name != nombre or str(carpeta).startswith("\\\\"):
         raise ValueError("Se requiere una carpeta local directa llamada Preproduccion.")
     if any(p.casefold().startswith("onedrive") for p in carpeta.parts) or any(
         v and carpeta.is_relative_to(Path(v).resolve())
@@ -28,35 +29,45 @@ def carpeta_segura(carpeta):
     return carpeta
 
 
+def perfil(carpeta):
+    """Shared storage primitives, with disjoint path, filename and SQLite identity."""
+    carpeta = carpeta_segura(carpeta, nombre=Path(carpeta).name)
+    return (MODO_PRUEBAS, "abadion-pruebas.db") if carpeta.name == "Pruebas" else (MODO, ARCHIVO)
+
+
 def configuracion(carpeta):
-    carpeta = carpeta_segura(carpeta)
+    modo, _ = perfil(carpeta)
+    carpeta = Path(carpeta).absolute()
     archivo = carpeta / "instalacion.json"
     comprobar_archivo(archivo)
     datos = json.loads(archivo.read_text(encoding="utf-8"))
-    if datos["modo"] != MODO or datos["carpeta"] != str(carpeta):
+    if datos["modo"] != modo or datos["carpeta"] != str(carpeta):
         raise ValueError("La instalación no coincide con su ruta o modo.")
     return datos
 
 
-def verificar(db, identidad):
+def verificar(db, identidad, modo=MODO):
     from pos_simulacion import ID_SQLITE_SIMULACION, VERSION_ESQUEMA_SIMULACION
     if (db.execute("PRAGMA application_id").fetchone()[0] != ID_SQLITE_SIMULACION
             or db.execute("PRAGMA user_version").fetchone()[0] != VERSION_ESQUEMA_SIMULACION
-            or db.execute("SELECT modo, instalacion FROM pos_preproduccion").fetchall() != [(MODO, identidad)]):
+            or db.execute("SELECT modo, instalacion FROM pos_preproduccion").fetchall() != [(modo, identidad)]):
         raise ValueError("Base ajena o versión incompatible con PREPRODUCCIÓN.")
+    if modo == MODO_PRUEBAS and not db.execute("SELECT 1 FROM sqlite_schema WHERE name='pos_pruebas_catalogo'").fetchone():
+        raise ValueError("Falta la protección de catálogo de Abadion Pruebas.")
 
 
 def abrir_base(carpeta, identidad, *, lectura=False):
-    carpeta = carpeta_segura(carpeta)
+    modo, archivo = perfil(carpeta)
+    carpeta = Path(carpeta).absolute()
     if configuracion(carpeta)["id"] != identidad:
         raise ValueError("Identidad de instalación incorrecta.")
-    ruta = carpeta / ARCHIVO
+    ruta = carpeta / archivo
     comprobar_archivo(ruta)
     for sufijo in ("-wal", "-shm", "-journal"):
         comprobar_archivo(ruta.with_name(ruta.name + sufijo))
     db = sqlite3.connect(ruta.as_uri() + ("?mode=ro" if lectura else "?mode=rw"), uri=True, timeout=15)
     try:
-        verificar(db, identidad)
+        verificar(db, identidad, modo)
         db.execute("PRAGMA foreign_keys=ON")
         db.execute("PRAGMA synchronous=FULL")
         return db
@@ -82,7 +93,8 @@ def auditar(carpeta, evento, **datos):
 def respaldo(carpeta, etapa="manual"):
     from backups import _publicar_respaldo
     with BACKUP_LOCK:
-        identidad = configuracion(carpeta)["id"]
+        datos = configuracion(carpeta)
+        identidad, modo = datos["id"], datos["modo"]
         directorio = carpeta / "backups"
         directorio.mkdir(exist_ok=True)
         if directorio.resolve() != directorio.absolute():
@@ -95,9 +107,9 @@ def respaldo(carpeta, etapa="manual"):
                 archivo = Path(temporal) / "copia.db"
                 with closing(abrir_base(carpeta, identidad, lectura=True)) as origen, closing(sqlite3.connect(archivo)) as copia:
                     origen.backup(copia)
-                    verificar(copia, identidad)
+                    verificar(copia, identidad, modo)
                     integridad(copia)
-                meta = {"modo": MODO, "id": identidad, "sha256": hashlib.sha256(archivo.read_bytes()).hexdigest()}
+                meta = {"modo": modo, "id": identidad, "sha256": hashlib.sha256(archivo.read_bytes()).hexdigest()}
                 manifiesto = Path(temporal) / "copia.json"
                 manifiesto.write_text(json.dumps(meta), encoding="utf-8")
                 for ruta in (archivo, manifiesto):
@@ -124,12 +136,13 @@ def validar_respaldo(carpeta, nombre):
     if any(origen.with_name(origen.name + s).exists() or origen.with_name(origen.name + s).is_symlink()
            for s in ("-wal", "-shm", "-journal")):
         raise ValueError("El backup tiene auxiliares SQLite; no es un snapshot autónomo.")
-    identidad = configuracion(carpeta)["id"]
+    datos = configuracion(carpeta)
+    identidad, modo = datos["id"], datos["modo"]
     meta = json.loads(origen.with_suffix(".json").read_text(encoding="utf-8"))
-    if meta != {"modo": MODO, "id": identidad, "sha256": hashlib.sha256(origen.read_bytes()).hexdigest()}:
+    if meta != {"modo": modo, "id": identidad, "sha256": hashlib.sha256(origen.read_bytes()).hexdigest()}:
         raise ValueError("El backup fue alterado o pertenece a otra instalación.")
     with closing(sqlite3.connect(origen.as_uri() + "?mode=ro", uri=True)) as db:
-        verificar(db, identidad)
+        verificar(db, identidad, modo)
         integridad(db)
     return origen
 
@@ -184,9 +197,10 @@ def plan_catalogo(db, catalogo):
             "fuera_menu": [v[1] for k, v in existentes.items() if k not in claves]}
 
 
-def actualizar_catalogo(carpeta, archivo, *, validar=False, sha256=None):
+def actualizar_catalogo(carpeta, archivo, *, validar=False, sha256=None, aprobacion=None):
     from scripts.abadion_entrenamiento import cargar_catalogo
-    carpeta = carpeta_segura(carpeta)
+    modo, _ = perfil(carpeta)
+    carpeta = Path(carpeta).absolute()
     archivo = Path(archivo)
     comprobar_archivo(archivo)
     contenido = archivo.read_bytes()
@@ -200,13 +214,25 @@ def actualizar_catalogo(carpeta, archivo, *, validar=False, sha256=None):
         with closing(abrir_base(carpeta, identidad)) as db, db:
             db.execute("BEGIN IMMEDIATE")
             integridad(db)
+            if modo == MODO_PRUEBAS:
+                # Catalogue activation is one-time and only on a freshly prepared empty DB.
+                tablas_vacias = ('productos', 'pos_ventas_simuladas', 'pos_jornadas_caja',
+                                 'pos_clientes', 'pos_seguimiento_pedidos', 'pos_pruebas_catalogo')
+                if any(db.execute(f'SELECT COUNT(*) FROM "{tabla}"').fetchone()[0] for tabla in tablas_vacias
+                       if db.execute("SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?", (tabla,)).fetchone()):
+                    raise ValueError("El catálogo sólo se aprueba en una base ficticia nueva y vacía.")
+                if not validar and (sha256 != huella or aprobacion != identidad):
+                    raise ValueError("Se requiere --sha256 y --aprobar-instancia con el ID revisado.")
             plan = plan_catalogo(db, catalogo)
             plan["sha256"] = huella
+            plan["instancia"] = identidad
             if validar:
                 return plan
             copia = respaldo(carpeta, "pre-catalogo")
             validar_respaldo(carpeta, copia.name)
             cargar_catalogo(db, catalogo)
+            if modo == MODO_PRUEBAS:
+                db.execute("INSERT INTO pos_pruebas_catalogo VALUES (?,?)", (huella, datetime.now(timezone.utc).isoformat()))
             integridad(db)
         auditar(carpeta, "catalogo-aplicado", previo=copia.name, **plan)
         return {"backup": copia.name, **plan}
@@ -216,7 +242,8 @@ def restaurar(carpeta, nombre, *, base_ausente=False):
     # Caller must hold the installation lock: never replace an active SQLite file.
     identidad = configuracion(carpeta)["id"]
     origen = validar_respaldo(carpeta, nombre)
-    destino = carpeta / ARCHIVO
+    modo, archivo = perfil(carpeta)
+    destino = carpeta / archivo
     comprobar_archivo(destino)
     if not destino.exists() and not base_ausente:
         raise ValueError("Falta la base. Revisá la instalación y usá --base-ausente para recuperación explícita.")
@@ -230,7 +257,7 @@ def restaurar(carpeta, nombre, *, base_ausente=False):
         pass
     try:
         with closing(sqlite3.connect(origen.as_uri() + "?mode=ro", uri=True)) as fuente, closing(sqlite3.connect(temporal)) as copia:
-            verificar(fuente, identidad)
+            verificar(fuente, identidad, modo)
             integridad(fuente)
             fuente.backup(copia)
             copia.execute("DELETE FROM sesiones_pos")

@@ -42,7 +42,7 @@ def obtener_conexion():
             with closing(sqlite3.connect(ruta.resolve().as_uri() + "?mode=ro", uri=True)) as prueba:
                 if prueba.execute("SELECT 1 FROM sqlite_schema WHERE name='pos_preproduccion'").fetchone():
                     raise ValueError("Preproducción requiere su launcher y contexto exclusivos.")
-        if ruta.name.casefold() == "abadion-preproduccion.db":
+        if ruta.name.casefold() in ("abadion-preproduccion.db", "abadion-pruebas.db"):
             raise ValueError("Preproducción requiere su launcher exclusivo.")
         if ruta.name.casefold() == "abadion-entrenamiento.db":
             raise ValueError("Usá el launcher de Abadion Entrenamiento para esta base.")

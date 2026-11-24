@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @contextmanager
-def servidor(carpeta):
+def servidor(carpeta, *, pruebas=False):
     # El worker real corre en otro proceso y usa un puerto de ensayo independiente de 8078.
     with socket.socket() as reserva:
         reserva.bind(("127.0.0.1", 0))
@@ -31,6 +31,9 @@ def servidor(carpeta):
         "import sys; from scripts import abadion_preproduccion as p; "
         "p.PUERTO = int(sys.argv.pop(1)); p.main()"
     )
+    if pruebas:
+        codigo = "import sys; from scripts import abadion_pruebas as p; p.PORT = int(sys.argv.pop(1)); p.main()"
+    prefijo = '/_pruebas' if pruebas else '/_preprod'
     datos = configuracion(carpeta)
     control = {"Authorization": "Bearer " + datos["control"]}
     url = f"http://127.0.0.1:{puerto}"
@@ -46,7 +49,7 @@ def servidor(carpeta):
             limite = time.monotonic() + 30
             while proceso.poll() is None and time.monotonic() < limite:
                 try:
-                    estado = cliente.get("/_preprod/status", headers=control)
+                    estado = cliente.get(prefijo + "/status", headers=control)
                     if estado.is_success and estado.json()["id"] == datos["id"]:
                         break
                 except httpx.TransportError:
@@ -57,7 +60,7 @@ def servidor(carpeta):
             try:
                 yield cliente, control
             finally:
-                cliente.post("/_preprod/stop", headers=control).raise_for_status()
+                cliente.post(prefijo + "/stop", headers=control).raise_for_status()
                 assert proceso.wait(timeout=30) == 0
         finally:
             if proceso.poll() is None:
@@ -66,7 +69,7 @@ def servidor(carpeta):
 
 
 def ingresar(carpeta, conexion, rol):
-    usuario = rol + "-preprod"
+    usuario = rol + ("-pruebas" if carpeta.name == "Pruebas" else "-preprod")
     clave = json.loads((carpeta / "credenciales.json").read_text(encoding="utf-8"))[usuario]
     conexion.cookies.clear()
     conexion.post("/pos-api/login", json={"usuario": usuario, "contrasena": clave}).raise_for_status()

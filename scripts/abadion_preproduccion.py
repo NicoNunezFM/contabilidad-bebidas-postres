@@ -30,17 +30,20 @@ URL = f"http://127.0.0.1:{PUERTO}"
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def preparar(carpeta):
+def preparar(carpeta, *, pruebas=False):
     from scripts.abadion_entrenamiento import Catalogo, construir_base
     from pos_auth import generar_hash
 
-    carpeta = carpeta_segura(carpeta)
+    from pos_preproduccion import MODO_PRUEBAS
+    modo, nombre_base = (MODO_PRUEBAS, "abadion-pruebas.db") if pruebas else (MODO, ARCHIVO)
+    carpeta = carpeta_segura(carpeta, nombre="Pruebas" if pruebas else "Preproduccion")
     with bloquear_entrenamiento(carpeta):
-        if (carpeta / ARCHIVO).exists() or (carpeta / "instalacion.json").exists():
+        if (carpeta / nombre_base).exists() or (carpeta / "instalacion.json").exists() or (pruebas and any(carpeta.glob("*.db"))):
             raise ValueError("La instalación ya existe. Preparar nunca reinicia ni sobrescribe.")
         identidad = str(uuid4())
-        usuarios = [("admin-preprod", "admin", secrets.token_urlsafe(24)),
-                    ("ventas-preprod", "ventas", secrets.token_urlsafe(24))]
+        sufijo = "pruebas" if pruebas else "preprod"
+        usuarios = [("admin-" + sufijo, "admin", secrets.token_urlsafe(24)),
+                    ("ventas-" + sufijo, "ventas", secrets.token_urlsafe(24))]
         # Empty catalogue: do not promote old prices, stocks, or fictional history.
         catalogo = Catalogo(aviso=MODO, productos=[dict(nombre="Sin catálogo aprobado", categoria="Comidas",
             precio_centavos=None, controla_stock=True, stock_inicial=0, sin_stock=True)], adicionales=[])
@@ -56,21 +59,23 @@ def preparar(carpeta):
                 db.execute("DELETE FROM pos_catalogo_entrenamiento")
                 db.execute("DELETE FROM productos")
                 db.execute("CREATE TABLE pos_preproduccion(modo TEXT NOT NULL, instalacion TEXT NOT NULL)")
-                db.execute("INSERT INTO pos_preproduccion VALUES (?,?)", (MODO, identidad))
+                db.execute("INSERT INTO pos_preproduccion VALUES (?,?)", (modo, identidad))
+                if pruebas:
+                    db.execute("CREATE TABLE pos_pruebas_catalogo(sha256 TEXT PRIMARY KEY, aprobada_utc TEXT NOT NULL)")
                 db.commit()
                 integridad(db)
-            datos = {"modo": MODO, "id": identidad, "carpeta": str(carpeta), "control": secrets.token_urlsafe(32)}
+            datos = {"modo": modo, "id": identidad, "carpeta": str(carpeta), "control": secrets.token_urlsafe(32)}
             with (carpeta / "credenciales.json").open("x", encoding="utf-8") as archivo:
                 json.dump({u: p for u, _, p in usuarios}, archivo)
             with (carpeta / "instalacion.json").open("x", encoding="utf-8") as archivo:
                 json.dump(datos, archivo)
-            nueva.rename(carpeta / ARCHIVO)
+            nueva.rename(carpeta / nombre_base)
         auditar(carpeta, "instalacion-creada", instalacion=identidad)
         respaldo(carpeta, "inicial")
-    return carpeta / ARCHIVO
+    return carpeta / nombre_base
 
 
-def crear_app(carpeta, detener=None, *, intervalo=3600):
+def crear_app(carpeta, detener=None, *, intervalo=3600, pruebas=False):
     from fastapi import FastAPI, Request, HTTPException
     from fastapi.responses import HTMLResponse, RedirectResponse
     from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -78,12 +83,18 @@ def crear_app(carpeta, detener=None, *, intervalo=3600):
     from pos_api import router
     from pos_entrenamiento_web import RUTA_POS, ESTILO
 
+    from pos_preproduccion import MODO_PRUEBAS
+    carpeta = carpeta_segura(carpeta, nombre="Pruebas" if pruebas else "Preproduccion")
     datos = configuracion(carpeta)
+    modo, archivo = (MODO_PRUEBAS, "abadion-pruebas.db") if pruebas else (MODO, ARCHIVO)
+    prefijo = "/_pruebas" if pruebas else "/_preprod"
     with closing(abrir_base(carpeta, datos["id"], lectura=True)) as db:
         integridad(db)
     pagina = RUTA_POS.read_text(encoding="utf-8").replace("<title>Abadion POS", "<title>PREPRODUCCIÓN Abadion", 1)
     pagina = pagina.replace("</head>", ESTILO + "</head>", 1).replace("<body>",
         '<body data-pedidos-sencillos="1"><p id="entrenamientoAviso">PREPRODUCCIÓN PERSISTENTE — DATOS FICTICIOS — SIN VALIDEZ CONTABLE</p>', 1)
+    if pruebas:
+        pagina = pagina.replace("PREPRODUCCIÓN", "ABADION PRUEBAS")
 
     @asynccontextmanager
     async def vida(app):
@@ -109,18 +120,18 @@ def crear_app(carpeta, detener=None, *, intervalo=3600):
             await asyncio.to_thread(respaldo, carpeta, "detencion")
             auditar(carpeta, "servidor-detenido")
 
-    app = FastAPI(title=MODO, docs_url=None, redoc_url=None, openapi_url=None, lifespan=vida)
-    app.state.cookies_pos = ("abadion_preprod_admin", "abadion_preprod_ventas")
+    app = FastAPI(title=modo, docs_url=None, redoc_url=None, openapi_url=None, lifespan=vida)
+    app.state.cookies_pos = ("abadion_pruebas_admin", "abadion_pruebas_ventas") if pruebas else ("abadion_preprod_admin", "abadion_preprod_ventas")
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1"])
     app.include_router(router)
 
     @app.middleware("http")
     async def contexto(request, call_next):
-        uno = RUTA_ENTRENAMIENTO.set(carpeta / ARCHIVO)  # Existing fictional POS capability gates.
+        uno = RUTA_ENTRENAMIENTO.set(carpeta / archivo)  # Existing fictional POS capability gates.
         dos = RUTA_PREPRODUCCION.set((carpeta, datos["id"]))
         try:
             respuesta = await call_next(request)
-            respuesta.headers["X-Abadion-Modo"] = MODO
+            respuesta.headers["X-Abadion-Modo"] = modo
             return respuesta
         finally:
             RUTA_PREPRODUCCION.reset(dos)
@@ -139,19 +150,19 @@ def crear_app(carpeta, detener=None, *, intervalo=3600):
         if not secrets.compare_digest(request.headers.get("Authorization", ""), "Bearer " + datos["control"]):
             raise HTTPException(403)
 
-    @app.get("/_preprod/status")
+    @app.get(prefijo + "/status")
     def estado(request: Request):
         autorizar(request)
-        return {"modo": MODO, "id": datos["id"], "carpeta": str(carpeta)}
+        return {"modo": modo, "id": datos["id"], "carpeta": str(carpeta)}
 
-    @app.post("/_preprod/stop")
+    @app.post(prefijo + "/stop")
     def stop(request: Request):
         autorizar(request)
         if detener:
             detener()
         return {"id": datos["id"]}
 
-    @app.post("/_preprod/backup")
+    @app.post(prefijo + "/backup")
     def backup(request: Request):
         autorizar(request)
         return {"archivo": respaldo(carpeta).name}
