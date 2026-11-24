@@ -44,6 +44,28 @@ def navegador_pos(base_prueba, monkeypatch, tmp_path, request):
         carpeta = tmp_path / "entrenamiento"
         preparar_base(carpeta)
         app_prueba = crear_app_entrenamiento(carpeta)
+    elif modo == "preproduccion":
+        from pos_preproduccion import abrir_base, actualizar_catalogo, configuracion
+        from scripts.abadion_preproduccion import crear_app, preparar
+
+        carpeta = tmp_path / "Preproduccion"
+        preparar(carpeta)
+        ejemplo = Path(__file__).resolve().parents[1] / "scripts" / "catalogo-entrenamiento.json"
+        catalogo = json.loads(ejemplo.read_text(encoding="utf-8"))
+        extra_ejemplo = "Extra de práctica (ejemplo)"
+        catalogo["adicionales"] = [a for a in catalogo["adicionales"] if a["nombre"] != extra_ejemplo]
+        for producto in catalogo["productos"]:
+            if "adicionales" in producto:
+                producto["adicionales"] = [a for a in producto["adicionales"] if a != extra_ejemplo]
+        archivo = tmp_path / "catalogo-ficticio.json"
+        archivo.write_text(json.dumps(catalogo), encoding="utf-8")
+        plan = actualizar_catalogo(carpeta, archivo, validar=True)
+        actualizar_catalogo(carpeta, archivo, sha256=plan["sha256"])
+        # Las altas de preproducción empiezan en cero. Sembrar unidades de ensayo explícitamente.
+        identidad = configuracion(carpeta)["id"]
+        with closing(abrir_base(carpeta, identidad)) as db, db:
+            db.execute("UPDATE productos SET stock=24 WHERE controla_stock=1")
+        app_prueba = crear_app(carpeta)
     else:
         preparar_simulacion_web(base_prueba, monkeypatch, tmp_path, modo)
         app_prueba = app
@@ -142,6 +164,12 @@ def abrir_navegador(app_prueba, ejecutable, tmp_path, websocket, viewport=None, 
                             assert "exceptionDetails" not in resultado, resultado
                             return resultado["result"].get("value")
 
+                        def capturar():
+                            png = cdp("Page.captureScreenshot", format="png")
+                            return base64.b64decode(png["data"])
+
+                        evaluar.captura = capturar
+                        evaluar.cdp = cdp
                         if viewport:
                             cdp("Emulation.setDeviceMetricsOverride", width=viewport[0], height=viewport[1],
                                 deviceScaleFactor=1, mobile=True)
@@ -304,7 +332,7 @@ def test_pos_web_aviso_de_entrenamiento_visible_al_ingresar(controles_pos):
 def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
     evaluar, clic, texto, _ = controles_pos
     texto("#cardsReal", "Milanesas al plato")
-    assert evaluar("document.querySelectorAll('#cardsReal [data-familia]').length") == 3
+    assert evaluar("document.querySelectorAll('#cardsReal [data-familia]').length") == 5
 
     def tocar_campo(selector, valor):
         evaluar(f"""
@@ -330,11 +358,12 @@ def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
     clic("#accept")
     texto("#estadoPersonalizacion", "9.000")
     tocar_campo("#opcionesReales select", "doble")
-    tocar_campo('[data-tipo="cheddar"][data-destino="principal"]', "1")
-    tocar_campo('[data-tipo="cheddar"][data-destino="papas"]', "1")
+    clic('[data-tipo="cheddar"][data-destino="principal"] button:last-child')
+    clic('[data-tipo="cheddar"][data-destino="papas"] button:last-child')
     clic('input[name="quitarReal"][value="Tomate"]')
     tocar_campo("#observacionMenu", "Bien cocida <sin salsa>")
     texto("#totalPersonalizado", "13.000")
+    clic("#accept")
     clic("#accept")
     clic("#resumenCocina")
     for detalle in ("Clásica doble", "Papas fritas dobles", "Sin tomate", "Cheddar extra en plato principal",
@@ -362,6 +391,7 @@ def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
     assert not evaluar("Boolean(document.querySelector('#opcionesReales select'))")
     assert evaluar("document.querySelector('#observacionMenu').value") == ""
     clic("#accept")
+    clic("#accept")
 
     clic("#validarPedido")
     texto("#estadoPedido", "22.000,00")
@@ -370,6 +400,186 @@ def test_pos_web_menu_tactil_editar_variante_y_resumen(controles_pos):
     texto("#lineasCocina", "Entregar primero")
     texto("#lineasCocina", "Napo de carne con puré")
     assert evaluar("document.querySelector('#lineasCocina').children.length") == 2
+
+
+@pytest.mark.parametrize("navegador_pos", ["entrenamiento", "preproduccion"], indirect=True)
+def test_pos_web_comidas_complementos_y_cancelacion(controles_pos, request):
+    evaluar, clic, texto, _ = controles_pos
+
+    def agregar(nombre):
+        esperar(lambda: evaluar(f"""
+            (() => {{
+                const titulo = [...document.querySelectorAll('#cardsReal h3')]
+                    .find(t => t.textContent === {json.dumps(nombre)});
+                if (!titulo) return false;
+                titulo.closest('article').querySelector('button').focus();
+                titulo.closest('article').querySelector('button').click();
+                return true;
+            }})()
+        """))
+
+    def paso_complementos():
+        texto("#dialogTitle", "¿Querés agregar una bebida o un postre?")
+        assert evaluar("[...document.querySelectorAll('#ofertaComplementos details')].map(d => d.dataset.grupo)") == [
+            "Manaos chica (600 ml)", "Manaos grande (2,25 l)", "Otras bebidas", "Chocotorta", "Oreo",
+        ]
+
+    def grupo(nombre):
+        return f'#ofertaComplementos [data-grupo="{nombre}"]'
+
+    def cantidad(nombre):
+        return f'[aria-label="Cantidad de {nombre}"]'
+
+    def mas(nombre, contenedor="#dialogBody"):
+        return contenedor + ' ' + cantidad(nombre) + ' button:last-child'
+
+    def valor(nombre, contenedor="#dialogBody"):
+        selector = contenedor + ' ' + cantidad(nombre) + ' output'
+        return evaluar(f"document.querySelector({json.dumps(selector)}).value")
+
+    def punto(selector):
+        return evaluar(f"""
+            (() => {{
+                const boton = document.querySelector({json.dumps(selector)});
+                boton.scrollIntoView({{block: 'center'}});
+                const rect = boton.getBoundingClientRect();
+                if (rect.width < 48 || rect.height < 48) throw Error('Control táctil demasiado chico');
+                return {{x: Math.floor(rect.x + rect.width / 2), y: Math.floor(rect.y + rect.height / 2)}};
+            }})()
+        """)
+
+    def captura(paso):
+        ruta = os.getenv("POS_UI_CAPTURAS")
+        if ruta and request.node.callspec.params["navegador_pos"] == "preproduccion":
+            carpeta = Path(ruta)
+            carpeta.mkdir(parents=True, exist_ok=True)
+            (carpeta / f"abadion-paso-{paso}.png").write_bytes(evaluar.captura())
+
+    texto("#cardsReal", "Milanesas al plato")
+    assert evaluar("[...document.querySelectorAll('#tabsReal button')].map(b => b.textContent.trim())") == [
+        "Todas", "Sándwiches", "Al plato", "Hamburguesas", "Pizzas", "Conos", "Postres", "Bebidas"
+    ]
+    assert evaluar("""
+        (() => {
+            const todas = [...document.querySelectorAll('#cardsReal h3')].map(h => h.textContent);
+            const botones = [...document.querySelectorAll('#tabsReal button')];
+            const agrupadas = botones.slice(1).flatMap(boton => {
+                boton.click();
+                return [...document.querySelectorAll('#cardsReal h3')].map(h => h.textContent);
+            });
+            botones[0].click();
+            return JSON.stringify(todas) === JSON.stringify(agrupadas);
+        })()
+    """)
+
+    agregar("Hamburguesas")
+    captura(1)
+    clic("#closeDialog")
+    assert evaluar("document.activeElement.closest('article')?.dataset.familia") == "Hamburguesas"
+
+    agregar("Hamburguesas")
+    clic("#accept")
+    texto("#totalPersonalizado", "Total por unidad")
+    captura(2)
+    clic('input[name="quitarReal"][value="Tomate"]')
+    evaluar("document.querySelector('#observacionMenu').value = 'Probar retroceso'")
+    clic("#accept")
+    paso_complementos()
+    chica, grande = "Manaos Cola 600ml", "Manaos Naranja 2.25l"
+    clic(grupo("Manaos chica (600 ml)") + " summary")
+    coordenadas = punto(mas(chica))
+    for evento in ("mousePressed", "mouseReleased"):
+        evaluar.cdp("Input.dispatchMouseEvent", type=evento, button="left", clickCount=1, **coordenadas)
+    assert valor(chica) == "1"
+    clic(mas(chica))
+    clic(grupo("Manaos grande (2,25 l)") + " summary")
+    assert evaluar(f"""
+        (() => {{
+            const boton = document.querySelector({json.dumps(mas(grande))});
+            boton.focus();
+            return document.activeElement === boton;
+        }})()
+    """)
+    for evento in ("rawKeyDown", "keyUp"):
+        evaluar.cdp("Input.dispatchKeyEvent", type=evento, key=" ", code="Space",
+                    windowsVirtualKeyCode=32, nativeVirtualKeyCode=32)
+    esperar(lambda: valor(grande) == "1")
+    captura("3-bebidas")
+    clic(grupo("Manaos chica (600 ml)") + " summary")
+    clic(grupo("Manaos grande (2,25 l)") + " summary")
+    clic(grupo("Chocotorta") + " summary")
+    clic(grupo("Oreo") + " summary")
+    coordenadas = punto(mas("Oreo chico"))
+    evaluar.cdp("Emulation.setTouchEmulationEnabled", enabled=True)
+    evaluar.cdp("Input.dispatchTouchEvent", type="touchStart", touchPoints=[coordenadas])
+    evaluar.cdp("Input.dispatchTouchEvent", type="touchEnd", touchPoints=[])
+    esperar(lambda: valor("Oreo chico") == "1")
+    evaluar.cdp("Emulation.setTouchEmulationEnabled", enabled=False)
+    clic(mas("Oreo grande"))
+    clic(mas("Chocotorta chica"))
+    captura("3-postres")
+    clic("#dialogActions button:nth-child(3)")
+    texto("#totalPersonalizado", "Total por unidad")
+    assert evaluar("document.querySelector('#observacionMenu').value") == "Probar retroceso"
+    assert evaluar("document.querySelector('input[name=quitarReal][value=Tomate]').checked")
+    clic("#accept")
+    paso_complementos()
+    for nombre, unidades in [(chica, "2"), (grande, "1"), ("Oreo chico", "1"),
+                             ("Oreo grande", "1"), ("Chocotorta chica", "1")]:
+        assert valor(nombre) == unidades
+    evaluar("""
+        const confirmar = document.querySelector('#accept');
+        confirmar.click();
+        confirmar.click();
+    """)
+    texto("#lines", "Manaos Cola 600ml × 2")
+    texto("#lines", "Manaos Naranja 2.25l × 1")
+    texto("#lines", "Oreo chico × 1")
+    texto("#foodTotal", "7.000")
+    texto("#otherTotal", "15.100")
+    assert evaluar("document.querySelectorAll('#lines .row').length") == 6
+
+    evaluar(f"""
+        for (let i = 0; i < 24; i++) document.querySelector({json.dumps(mas(chica, '#lines'))}).click();
+    """)
+    assert valor(chica, "#lines") == "24"
+    assert evaluar(f"document.querySelector({json.dumps(mas(chica, '#lines'))}).disabled")
+    evaluar(f"""
+        for (let i = 0; i < 22; i++)
+            document.querySelector({json.dumps('#lines ' + cantidad(chica) + ' button:first-child')}).click();
+    """)
+    assert valor(chica, "#lines") == "2"
+
+    for nombre, variantes in [("Sándwiches", True), ("Milanesas al plato", True),
+                              ("Mozzarella", False), ("Conos", False)]:
+        agregar(nombre)
+        if variantes:
+            clic("#accept")
+        texto("#totalPersonalizado", "Total por unidad")
+        clic("#accept")
+        paso_complementos()
+        clic(grupo("Oreo") + " summary")
+        clic(mas("Oreo chico"))
+        clic("#closeDialog")
+        assert evaluar("document.querySelectorAll('#lines .row').length") == 6
+        assert valor("Oreo chico", "#lines") == "1"
+
+    agregar("Especial")
+    texto("#dialogTitle", "Personalizar: Especial")
+    texto("#totalPersonalizado", "12.000")
+    evaluar("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))")
+    assert evaluar("document.querySelector('#overlay').hidden")
+
+    agregar("Oreo")
+    texto("#dialogTitle", "Oreo")
+    texto("#variantesPostre", "Chico")
+    texto("#variantesPostre", "Grande")
+    assert evaluar("!document.querySelector('#opcionesReales, #observacionMenu')")
+    clic(mas("Oreo grande"))
+    captura("4-postre-catalogo")
+    clic("#accept")
+    assert evaluar("document.querySelector('#overlay').hidden")
+    assert evaluar("document.querySelectorAll('#lines .row').length") == 7
 
 
 @pytest.mark.parametrize("navegador_pos", ["caja_diaria"], indirect=True)
@@ -439,7 +649,7 @@ def test_pos_web_confirmacion_explicita_de_stock_faltante(controles_pos):
     with closing(obtener_conexion()) as db, db:
         db.execute("UPDATE productos SET stock = 0 WHERE nombre = 'Comida ficticia'")
     iniciar_sesion("ventas")
-    clic("#cardsReal .card:first-child button")
+    clic("#cardsReal .card:nth-child(2) button")
     clic("#accept")
     clic("#payments button:nth-child(2)")
     clic("#validarPedido")
@@ -714,16 +924,17 @@ def test_pos_web_entrenamiento_promocion_fiado_devolucion_y_cierre(controles_pos
     texto(caja, "Abierta")
     clic("#accept")
 
-    for nombre in ("Chocotorta chica", "Oreo chico"):
+    for familia, nombre in (("Chocotorta", "Chocotorta chica"), ("Oreo", "Oreo chico")):
         esperar(lambda: evaluar(f"""
             (() => {{
                 const tarjeta = [...document.querySelectorAll('#cardsReal article')]
-                    .find(t => t.querySelector('h3').textContent === {json.dumps(nombre)});
+                    .find(t => t.querySelector('h3').textContent === {json.dumps(familia)});
                 if (!tarjeta) return false;
                 tarjeta.querySelector('button').click();
                 return true;
             }})()
         """))
+        clic(f'#variantesPostre [aria-label="Aumentar cantidad de {nombre}"]')
         clic("#accept")
     clic("#validarPedido")
     texto("#estadoPedido", "5.000,00")
@@ -801,7 +1012,7 @@ def test_pos_web_entrenamiento_promocion_fiado_devolucion_y_cierre(controles_pos
 @pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
 def test_pos_web_seguimiento_retiro_de_mostrador(controles_pos):
     evaluar, clic, texto, _ = controles_pos
-    texto("#cardsReal", "Oreo chico")
+    texto("#cardsReal", "Oreo")
     clic("#adminAccess")
     usuario, _, clave = USUARIOS[0]
     evaluar(f"""
@@ -810,10 +1021,8 @@ def test_pos_web_seguimiento_retiro_de_mostrador(controles_pos):
     """)
     clic("#accept")
     texto("#adminAccess", usuario)
-    evaluar("""
-        [...document.querySelectorAll('#cardsReal article')]
-            .find(t => t.querySelector('h3')?.textContent === 'Oreo chico').querySelector('button').click();
-    """)
+    clic('[data-familia="Oreo"] button')
+    clic('#variantesPostre [aria-label="Aumentar cantidad de Oreo chico"]')
     clic("#accept")
     clic("#validarPedido")
     texto("#estadoPedido", "3.000")
@@ -844,7 +1053,7 @@ def test_pos_web_seguimiento_retiro_de_mostrador(controles_pos):
 @pytest.mark.parametrize("navegador_pos", ["entrenamiento"], indirect=True)
 def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
     evaluar, clic, texto, _ = controles_pos
-    texto("#cardsReal", "Oreo chico")
+    texto("#cardsReal", "Oreo")
     clic("#adminAccess")
     usuario, _, clave = USUARIOS[0]
     evaluar(f"""
@@ -853,10 +1062,8 @@ def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
     """)
     clic("#accept")
     texto("#adminAccess", usuario)
-    evaluar("""
-        [...document.querySelectorAll('#cardsReal article')]
-            .find(t => t.querySelector('h3')?.textContent === 'Oreo chico').querySelector('button').click();
-    """)
+    clic('[data-familia="Oreo"] button')
+    clic('#variantesPostre [aria-label="Aumentar cantidad de Oreo chico"]')
     clic("#accept")
     clic("#validarPedido")
     texto("#estadoPedido", "3.000")
@@ -905,7 +1112,7 @@ def test_pos_web_whatsapp_anonimo_antes_de_confirmar_venta(controles_pos):
 def test_pos_web_tablet_carrito_funciona_sin_javascript(controles_pos):
     """El control nativo de HTML alterna el carrito aun si el JS del POS falla."""
     evaluar, _, texto, _ = controles_pos
-    texto("#cardsReal", "Oreo chico")
+    texto("#cardsReal", "Oreo")
     assert evaluar("""
         (() => {
             document.documentElement.classList.add('tablet-mode');

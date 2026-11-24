@@ -324,6 +324,20 @@ svg.ui-icon {
   background: #f9fafc;
   background: var(--paper);
 }
+.dialog-header {display: flex; align-items: flex-start; justify-content: space-between; gap: 12px}
+#closeDialog {min-width: 44px; min-height: 44px; padding: 0; font-size: 27px; flex: none}
+.dialog .complemento-pos, .dialog .extra-preparacion {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-width: 0;
+}
+.cantidad-pos {display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px}
+.cantidad-pos button {min-width: 48px; min-height: 48px; padding: 4px; font-size: 22px; touch-action: manipulation}
+.cantidad-pos output {min-width: 2ch; text-align: center; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums}
+.grupo-complemento {border: 1px solid currentColor; border-radius: 10px; padding: 0 10px}
+.grupo-complemento summary {min-height: 48px; padding: 12px 0; cursor: pointer; touch-action: manipulation; font-weight: 700}
+.grupo-complemento .complemento-pos {padding: 5px 0}
+.grupo-complemento summary:focus-visible, .cantidad-pos button:focus-visible {outline: 2px solid #d5a74a; outline-offset: 2px}
+.dialog input[type=number] {width: 5em; min-height: 44px}
 .dialog h3 {margin: 15px 0 5px}
 .check {display: flex; align-items: center; min-height: 49px; padding: 4px; border-bottom: 1px solid var(--line)}
 .check input[type=checkbox] {width: 24px; height: 24px; margin-right: 12px; flex: none; accent-color: #a26a0b}
@@ -510,7 +524,7 @@ svg.ui-icon {
 <button id="checkout" class="primary wide">Simular cobro →</button><p id="notice" class="notice" role="status"></p>
 </aside>
 </div></div></div>
-<div id="overlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><h2 id="dialogTitle"></h2><div id="dialogBody"></div><div class="actions" id="dialogActions"></div></section></div>
+<div id="overlay" class="overlay" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><header class="dialog-header"><h2 id="dialogTitle"></h2><button type="button" id="closeDialog" aria-label="Cerrar">×</button></header><div id="dialogBody"></div><div class="actions" id="dialogActions"></div></section></div>
 <script>
 (function () {
   'use strict';
@@ -631,6 +645,7 @@ svg.ui-icon {
   function show(title,body,action) {
     if (overlay.hidden) trigger = document.activeElement;
     el('dialogTitle').textContent = title;
+    el('dialogBody').onchange = null;
     el('dialogBody').innerHTML = body;
     el('dialogActions').innerHTML = button(action,'id','accept','class="primary"') + button('Cancelar','id','cancel');
     overlay.hidden = false;
@@ -691,7 +706,8 @@ svg.ui-icon {
     while (target && target !== document && target.tagName !== 'BUTTON') target = target.parentNode;
     if (!target || target === document) return;
     function value(name) { return target.getAttribute('data-' + name); }
-    if (target.id === 'cancel') close();
+    if (target.id === 'closeDialog') el('cancel').click();
+    else if (target.id === 'cancel') close();
     else if (value('category') !== null) { category = value('category'); el('search').value = ''; menu(); el('tabs').querySelector('.active').focus(); }
     else if (value('product') !== null) customize(-1,catalog[category][Number(value('product'))]);
     else if (value('edit') !== null) customize(Number(value('edit')));
@@ -705,7 +721,7 @@ svg.ui-icon {
   });
   document.addEventListener('keydown',function (event) {
     if (overlay.hidden) return;
-    if (event.key === 'Escape' || event.keyCode === 27) { close(); return; }
+    if (event.key === 'Escape' || event.keyCode === 27) { event.preventDefault(); el('cancel').click(); return; }
     if (event.key !== 'Tab' && event.keyCode !== 9) return;
     var controls = Array.from(overlay.querySelectorAll('input,textarea,select,button,summary'))
       .filter(function (control) { return !control.disabled && control.getClientRects().length; });
