@@ -160,3 +160,8 @@ No continuar hasta dejar documentado qué libro conserva cada operación. Esta g
   en su cabecera exacta; esta evidencia local no declara aprobada una ejecución remota pendiente.
 - No se ejecutaron reinicio físico de Windows, corte de energía, aceptación de saldos reales ni activación.
   No se abrió ningún libro histórico ni instalación existente.
+- La primera CI Linux detectó conversión automática de finales de línea del catálogo. Se fijó su
+  representación CRLF en `.gitattributes` para conservar el SHA-256 aprobado en Windows, Linux y archivos
+  exportados, sin cambiar productos ni precios. Se añadió un control de `git archive` con autocrlf deshabilitado.
+  El ensayo persistente Windows del código `760791f` también aprobó preparación, dos procesos nuevos,
+  restore aislado y rechazo de reutilización; la SQLite original conservó su hash.

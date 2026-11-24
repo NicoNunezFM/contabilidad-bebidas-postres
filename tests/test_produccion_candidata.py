@@ -1,11 +1,13 @@
 """Sólo directorios temporales, saldos desconocidos y ataques con datos ficticios."""
 from contextlib import closing
 import json
+import io
 from pathlib import Path
 import shutil
 import sqlite3
 import subprocess
 import sys
+import zipfile
 from tempfile import TemporaryDirectory
 
 import pytest
@@ -185,3 +187,10 @@ def test_catalogo_db_alterado_rechazado(candidata):
             db.commit()
             with pytest.raises(ValueError, match='precios'):
                 c.validar_db(db)
+
+
+def test_catalogo_exportado_independiente_de_autocrlf():
+    archive = subprocess.check_output(['git', '-c', 'core.autocrlf=false', 'archive',
+        '--format=zip', 'HEAD', 'scripts/catalogo-comercial.json'], cwd=c.ROOT)
+    with zipfile.ZipFile(io.BytesIO(archive)) as content:
+        assert c.hashlib.sha256(content.read('scripts/catalogo-comercial.json')).hexdigest() == c.CATALOGO_SHA
