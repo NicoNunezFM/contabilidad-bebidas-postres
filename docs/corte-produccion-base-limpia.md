@@ -266,3 +266,11 @@ requiere una revisión propia: no presentar un arqueo de efectivo como cierre de
   Los 38 controles de candidata pasaron localmente con ese lector, y dos ataques de permisos
   (acceso extra de terceros y herencia reactivada) fueron rechazados. CI comprueba ahora la candidata
   antes de iniciar los ensayos Edge para detectar pronto errores de permisos.
+
+- La nueva CI siguió rechazando la ACL aun leyendo SIDs nativos. Se mantuvo el rechazo y se cambió
+  la creación de carpetas nuevas para reemplazar la DACL completa por exactamente dos permisos,
+  en vez de conservar posibles reglas explícitas predeterminadas al retirar sólo la herencia.
+  El instalador aplica lo mismo a su raíz nueva. La comprobación nunca repara una carpeta existente.
+  Pasaron 40 controles de candidata y un control adicional con una regla explícita de terceros sobre
+  carpeta ficticia recién creada: al crear la ACL exacta quedaron sólo usuario y SYSTEM. Los rechazos
+  de terceros y herencia siguen vigentes. Requiere confirmar esta creación en la nueva CI Windows.

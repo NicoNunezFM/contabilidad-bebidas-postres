@@ -228,3 +228,16 @@ def test_acl_extra_o_heredada_se_rechaza(reglas):
         subprocess.run(['icacls.exe', str(carpeta), *reglas], check=True, capture_output=True)
         with pytest.raises(ValueError, match='acceso exclusivo'):
             c.verificar_permisos(carpeta)
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='ACL nativa de Windows')
+def test_creacion_reemplaza_reglas_explicitas_del_directorio_nuevo():
+    with TemporaryDirectory() as temp:
+        carpeta = Path(temp).resolve() / 'ProduccionCandidata'
+        carpeta.mkdir()
+        subprocess.run(['icacls.exe', str(carpeta), '/grant', '*S-1-1-0:(OI)(CI)R'], check=True, capture_output=True)
+        sid = subprocess.check_output(['whoami','/user','/fo','csv','/nh'],text=True).strip().split(',')[-1].strip('"')
+        c.restringir_permisos_windows(carpeta, sid)
+        c.verificar_permisos(carpeta)
+        protegida, reglas = c.permisos_windows(carpeta)
+        assert protegida and len(reglas) == 2

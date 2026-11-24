@@ -20,9 +20,16 @@ if ($LASTEXITCODE -ne 0 -or $ActualAbadion -ne $Commit) { throw 'El commit no co
 $CambiosAbadion = & git -C $OrigenAbadion status --porcelain
 if ($LASTEXITCODE -ne 0 -or $CambiosAbadion) { throw 'Se requiere un checkout limpio.' }
 New-Item -ItemType Directory -Path $DestinoAbadion | Out-Null
-$UsuarioAbadion = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-& icacls.exe $DestinoAbadion /inheritance:r /grant:r "${UsuarioAbadion}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'No se pudo restringir el acceso privado.' }
+# El destino acaba de crearse: reemplazar la DACL completa, incluidas ACEs explicitas predeterminadas.
+$PermisosCandidata = [System.Security.AccessControl.DirectorySecurity]::new()
+$PermisosCandidata.SetAccessRuleProtection($true, $false)
+$HerenciaCandidata = [System.Security.AccessControl.InheritanceFlags]::ObjectInherit -bor [System.Security.AccessControl.InheritanceFlags]::ContainerInherit
+$SidsCandidata = @([System.Security.Principal.WindowsIdentity]::GetCurrent().User, [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'))
+foreach ($SidCandidata in $SidsCandidata) {
+    $ReglaCandidata = [System.Security.AccessControl.FileSystemAccessRule]::new($SidCandidata, [System.Security.AccessControl.FileSystemRights]::FullControl, $HerenciaCandidata, [System.Security.AccessControl.PropagationFlags]::None, [System.Security.AccessControl.AccessControlType]::Allow)
+    $PermisosCandidata.AddAccessRule($ReglaCandidata)
+}
+Set-Acl -LiteralPath $DestinoAbadion -AclObject $PermisosCandidata
 $HerramientasAbadion = Join-Path $DestinoAbadion 'herramientas'
 & $PythonAbadion -m venv $HerramientasAbadion
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar el entorno.' }

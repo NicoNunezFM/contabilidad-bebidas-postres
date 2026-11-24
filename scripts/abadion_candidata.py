@@ -62,8 +62,7 @@ def carpeta_nueva(path):
     path.mkdir(parents=True, exist_ok=False)
     if os.name == 'nt':
         sid = subprocess.check_output(['whoami', '/user', '/fo', 'csv', '/nh'], text=True).strip().split(',')[-1].strip('"')
-        subprocess.run(['icacls.exe', str(path), '/inheritance:r', '/grant:r',
-                        f'*{sid}:(OI)(CI)F', '*S-1-5-18:(OI)(CI)F'], check=True, capture_output=True)
+        restringir_permisos_windows(path, sid)
     else:
         path.chmod(0o700)
     verificar_permisos(path)
@@ -79,7 +78,39 @@ def verificar_permisos(path):
     protegida, entradas = permisos_windows(path)
     esperado = sorted([(sid, 0x1F01FF, 0, 3), ('S-1-5-18', 0x1F01FF, 0, 3)])
     if not protegida or entradas != esperado:
-        raise ValueError('No se pudo verificar acceso exclusivo del usuario y SYSTEM.')
+        reglas = [(('usuario' if principal == sid else 'SYSTEM' if principal == 'S-1-5-18' else 'otro'),
+                   hex(mascara), tipo, flags) for principal, mascara, tipo, flags in entradas]
+        raise ValueError(f'No se pudo verificar acceso exclusivo del usuario y SYSTEM. Protegida={protegida}; reglas={reglas}')
+
+
+def restringir_permisos_windows(path, sid):
+    """Reemplazar la DACL exclusivamente al crear un directorio nuevo, antes de escribir secretos."""
+    import ctypes as ct
+    from ctypes import wintypes as wt
+    api = ct.WinDLL('advapi32', use_last_error=True)
+    memoria = ct.WinDLL('kernel32', use_last_error=True)
+    puntero = ct.c_void_p
+    api.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [wt.LPCWSTR, wt.DWORD, ct.POINTER(puntero), ct.POINTER(wt.DWORD)]
+    api.ConvertStringSecurityDescriptorToSecurityDescriptorW.restype = wt.BOOL
+    api.GetSecurityDescriptorDacl.argtypes = [puntero, ct.POINTER(wt.BOOL), ct.POINTER(puntero), ct.POINTER(wt.BOOL)]
+    api.GetSecurityDescriptorDacl.restype = wt.BOOL
+    api.SetNamedSecurityInfoW.argtypes = [wt.LPWSTR, wt.DWORD, wt.DWORD] + [puntero] * 4
+    api.SetNamedSecurityInfoW.restype = wt.DWORD
+    memoria.LocalFree.argtypes = [puntero]
+    memoria.LocalFree.restype = puntero
+    descriptor, dacl = puntero(), puntero()
+    sddl = f'D:P(A;OICI;FA;;;{sid})(A;OICI;FA;;;SY)'
+    if not api.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, ct.byref(descriptor), None):
+        raise ValueError('No se pudo construir la ACL privada.')
+    try:
+        presente, defecto = wt.BOOL(), wt.BOOL()
+        if not api.GetSecurityDescriptorDacl(descriptor, ct.byref(presente), ct.byref(dacl), ct.byref(defecto)) or not presente or not dacl:
+            raise ValueError('ACL privada inválida.')
+        error = api.SetNamedSecurityInfoW(str(path), 1, 0x80000004, None, None, dacl, None)
+        if error:
+            raise OSError(error, 'No se pudo establecer la ACL privada.')
+    finally:
+        memoria.LocalFree(descriptor)
 
 
 def permisos_windows(path):
