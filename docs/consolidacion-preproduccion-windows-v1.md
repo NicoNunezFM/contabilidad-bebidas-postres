@@ -160,14 +160,23 @@ Validación local en Windows / Python 3.12.9 / Edge:
   backup fallido, rollback de carga, WAL confirmado/no confirmado, caída abrupta,
   corrupción con hash recalculado, cuarentena/recuperación, auxiliares, lock entre
   procesos, colisiones DB/JSON y cierre esperando snapshot en curso.
-- Regresión completa con Edge: en ejecución al publicar inicialmente el borrador;
-  se actualizará esta evidencia al terminar. CI propia del nuevo PR también pendiente.
+- Regresión completa con Edge: **379 aprobadas, 0 fallos, 0 errores y 0 omitidas**, en
+  683,56 segundos. Se inició antes del ajuste final de publicación sin reemplazo; los
+  31 casos anteriores validaron después la versión final de catálogo/backups.
+- Unión de los dos XML: **383 casos únicos aprobados**, 410 ejecuciones con 27 casos
+  compartidos. No se presenta como una única corrida de 383 casos sobre el commit final.
+- [PR #32 en borrador](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/32),
+  base #29 y commit de código `75449d3a7d2a72cb3db82121c4f1b5b84b4bcf21`.
+  Su [CI 45403370592](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/45403370592)
+  ya aprobó `sqlite-ficticio`; Windows/Edge seguía en ejecución al cerrar esta evidencia.
+  La actualización posterior de este informe sólo cambia documentación y puede iniciar
+  otra corrida. Los estados remotos deben consultarse por commit, no inferirse de #29/#30.
 - `git diff --check` y compilación de los archivos Python modificados: correctos.
 
 Los XML de pruebas locales quedan fuera del repositorio en
 `../abadion-consolidacion-resultados.xml` y
-`../abadion-consolidacion-catalogo-resultados.xml`. Las ejecuciones se solapan; no sumar
-sus casos como si todos fueran únicos. Los avisos observados en la ejecución final de
+`../abadion-consolidacion-catalogo-resultados.xml`. Se compararon pares classname/name
+de ambos XML para obtener el conteo único. Los avisos observados en la ejecución final de
 31 casos son dos deprecaciones del `on_event` existente en la API general importada
 por el arnés Edge; no son fallos de prueba.
 
