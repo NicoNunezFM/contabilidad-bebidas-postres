@@ -2,6 +2,8 @@
 
 **Sólo dinero y datos ficticios. Producción no habilitada.** No reemplaza Entrenamiento ni Preproducción. No crea ni cambia accesos directos y no inicia WhatsApp.
 
+La mejora de fiados se entrega en la misma rama del PR #36: [flujo nuevo, actualización manual con backup/rollback y repetición de $9.000/$4.000](fiado-directo-pr36.md).
+
 ## Estado verificado el 24 de noviembre de 2026
 
 | PR | Rama / commit de cabecera | Revisiones y CI más reciente |
@@ -162,6 +164,6 @@ python -m pip install -r .\requirements-tablet-test.txt
 python -m pytest -q -rs --junitxml=abadion-resultados.xml
 ```
 
-Para cada error manual anotar SHA de `activa.json`, rol, pasos, resultado esperado y obtenido; ocultar claves y clientes. Corregir en una rama, ejecutar SQLite/API y Edge, revisar y actualizar por SHA. No usar `git pull` dentro de `releases`, no copiar archivos encima de una versión instalada y no volver a preparar la base.
+Para cada error manual anotar SHA de `activa.json`, rol, pasos, resultado esperado y obtenido; ocultar claves y clientes. Para esta corrección de fiados trabajar en la rama existente del PR #36, sin otra rama ni otro PR; ejecutar SQLite/API y Edge, revisar y actualizar por SHA. No usar `git pull` dentro de `releases`, no copiar archivos encima de una versión instalada y no volver a preparar la base.
 
 **Pendientes:** aceptación familiar de precios/flujo, tacto físico en PCBOX, reinicio de Windows, corte de energía y recuperación externa en otra PC. Los ensayos automáticos y el toque emulado no sustituyen esas comprobaciones. No habilitar producción.
