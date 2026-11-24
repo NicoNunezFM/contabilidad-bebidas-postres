@@ -51,4 +51,12 @@ jobs:
           if (-not (Test-Path -LiteralPath $env:POS_TEST_BROWSER)) {
             throw 'No se encontró Microsoft Edge.'
           }
-          python -m pytest -q tests/test_pos_web.py tests/test_demo_tablet.py tests/test_tablet_https.py tests/test_preproduccion.py tests/test_preproduccion_consolidacion.py tests/test_preproduccion_catalogo_edge.py
+          $env:POS_UI_CAPTURAS = Join-Path $env:RUNNER_TEMP 'abadion-capturas'
+          python -m pytest -q tests/test_pos_web.py tests/test_demo_tablet.py tests/test_tablet_https.py tests/test_preproduccion.py tests/test_preproduccion_consolidacion.py tests/test_preproduccion_catalogo_edge.py tests/test_preproduccion_jornada_v1.py
+      - name: Publicar capturas del flujo de ventas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abadion-preproduccion-edge
+          path: ${{ runner.temp }}/abadion-capturas/abadion-paso-*.png
+          if-no-files-found: warn
