@@ -3607,6 +3607,23 @@ if (modoReal) {
           + importePos(totales.cobrado_atribuido_centavos)));
       });
       cuerpo.append(nodoPos('h3', 'Ventas por sección'), secciones);
+      if (datos.rentabilidad_historica) {
+        var margen = datos.rentabilidad_historica;
+        var cobertura = nodoPos('section');
+        cobertura.id = 'costosHistoricosPos';
+        cobertura.append(nodoPos('h3', 'Margen histórico de mercadería'));
+        cobertura.append(nodoPos('p', 'Excluye envío, gastos y caja. Los costos estimados no identifican el lote vendido.', 'muted'));
+        Object.entries(margen.secciones).forEach(([seccion, totales]) => {
+          var porcentaje = totales.cobertura_unidades_pct;
+          cobertura.append(nodoPos('p', nombresCajaDiaria[seccion] + ' · Cobertura de costos: '
+            + (porcentaje === null ? 'sin movimientos' : porcentaje.toFixed(1) + '% de unidades movidas')
+            + ' · Margen bruto: ' + (totales.margen_bruto_centavos === null
+              ? 'desconocido; faltan costos' : importePos(totales.margen_bruto_centavos))
+            + (totales.movimientos_por_estado.estimado ? ' (incluye estimaciones)' : '')));
+        });
+        cobertura.append(nodoPos('p', 'Los componentes parciales no se presentan como rentabilidad total.', 'muted'));
+        cuerpo.append(cobertura);
+      }
       var receptores = nodoPos('ul');
       datos.cobros_por_receptor.forEach(fila => receptores.append(nodoPos('li', nombreReceptorPos(fila.receptor)
         + ' · ' + (mediosSimulados[fila.medio_pago] || (saldoUnificado ? 'Saldo de caja' : '')) + ' · ' + importePos(fila.neto_centavos))));

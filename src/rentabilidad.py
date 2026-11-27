@@ -11,15 +11,16 @@ CATEGORIAS_RENTABILIDAD = {
 def _costo_unitario_bebida(
     id_producto,
     compras_a_promediar=3,
+    *, _conexion=None,
 ):
-    conexion = obtener_conexion()
+    conexion = _conexion if _conexion is not None else obtener_conexion()
 
     try:
         filas = conexion.execute(
             """
             SELECT
                 cantidad,
-                precio_unitario
+                precio_unitario, id_compra, fecha
             FROM compras
             WHERE id_producto = ?
               AND anulada = 0
@@ -33,7 +34,8 @@ def _costo_unitario_bebida(
         ).fetchall()
 
     finally:
-        conexion.close()
+        if _conexion is None:
+            conexion.close()
 
     if not filas:
         return None
@@ -60,13 +62,16 @@ def _costo_unitario_bebida(
             f"{len(filas)} compras"
         ),
         "compras_consideradas": len(filas),
+        "compras_fuente": [{"id_compra": f[2], "fecha": f[3], "cantidad": f[0],
+                            "precio_unitario": f[1]} for f in filas],
     }
 
 
 def _costo_unitario_postre(
     nombre_producto,
+    *, _conexion=None,
 ):
-    conexion = obtener_conexion()
+    conexion = _conexion if _conexion is not None else obtener_conexion()
 
     try:
         fila = conexion.execute(
@@ -85,7 +90,8 @@ def _costo_unitario_postre(
         ).fetchone()
 
     finally:
-        conexion.close()
+        if _conexion is None:
+            conexion.close()
 
     if fila is not None:
         return {
@@ -101,6 +107,7 @@ def _costo_unitario_postre(
     estimacion = estimar_costo_receta(
         producto=nombre_producto,
         cantidad_objetivo=1,
+        _conexion=_conexion,
     )
 
     if (
@@ -135,8 +142,9 @@ def _costo_unitario_postre(
 
 def costo_unitario_para_venta(
     id_producto,
+    *, _conexion=None,
 ):
-    conexion = obtener_conexion()
+    conexion = _conexion if _conexion is not None else obtener_conexion()
 
     try:
         producto = conexion.execute(
@@ -151,7 +159,8 @@ def costo_unitario_para_venta(
         ).fetchone()
 
     finally:
-        conexion.close()
+        if _conexion is None:
+            conexion.close()
 
     if producto is None:
         return {
@@ -165,11 +174,11 @@ def costo_unitario_para_venta(
 
     if categoria == "bebidas":
         costo = _costo_unitario_bebida(
-            id_producto
+            id_producto, _conexion=_conexion
         )
     elif categoria == "postres":
         costo = _costo_unitario_postre(
-            producto[0]
+            producto[0], _conexion=_conexion
         )
     else:
         costo = None
@@ -192,6 +201,7 @@ def costo_unitario_para_venta(
                 "version_receta",
                 "fecha_costo",
                 "compras_consideradas",
+                "compras_fuente",
             )
             if clave in costo
         },
@@ -204,6 +214,7 @@ def _ventas_producto(
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN")
         fila = conexion.execute(
             """
             SELECT
@@ -310,22 +321,29 @@ def _ventas_producto(
             (id_producto,)
         ).fetchone()
 
+        from pos_costos_historicos import movimientos_pos, movimientos_legados, resumir
+        pos = [f for f in movimientos_pos(conexion) if f['id_producto'] == id_producto]
+        historico_pos = resumir(pos)
+        consolidado = resumir(pos + [f for f in movimientos_legados(conexion) if f["id_producto"] == id_producto])
     finally:
         conexion.close()
 
     return {
+        "cobertura_pos": historico_pos,
+        "historico_consolidado": consolidado,
+        "pos_estimado": any(f["estado"] == "estimado" for f in pos),
         "unidades_vendidas": int(
             fila[0] or 0
-        ),
+        ) + sum(f["cantidad"] for f in pos),
         "ingresos": float(
             fila[1] or 0
-        ),
+        ) + historico_pos["ingresos_productos_centavos"] / 100,
         "costo_ventas_historico_conocido": float(
             fila[2] or 0
-        ),
+        ) + historico_pos["costo_lineas_cubiertas_centavos"] / 100,
         "unidades_sin_snapshot": int(
             fila[3] or 0
-        ),
+        ) + sum(abs(f["cantidad"]) for f in pos if f["costo_total_centavos"] is None),
         "ventas_con_adicionales": int(
             fila[4] or 0
         ),
@@ -403,6 +421,7 @@ def rentabilidad_producto(
     historico_exacto = (
         ventas["unidades_sin_snapshot"] == 0
         and ventas["adicionales_sin_costo_snapshot"] == 0
+        and not ventas["pos_estimado"]
     )
 
     costo_historico = (
@@ -563,6 +582,7 @@ def rentabilidad_categoria(
     conexion = obtener_conexion()
 
     try:
+        conexion.execute("BEGIN")
         placeholders = ",".join(
             "?"
             for _ in categorias
@@ -578,6 +598,9 @@ def rentabilidad_categoria(
             """,
             tuple(sorted(categorias))
         ).fetchall()
+        from pos_costos_historicos import movimientos_pos, movimientos_legados, resumir
+        movimientos = movimientos_pos(conexion) + movimientos_legados(conexion)
+        historico_consolidado = resumir([f for f in movimientos if f['categoria'] in categorias])
 
     finally:
         conexion.close()
@@ -677,6 +700,7 @@ def rentabilidad_categoria(
     return {
         "ok": True,
         "codigo": "RENTABILIDAD_CATEGORIA",
+        "historico_consolidado": historico_consolidado,
         "categoria": categoria_normalizada,
         "nombre": nombre,
         "completo": completo,

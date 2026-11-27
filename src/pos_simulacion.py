@@ -335,6 +335,8 @@ def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estad
             (*clave, solicitud, json.dumps(pedido, ensure_ascii=False)),
         )
         id_venta = cursor.lastrowid
+        from pos_costos_historicos import capturar
+        capturar(conexion, id_venta, pedido)
         if id_pedido is not None:
             conexion.execute("UPDATE pos_seguimiento_pedidos SET id_venta = ? WHERE id_pedido = ?",
                              (id_venta, id_pedido))

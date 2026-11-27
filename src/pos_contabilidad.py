@@ -199,7 +199,10 @@ def calcular_periodo(db, desde, hasta):
     cobrado = cob_c + cob_b
     gastos = gastos_legados + gastos_pos
     base = cobrado - compras - gastos
+    from pos_costos_historicos import informe as informe_margen
     return {
+        "rentabilidad_historica": informe_margen(db, desde_contable, hasta,
+                                               id_evento_minimo=ultimo_pos, incluir_legado=False),
         **pagos_compras,
         "simulacion": True, "fecha_corte": inicio, "desde_contable": desde_contable, "hasta": hasta,
         "devengado_centavos": devengado, "cobrado_neto_centavos": cobrado,
