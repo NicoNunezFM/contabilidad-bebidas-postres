@@ -1,0 +1,17 @@
+{
+  "sha": "7a84c6e80d4f5836d3a369e8e070868d1affe52b",
+  "run_id": 46023338197,
+  "plataforma": "linux",
+  "casos": 531,
+  "fallidas": 0,
+  "errores": 0,
+  "omitidas": 36,
+  "motivos_omision": {
+    "Configurar POS_TEST_BROWSER con Edge": 9,
+    "Configurá POS_TEST_BROWSER con Microsoft Edge.": 7,
+    "Configurá POS_TEST_BROWSER con la ruta de Edge o Chrome.": 14,
+    "ACL nativa de archivos Windows": 2,
+    "Alias 8.3 de Windows": 1,
+    "ACL nativa de Windows": 3
+  }
+}

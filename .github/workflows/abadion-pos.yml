@@ -1,15 +1,23 @@
 name: Verificación de Abadion POS
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
+      - main
+      - 'stable/**'
+      - 'consolidate/**'
       - feature/abadion-pos-integracion-contable
       - feature/abadion-pos-cierre-diario
       - feature/abadion-pos-integracion-definitiva
 
 permissions:
   contents: read
+
+concurrency:
+  group: abadion-pos-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   sqlite-ficticio:
@@ -18,6 +26,8 @@ jobs:
       PYTHON_DOTENV_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -26,10 +36,19 @@ jobs:
         with:
           node-version: "20"
       - run: python -m pip install -r requirements-tablet-test.txt
-      - run: python -m pytest -q
+      - name: Verificar inventario y procedencia de la consolidación
+        run: python -B scripts/auditar_consolidacion.py --verificar
+      - run: python -m pytest -q -ra --junitxml=resultados-linux.xml
         env:
           NEGOCIO_DB_PATH: ${{ runner.temp }}/abadion-ci-ficticio.db
       - run: node --check whatsapp-bot/index.js
+      - name: Publicar resultados de Python y SQLite
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abadion-resultados-linux
+          path: resultados-linux.xml
+          if-no-files-found: warn
 
   pos-edge:
     runs-on: windows-latest
@@ -43,9 +62,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install -r requirements-tablet-test.txt
-      - name: Verificar candidata bloqueada y permisos Windows
-        run: python -m pytest -q tests/test_produccion_candidata.py
-      - name: Verificar el POS ficticio en Edge
+      - name: Verificar suite completa, candidata bloqueada y POS ficticio en Edge
         shell: pwsh
         run: |
           $env:NEGOCIO_DB_PATH = Join-Path $env:RUNNER_TEMP 'abadion-edge-ficticio.db'
@@ -54,11 +71,18 @@ jobs:
             throw 'No se encontró Microsoft Edge.'
           }
           $env:POS_UI_CAPTURAS = Join-Path $env:RUNNER_TEMP 'abadion-capturas'
-          python -m pytest -q tests/test_pos_web.py tests/test_demo_tablet.py tests/test_tablet_https.py tests/test_preproduccion.py tests/test_preproduccion_consolidacion.py tests/test_preproduccion_catalogo_edge.py tests/test_preproduccion_jornada_v1.py tests/test_lo_de_clau_delivery.py tests/test_lo_de_clau_edge.py tests/test_catalogo_comercial.py tests/test_abadion_pruebas.py tests/test_fiado_directo.py tests/test_saldo_unificado.py tests/test_preparacion_unificada.py tests/test_espera_cierre.py
+          python -m pytest -q -ra --junitxml=resultados-windows-edge.xml
+      - name: Publicar resultados completos de Windows y Edge
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abadion-resultados-windows-edge
+          path: resultados-windows-edge.xml
+          if-no-files-found: warn
       - name: Publicar capturas del flujo de ventas
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: abadion-preproduccion-edge
-          path: ${{ runner.temp }}/abadion-capturas/abadion-paso-*.png
+          path: ${{ runner.temp }}/abadion-capturas/*.png
           if-no-files-found: warn

@@ -1,0 +1,589 @@
+{
+  "fecha": "2026-11-27",
+  "repositorio": "NicoNunezFM/contabilidad-bebidas-postres",
+  "referencia": "3c4ef418f161d232a21f059349e7249247f9dbd3",
+  "default_branch": "main",
+  "ramas": [
+    {
+      "name": "audit/legado-whatsapp-readonly",
+      "sha": "416cda54d5cb4d6254cb5683c0779999d4b7be7b",
+      "protected": false
+    },
+    {
+      "name": "audit/preproduccion-windows-v1",
+      "sha": "7361e3a27f962c209a2e629b6c2e54176aa32286",
+      "protected": false
+    },
+    {
+      "name": "consolidate/preproduccion-windows-v1",
+      "sha": "5537d8c0f889ac8f3b9d4a3ef9e0cbd9017698be",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-catalogo-comercial",
+      "sha": "47bf78dccb1fd6e3c297cd58a070663499e550e4",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-clientes-fifo",
+      "sha": "0eabad9ddb88ac1ad8fc443d03a069d664b96aaa",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-compras-caja-ficticia",
+      "sha": "16efdf0d9b59064b8cda6733ec0f629f0b256bd6",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-entrenamiento",
+      "sha": "74ea4b756fa7acefb50972189d9f81759ca092e9",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pedidos-issue-15",
+      "sha": "8a4906f0e7d5573efccd3c0004397c80dfc77c70",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-auditoria-integracion",
+      "sha": "98f7c09ecc7e143c55ffa026a6ce58e4d4dabc17",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-cierre-diario",
+      "sha": "03343c524128b408951e9ccd7fb7cf42fcd5a485",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-cobros-fiados",
+      "sha": "39e7d2f7e0d72d4ad64b574f84ce277318c4d531",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-entrenamiento-integrado",
+      "sha": "ba1e32679ab9ff0fc8e387d46cc8cce5cce6800b",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-integracion-contable",
+      "sha": "9e50636faeb667b13d704c1c344d213e847ee14b",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-integracion-definitiva",
+      "sha": "dea47e669f6fada57f901019159a39855887e7bf",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-menu-variantes",
+      "sha": "b89aa971244f75e34646166b3eb3425514498fae",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-premium-tactil-v1",
+      "sha": "067b9cab161b872e5856edf71734cad57ff02efd",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-premium-ui",
+      "sha": "d160fc50510bb91192873340d369f021baea2069",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-v1-interfaz",
+      "sha": "a5efe4356c0fc5cea7414248687ee0ca04e3cf15",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-pos-v1",
+      "sha": "e8bb64d11db99c7de3a1c5c614c9d458666da753",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-premium-catalogo-tres-pasos",
+      "sha": "35949f0f100161154a4bb3712598d4f6ebb1821d",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-reglas-operativas",
+      "sha": "98f3c011e7445bfc2f1bb746615c6c99a0a44362",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-tablet-7in-chrome101",
+      "sha": "59b4810d8c9564e70abfeeadb423de5e4b423669",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-tablet-acceso-remoto-seguro",
+      "sha": "1c0f218b3a9081b25fdd080ba68865f5582be03c",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-tablet-demo-ficticia",
+      "sha": "9bcab7f927b0c73796575fb818229c7b1cd50148",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-tablet-https-laboratorio",
+      "sha": "c95b0c8cad1311f275e17f1f0e52546898ed8b04",
+      "protected": false
+    },
+    {
+      "name": "feature/abadion-v1-preproduccion-persistente",
+      "sha": "1d3ce73d506be7435ace94912e6f42d10ec2cbeb",
+      "protected": false
+    },
+    {
+      "name": "feature/comandos-whatsapp-v1",
+      "sha": "f6ce5534ed5506044155627b028b628f173ffd5b",
+      "protected": false
+    },
+    {
+      "name": "feature/lo-de-clau-pedidos-delivery",
+      "sha": "c6b9f79b8eb945214dd4815e8af72b31c1bc969c",
+      "protected": false
+    },
+    {
+      "name": "feature/pos-autenticacion",
+      "sha": "abbb623e70830ee9994cd1bf4a854cfbdbf15a38",
+      "protected": false
+    },
+    {
+      "name": "feature/pos-edicion-carrito",
+      "sha": "7187aa01676fe5a9b00d69b7005a49089ea04956",
+      "protected": false
+    },
+    {
+      "name": "feature(pos-tablet-v1",
+      "sha": "f6ce5534ed5506044155627b028b628f173ffd5b",
+      "protected": false
+    },
+    {
+      "name": "feature/pos-tablet-v1",
+      "sha": "9a7387c5fd011e7a14403b1a3b22682561061382",
+      "protected": false
+    },
+    {
+      "name": "feature/produccion-base-limpia",
+      "sha": "3c4ef418f161d232a21f059349e7249247f9dbd3",
+      "protected": false
+    },
+    {
+      "name": "integration/abadion-entrenamiento-qa-menu",
+      "sha": "6d7e8fd7b3c7e17b8dcfb241679f22ce56096c68",
+      "protected": false
+    },
+    {
+      "name": "integration/abadion-premium-edge",
+      "sha": "5d44eba6d18363789253d63df7cc58f448e849e1",
+      "protected": false
+    },
+    {
+      "name": "integration/abadion-preproduccion-v1",
+      "sha": "b302765fcbb8abaa0549ad0dc4e104d2480e17be",
+      "protected": false
+    },
+    {
+      "name": "integration/abadion-v1-pos-persistente",
+      "sha": "6e8a297c1348620fe36d48a18ef157c4495fa967",
+      "protected": false
+    },
+    {
+      "name": "integration/abadion-v1-pruebas-continuas",
+      "sha": "416cda54d5cb4d6254cb5683c0779999d4b7be7b",
+      "protected": false
+    },
+    {
+      "name": "main",
+      "sha": "3bead61c9787f2e02eb94e92af9ba7f69cbd342a",
+      "protected": false
+    },
+    {
+      "name": "qa/abadion-integrado-issue-10",
+      "sha": "7cbedc17a920d32c24d2bf9dbc687c354ae5bacf",
+      "protected": false
+    },
+    {
+      "name": "qa/abadion-jornada-contable",
+      "sha": "51ce00e35422eae7743e601bce2658391b4a51b9",
+      "protected": false
+    }
+  ],
+  "prs": [
+    {
+      "number": 37,
+      "title": "Abadion: preparación bloqueada V3, reversos y cierres unificados",
+      "state": "open",
+      "draft": true,
+      "base": "integration/abadion-v1-pruebas-continuas",
+      "base_sha": "416cda54d5cb4d6254cb5683c0779999d4b7be7b",
+      "head": "feature/produccion-base-limpia",
+      "head_sha": "3c4ef418f161d232a21f059349e7249247f9dbd3",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/37"
+    },
+    {
+      "number": 36,
+      "title": "Abadion V1.0: entorno Pruebas Windows/Edge con actualizaciones reversibles",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-catalogo-comercial",
+      "base_sha": "47bf78dccb1fd6e3c297cd58a070663499e550e4",
+      "head": "integration/abadion-v1-pruebas-continuas",
+      "head_sha": "416cda54d5cb4d6254cb5683c0779999d4b7be7b",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/36"
+    },
+    {
+      "number": 35,
+      "title": "Lo de Clau: catálogo comercial de 38 productos con validación aislada",
+      "state": "open",
+      "draft": true,
+      "base": "feature/lo-de-clau-pedidos-delivery",
+      "base_sha": "c6b9f79b8eb945214dd4815e8af72b31c1bc969c",
+      "head": "feature/abadion-catalogo-comercial",
+      "head_sha": "47bf78dccb1fd6e3c297cd58a070663499e550e4",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/35"
+    },
+    {
+      "number": 34,
+      "title": "Lo de Clau: pedidos sencillos y delivery conciliado",
+      "state": "open",
+      "draft": true,
+      "base": "integration/abadion-v1-pos-persistente",
+      "base_sha": "6e8a297c1348620fe36d48a18ef157c4495fa967",
+      "head": "feature/lo-de-clau-pedidos-delivery",
+      "head_sha": "c6b9f79b8eb945214dd4815e8af72b31c1bc969c",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/34"
+    },
+    {
+      "number": 33,
+      "title": "Abadion V1.0: integrar POS Premium y SQLite persistente",
+      "state": "open",
+      "draft": true,
+      "base": "consolidate/preproduccion-windows-v1",
+      "base_sha": "5537d8c0f889ac8f3b9d4a3ef9e0cbd9017698be",
+      "head": "integration/abadion-v1-pos-persistente",
+      "head_sha": "6e8a297c1348620fe36d48a18ef157c4495fa967",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/33"
+    },
+    {
+      "number": 32,
+      "title": "Consolidar preproducción Windows sobre #29: catálogo offline y backups verificados",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-v1-preproduccion-persistente",
+      "base_sha": "1d3ce73d506be7435ace94912e6f42d10ec2cbeb",
+      "head": "consolidate/preproduccion-windows-v1",
+      "head_sha": "5537d8c0f889ac8f3b9d4a3ef9e0cbd9017698be",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/32"
+    },
+    {
+      "number": 31,
+      "title": "POS Premium V1: selección táctil de bebidas, postres y adicionales",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-premium-catalogo-tres-pasos",
+      "base_sha": "35949f0f100161154a4bb3712598d4f6ebb1821d",
+      "head": "feature/abadion-pos-premium-tactil-v1",
+      "head_sha": "067b9cab161b872e5856edf71734cad57ff02efd",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/31"
+    },
+    {
+      "number": 30,
+      "title": "Abadion V1: auditoría SQLite y preproducción persistente aislada",
+      "state": "open",
+      "draft": true,
+      "base": "integration/abadion-premium-edge",
+      "base_sha": "5d44eba6d18363789253d63df7cc58f448e849e1",
+      "head": "audit/preproduccion-windows-v1",
+      "head_sha": "7361e3a27f962c209a2e629b6c2e54176aa32286",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/30"
+    },
+    {
+      "number": 29,
+      "title": "Abadion V1 · Preproducción persistente y aislada para Windows/Edge",
+      "state": "open",
+      "draft": true,
+      "base": "integration/abadion-premium-edge",
+      "base_sha": "5d44eba6d18363789253d63df7cc58f448e849e1",
+      "head": "feature/abadion-v1-preproduccion-persistente",
+      "head_sha": "1d3ce73d506be7435ace94912e6f42d10ec2cbeb",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/29"
+    },
+    {
+      "number": 28,
+      "title": "POS Premium: catálogo ordenado y ventas en tres pasos",
+      "state": "open",
+      "draft": true,
+      "base": "integration/abadion-premium-edge",
+      "base_sha": "5d44eba6d18363789253d63df7cc58f448e849e1",
+      "head": "feature/abadion-premium-catalogo-tres-pasos",
+      "head_sha": "35949f0f100161154a4bb3712598d4f6ebb1821d",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/28"
+    },
+    {
+      "number": 27,
+      "title": "Abadion · Integración premium para Microsoft Edge",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-reglas-operativas",
+      "base_sha": "98f3c011e7445bfc2f1bb746615c6c99a0a44362",
+      "head": "integration/abadion-premium-edge",
+      "head_sha": "5d44eba6d18363789253d63df7cc58f448e849e1",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/27"
+    },
+    {
+      "number": 26,
+      "title": "Abadion · Reglas operativas de caja y stock de Lo de Clau",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-compras-caja-ficticia",
+      "base_sha": "16efdf0d9b59064b8cda6733ec0f629f0b256bd6",
+      "head": "feature/abadion-reglas-operativas",
+      "head_sha": "98f3c011e7445bfc2f1bb746615c6c99a0a44362",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/26"
+    },
+    {
+      "number": 25,
+      "title": "Abadion · Compras pagadas desde cajas físicas",
+      "state": "open",
+      "draft": true,
+      "base": "qa/abadion-jornada-contable",
+      "base_sha": "51ce00e35422eae7743e601bce2658391b4a51b9",
+      "head": "feature/abadion-compras-caja-ficticia",
+      "head_sha": "16efdf0d9b59064b8cda6733ec0f629f0b256bd6",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/25"
+    },
+    {
+      "number": 24,
+      "title": "Abadion POS · interfaz premium para escritorio y PCBOX",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-tablet-acceso-remoto-seguro",
+      "base_sha": "1c0f218b3a9081b25fdd080ba68865f5582be03c",
+      "head": "feature/abadion-pos-premium-ui",
+      "head_sha": "d160fc50510bb91192873340d369f021baea2069",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/24"
+    },
+    {
+      "number": 23,
+      "title": "Abadion · Conciliación de jornada ficticia completa",
+      "state": "open",
+      "draft": true,
+      "base": "integration/abadion-preproduccion-v1",
+      "base_sha": "b302765fcbb8abaa0549ad0dc4e104d2480e17be",
+      "head": "qa/abadion-jornada-contable",
+      "head_sha": "51ce00e35422eae7743e601bce2658391b4a51b9",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/23"
+    },
+    {
+      "number": 22,
+      "title": "Abadion · Candidata de preproducción v1",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-tablet-acceso-remoto-seguro",
+      "base_sha": "1c0f218b3a9081b25fdd080ba68865f5582be03c",
+      "head": "integration/abadion-preproduccion-v1",
+      "head_sha": "b302765fcbb8abaa0549ad0dc4e104d2480e17be",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/22"
+    },
+    {
+      "number": 21,
+      "title": "Abadion PCBOX: laboratorio remoto protegido con Cloudflare Access",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-tablet-https-laboratorio",
+      "base_sha": "c95b0c8cad1311f275e17f1f0e52546898ed8b04",
+      "head": "feature/abadion-tablet-acceso-remoto-seguro",
+      "head_sha": "1c0f218b3a9081b25fdd080ba68865f5582be03c",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/21"
+    },
+    {
+      "number": 20,
+      "title": "Abadion: laboratorio HTTPS autenticado con base ficticia temporal",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-tablet-demo-ficticia",
+      "base_sha": "9bcab7f927b0c73796575fb818229c7b1cd50148",
+      "head": "feature/abadion-tablet-https-laboratorio",
+      "head_sha": "c95b0c8cad1311f275e17f1f0e52546898ed8b04",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/20"
+    },
+    {
+      "number": 19,
+      "title": "Abadion: demo táctil estática ficticia y verificación de descarga PCBOX",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-tablet-7in-chrome101",
+      "base_sha": "59b4810d8c9564e70abfeeadb423de5e4b423669",
+      "head": "feature/abadion-tablet-demo-ficticia",
+      "head_sha": "9bcab7f927b0c73796575fb818229c7b1cd50148",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/19"
+    },
+    {
+      "number": 18,
+      "title": "Abadion Entrenamiento: adaptación táctil de 7 pulgadas y Chrome 101",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pedidos-issue-15",
+      "base_sha": "8a4906f0e7d5573efccd3c0004397c80dfc77c70",
+      "head": "feature/abadion-tablet-7in-chrome101",
+      "head_sha": "59b4810d8c9564e70abfeeadb423de5e4b423669",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/18"
+    },
+    {
+      "number": 17,
+      "title": "Issue #15: seguimiento de pedidos y conciliación de envíos",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-clientes-fifo",
+      "base_sha": "0eabad9ddb88ac1ad8fc443d03a069d664b96aaa",
+      "head": "feature/abadion-pedidos-issue-15",
+      "head_sha": "8a4906f0e7d5573efccd3c0004397c80dfc77c70",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/17"
+    },
+    {
+      "number": 16,
+      "title": "Abadion Entrenamiento · Clientes y cuentas corrientes FIFO",
+      "state": "open",
+      "draft": true,
+      "base": "integration/abadion-entrenamiento-qa-menu",
+      "base_sha": "6d7e8fd7b3c7e17b8dcfb241679f22ce56096c68",
+      "head": "feature/abadion-clientes-fifo",
+      "head_sha": "0eabad9ddb88ac1ad8fc443d03a069d664b96aaa",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/16"
+    },
+    {
+      "number": 13,
+      "title": "Abadion Entrenamiento · Integración de QA contable y menú táctil",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-entrenamiento-integrado",
+      "base_sha": "ba1e32679ab9ff0fc8e387d46cc8cce5cce6800b",
+      "head": "integration/abadion-entrenamiento-qa-menu",
+      "head_sha": "6d7e8fd7b3c7e17b8dcfb241679f22ce56096c68",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/13"
+    },
+    {
+      "number": 12,
+      "title": "Abadion POS · Menú táctil por familias y personalizaciones para cocina",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-entrenamiento-integrado",
+      "base_sha": "ba1e32679ab9ff0fc8e387d46cc8cce5cce6800b",
+      "head": "feature/abadion-pos-menu-variantes",
+      "head_sha": "b89aa971244f75e34646166b3eb3425514498fae",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/12"
+    },
+    {
+      "number": 11,
+      "title": "QA de Abadion POS Integrado · Issue #10",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-entrenamiento-integrado",
+      "base_sha": "ba1e32679ab9ff0fc8e387d46cc8cce5cce6800b",
+      "head": "qa/abadion-integrado-issue-10",
+      "head_sha": "7cbedc17a920d32c24d2bf9dbc687c354ae5bacf",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/11"
+    },
+    {
+      "number": 9,
+      "title": "Abadion POS · Integrar contabilidad de etapa 7 con modo entrenamiento",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-integracion-definitiva",
+      "base_sha": "dea47e669f6fada57f901019159a39855887e7bf",
+      "head": "feature/abadion-pos-entrenamiento-integrado",
+      "head_sha": "ba1e32679ab9ff0fc8e387d46cc8cce5cce6800b",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/9"
+    },
+    {
+      "number": 8,
+      "title": "Abadion Entrenamiento para Lo de Clau",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-cierre-diario",
+      "base_sha": "03343c524128b408951e9ccd7fb7cf42fcd5a485",
+      "head": "feature/abadion-entrenamiento",
+      "head_sha": "74ea4b756fa7acefb50972189d9f81759ca092e9",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/8"
+    },
+    {
+      "number": 7,
+      "title": "Abadion POS · Etapa 7 de contabilidad unificada ficticia",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-cierre-diario",
+      "base_sha": "03343c524128b408951e9ccd7fb7cf42fcd5a485",
+      "head": "feature/abadion-pos-integracion-definitiva",
+      "head_sha": "dea47e669f6fada57f901019159a39855887e7bf",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/7"
+    },
+    {
+      "number": 6,
+      "title": "Abadion POS · Etapa 6 de caja diaria ficticia",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-integracion-contable",
+      "base_sha": "9e50636faeb667b13d704c1c344d213e847ee14b",
+      "head": "feature/abadion-pos-cierre-diario",
+      "head_sha": "03343c524128b408951e9ccd7fb7cf42fcd5a485",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/6"
+    },
+    {
+      "number": 5,
+      "title": "Abadion POS · Etapa 5 de integración contable ficticia",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-cobros-fiados",
+      "base_sha": "39e7d2f7e0d72d4ad64b574f84ce277318c4d531",
+      "head": "feature/abadion-pos-integracion-contable",
+      "head_sha": "9e50636faeb667b13d704c1c344d213e847ee14b",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/5"
+    },
+    {
+      "number": 4,
+      "title": "Abadion POS · Cobros combinados, fiados y conciliación ficticia",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-auditoria-integracion",
+      "base_sha": "98f7c09ecc7e143c55ffa026a6ce58e4d4dabc17",
+      "head": "feature/abadion-pos-cobros-fiados",
+      "head_sha": "39e7d2f7e0d72d4ad64b574f84ce277318c4d531",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/4"
+    },
+    {
+      "number": 3,
+      "title": "Abadion POS · Auditoría del backend y plan de integración contable",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-v1-interfaz",
+      "base_sha": "a5efe4356c0fc5cea7414248687ee0ca04e3cf15",
+      "head": "feature/abadion-pos-auditoria-integracion",
+      "head_sha": "98f7c09ecc7e143c55ffa026a6ce58e4d4dabc17",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/3"
+    },
+    {
+      "number": 2,
+      "title": "Abadion POS V1 · Completar el flujo simulado en la interfaz web",
+      "state": "open",
+      "draft": true,
+      "base": "feature/abadion-pos-v1",
+      "base_sha": "e8bb64d11db99c7de3a1c5c614c9d458666da753",
+      "head": "feature/abadion-pos-v1-interfaz",
+      "head_sha": "a5efe4356c0fc5cea7414248687ee0ca04e3cf15",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/2"
+    },
+    {
+      "number": 1,
+      "title": "Abadion POS V1 · Validación de pedidos y ventas simuladas",
+      "state": "open",
+      "draft": true,
+      "base": "feature/pos-edicion-carrito",
+      "base_sha": "7187aa01676fe5a9b00d69b7005a49089ea04956",
+      "head": "feature/abadion-pos-v1",
+      "head_sha": "e8bb64d11db99c7de3a1c5c614c9d458666da753",
+      "url": "https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/1"
+    }
+  ]
+}
