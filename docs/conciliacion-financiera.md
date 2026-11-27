@@ -71,6 +71,10 @@ DDL, importaciones, ajustes ni commits. El llamador aporta la transacción de le
    dos modelos de custodia en una misma venta y estados de jornada incompatibles.
    Una transferencia ordinaria debe coincidir con origen, destino e importe de su
    solicitud; no basta con que sume cero.
+   Cuando el control existente ya informa un movimiento físico desviado, se conserva
+   su código y se evita repetirlo en la lista consolidada; el detalle adicional queda
+   en el contrato financiero. La primera CI detectó esa duplicación de diagnóstico
+   y se corrigió sin modificar la prueba de compatibilidad original ni sus aserciones.
 6. **Recibos completos:** comprueba filas guardadas al iniciar/completar eventos,
    insertar movimientos, diario, rendición, compra/pago y custodia. Rechazos silenciosos
    mediante `RAISE(IGNORE)` provocan rollback, sin éxito parcial. La venta también

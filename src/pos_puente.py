@@ -171,7 +171,12 @@ def leer_conciliacion(conexion):
         caja_diaria["caja_diaria_centavos"] = estado_cajas(conexion)
     from pos_conciliacion_financiera import informe as informe_financiero
     contrato = informe_financiero(conexion)
-    diferencias.extend(contrato['diferencias'])
+    for diferencia in contrato['diferencias']:
+        if (diferencia['codigo']=='MOVIMIENTO_FISICO_SIN_CONCILIAR' and any(
+                previa.get('codigo')==diferencia['codigo'] and
+                previa.get('id_movimiento')==diferencia.get('id_movimiento') for previa in diferencias)):
+            continue
+        diferencias.append(diferencia)
     corte = corte_contable(conexion)
     integrada = {"contabilidad_centavos": calcular_periodo(conexion, corte[0], fecha_local())} if corte else {}
     return {

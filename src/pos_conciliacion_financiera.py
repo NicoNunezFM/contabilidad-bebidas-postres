@@ -107,13 +107,18 @@ def diagnosticar_diario(db):
             diferencias.append({'codigo': 'JORNADA_ESTADO_INCOMPATIBLE', 'id_jornada': jornada})
         if not cerrada and fecha < ahora_local()[:10]:
             pendientes.append({'codigo': 'JORNADA_PENDIENTE_CIERRE', 'id_jornada': jornada, 'caja': caja, 'fecha': fecha})
-    for evento, in db.execute("""SELECT d.id_evento FROM pos_diario_caja d
+    for evento, movimiento, receptor in db.execute("""SELECT d.id_evento,m.id_movimiento,m.receptor FROM pos_diario_caja d
         JOIN pos_jornadas_caja j USING(id_jornada)
         LEFT JOIN pos_movimientos_simulados m ON m.id_movimiento=d.id_movimiento_pos
         WHERE d.id_movimiento_pos IS NOT NULL AND (m.id_movimiento IS NULL
           OR m.receptor IS NOT j.caja || '_efectivo' OR m.importe_centavos IS NOT d.importe_centavos)
         OR d.tipo IN ('cobro','reembolso','transferencia') AND d.id_movimiento_pos IS NULL"""):
-        diferencias.append({'codigo': 'ESPEJO_DIARIO_INCOMPATIBLE', 'id_evento_diario': evento})
+        if movimiento is not None and receptor in ('comidas_efectivo','bebidas_postres_efectivo'):
+            # Conservar el contrato histórico del diagnóstico movimiento -> diario.
+            diferencias.append({'codigo':'MOVIMIENTO_FISICO_SIN_CONCILIAR',
+                                'id_movimiento':movimiento,'id_evento_diario':evento})
+        else:
+            diferencias.append({'codigo': 'ESPEJO_DIARIO_INCOMPATIBLE', 'id_evento_diario': evento})
     return diferencias, pendientes
 
 
