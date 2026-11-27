@@ -21,7 +21,8 @@ perímetro HTTPS/Access, scripts offline, SQLite y adaptador WhatsApp.
 | Catálogo adicional / personalizaciones | En base quedan públicos también fuera de simulación; alinear con la política del catálogo de productos |
 | POS comercial ordinario | Administración o Ventas según dependencia; no asumir que la interfaz constituye autorización |
 | Precios, configuración, compras POS, anulaciones/devoluciones, fondos/rendición, transferencias, cierres de período, contabilidad/conciliación | Administración, con Origin en mutaciones; conservar todos los permisos actuales |
-| Apertura, arqueo, cierre diario, aporte/retiro/gasto, pedido/venta, cliente/abono | Permisos de Ventas y Administración existentes. No restringirlos por una decisión comercial nueva |
+| Apertura, arqueo, cierre diario, aporte/retiro, pedido/venta, cliente/abono | Permisos de Ventas y Administración existentes. No restringirlos por una decisión comercial nueva |
+| Movimiento diario `tipo=gasto` | Administración por control interno de `mover_caja_diaria`, además de la dependencia que admite ambos perfiles para los otros tipos. No ampliar este permiso |
 | Corrección global de abono de cliente | Administración, Origin, sesión y actor esperado |
 | API contable y `/acciones` | Bearer de integración; una cookie POS no lo sustituye |
 | `/comandos` | Bearer de integración o bot separado; autorización funcional del remitente no está en el backend actual |

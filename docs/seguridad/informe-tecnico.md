@@ -39,6 +39,23 @@ transacción SQLite. Rehabilitar una cuenta no rehabilita tokens antiguos. La hu
 también detecta cambios si un esquema previo carecía del trigger. No se reconstruyen
 huellas de sesiones anteriores: deben volver a iniciar sesión.
 
+Escritura financiera desde el POS:
+
+```mermaid
+flowchart TD
+    A[Cookie presentada] --> B{Sesión vigente y usuario sin cambios}
+    B -- No --> C[Rechazar sin escribir]
+    B -- Sí --> D{Permiso para la operación}
+    D -- No --> C
+    D -- Sí --> E[BEGIN IMMEDIATE]
+    E --> F{Revalidar sesión dentro de la transacción}
+    F -- No --> G[ROLLBACK]
+    F -- Sí --> H[Operación y eventos financieros existentes]
+    H --> I{Todo correcto}
+    I -- No --> G
+    I -- Sí --> J[COMMIT]
+```
+
 ## Correcciones y contratos
 
 | Hallazgo | Implementación | Validación / limitación |
@@ -51,7 +68,7 @@ huellas de sesiones anteriores: deben volver a iniciar sesión.
 | SEC-04, catálogo legado | Adicionales/personalizaciones exigen el mismo contrato de sesión que productos | Menú ficticio deliberadamente público se conserva; perímetro tablet exige sesión adicional |
 | CSRF/ambigüedad | Origin único exacto contra scheme/host efectivos, Host único; rechaza Sec-Fetch-Site cross-site; controles backend en todas las mutaciones POS | No cambia experiencia comercial ni exige token CSRF nuevo. Access valida proxy antes de aplicar este control |
 | SEC-05, errores | Elimina input/ctx de validaciones; errores SQLite genéricos en POS y API general; sanea ERROR_BASE_DATOS de módulos legados y mensajes de arranque del backup | No devuelve contraseñas ni texto del driver y no imprime rutas personales del respaldo. Excepciones inesperadas siguen respuesta genérica del servidor sin debug; logs del host requieren política propia |
-| SEC-06, cache y trazabilidad | No-store/nosniff/no-referrer/DENY en respuestas POS; eventos mínimos, sin cuerpos, tokens, IPs ni nombres suministrados | Login/emisión/revocación/cambio de usuario persistidos; denegaciones en logger acotado, sin escribir en operación revertida |
+| SEC-06, cache y trazabilidad | No-store/nosniff/no-referrer/DENY en respuestas `/pos-api`; eventos mínimos, sin cuerpos, tokens, IPs ni nombres suministrados | Login/emisión/revocación/cambio de usuario persistidos; denegaciones en logger acotado, sin escribir en operación revertida |
 
 La revalidación financiera tiene un orden claro: quien obtiene primero el bloqueo
 de escritura se ejecuta primero. Si la venta ya obtuvo el bloqueo y validó la sesión,
@@ -73,6 +90,9 @@ contraseña, cookies, tokens, números telefónicos ni direcciones. El inicio co
 tiene evento de emisión con ID; en logout el evento de revocación identifica usuario.
 Los triggers rechazan UPDATE/DELETE de auditoría. Un dueño del archivo puede eliminar
 triggers: no es un registro externo inviolable ni prueba legal de autoría individual.
+En `usuario_modificado`, el ID identifica la cuenta afectada; un trigger SQLite no
+identifica a la persona que ejecutó SQL fuera de la aplicación. Esa atribución exige
+controles del host y un procedimiento operativo, pendientes de la etapa productiva.
 
 Las operaciones comerciales conservan su auditoría transaccional existente en los
 eventos POS. El transporte solo emite metadatos seguros al logger: no agrega una
@@ -81,11 +101,15 @@ de recuperación sin generar movimientos de caja/gastos. Las denegaciones y erro
 no escriben en SQLite. La emisión/revocación de sesión y cambio de usuario requieren
 su evento dentro de la transacción: ante fallo revierten.
 
-El evento HTTP adicional de login/logout/configuración es de mejor esfuerzo y
+El evento HTTP adicional de configuración administrativa es de mejor esfuerzo y
 posterior al resultado; si no puede persistirse emite advertencia genérica y no
 convierte una operación ya confirmada en un error aparente. Debe definirse retención,
 rotación y recolección del logger antes de producción. No hay purga automática de
 sesiones/eventos, ni se borra historial para hacer pasar pruebas.
+Login y logout no duplican sus eventos atómicos en el transporte. El cierre anónimo
+conserva idempotencia sin escribir filas en SQLite; los metadatos de solicitudes
+anónimas, incluidos cierres sin sesión, están acotados en el logger. Se reprodujo y
+corrigió la escritura repetida que introducía la primera versión de esta auditoría.
 
 ## Compatibilidad de esquemas y recuperación
 
@@ -105,6 +129,11 @@ recuperación de candidata. No se migró ninguna instalación existente.
 La apertura de ensayo distingue las dos tablas de seguridad de los libros comerciales:
 su lista de configuración permite autenticarse antes de abrir la jornada, sin permitir
 movimientos financieros previos ni desactivar la candidata bloqueada.
+Restaurar también recupera usuarios, roles, activo y hashes de contraseña de la fecha
+del respaldo: descartar sesiones no garantiza que una contraseña antigua permanezca
+invalidada después de recuperar. La revisión de cuentas/credenciales y su eventual
+rotación debe formar parte del procedimiento productivo autorizado. No se impuso
+esa rotación sobre instalaciones ni se cambió el acceso comercial ficticio actual.
 
 ## Superficies adicionales y permisos
 
@@ -141,7 +170,7 @@ modos. Fuentes: [dotenv](https://github.com/advisories/GHSA-mf9w-mj56-hr94),
 
 Node: inspección de 162 nombres de paquete del lock, sin instalación ni scripts.
 Se encontraron 9 avisos en seis paquetes: basic-ftp (3), extract-zip (2), glob (1),
-ip-address (1), minimatch (1), zod (1). La suma es **9**. La lista detallada y URLs
+ip-address (1), minimatch (1), zod (1). La lista detallada y URLs
 del registro están en `dependencias-node-base.json`. Hay severidades alta y media.
 La presencia/versiones afectadas está verificada; la posibilidad de explotarlas
 a través del flujo concreto del bot no se demostró. Requiere evaluación aparte.
@@ -174,6 +203,15 @@ recolección/retención de logs, pruebas de carga/ataques distribuidos y un plan
 recuperación con revocación de sesiones. No se realizó un pentest remoto ni se
 validó infraestructura real. La suite no demuestra ausencia de XSS ni de todas las
 inyecciones; no se instala CSP restrictiva sin estudiar compatibilidad del POS.
+Los límites de campos no sustituyen límites de tamaño total del cuerpo, conexiones
+y tiempos en un perímetro productivo: estos controles y la resistencia a cargas
+malformadas grandes requieren validación aparte. No se publicará la API general
+confiando únicamente en el límite de login por proceso.
+En `pos-web/index.html` no se observaron contraseñas ni tokens de sesión almacenados
+en localStorage/sessionStorage. Sí se conservan pedidos/operaciones pendientes en
+sessionStorage para recuperación: proteger el perfil del navegador y el equipo sigue
+siendo necesario. La inspección de sumideros HTML no sustituye una prueba exhaustiva
+contra XSS; no se cambió la interfaz ni se eliminaron pendientes para ocultar ese riesgo.
 
 Las cuentas compartidas impiden atribución individual y aumentan el impacto de
 una contraseña filtrada. Cuentas personales, MFA, cambios de duración, nuevas reglas

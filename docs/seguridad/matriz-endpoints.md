@@ -4,6 +4,17 @@ Generada desde las rutas efectivas; controles de factories y perímetro en el in
 La API general conserva docs/OpenAPI públicos de desarrollo; no deben publicarse como perímetro productivo.
 El shell estático `/pos/` es público. GET no autoriza escrituras ni cambios de privilegios.
 
+Nota de inspección de controles internos: en `POST /pos-api/simulacion/caja-diaria/{caja}/movimientos`,
+`tipo=gasto` exige Administración ([control:361](../../src/pos_api.py#L361));
+la clasificación Administración o Ventas de la ruta corresponde a sus otros tipos.
+Se mantiene esta restricción comercial existente, además del control de sesión.
+En `POST /pos-api/simulacion/pedidos/{id_pedido}/estado`, cancelar exige Administración
+([control:265](../../src/pos_seguimiento.py#L265)); otras transiciones admiten ambos perfiles.
+El historial de ventas se filtra por actor para Ventas y el abono unitario valida
+propiedad mediante `consultar_venta` ([control:371](../../src/pos_simulacion.py#L371)).
+Clientes, abonos globales y seguimiento de pedidos conservan el acceso compartido
+vigente; no se introdujo una nueva política de propiedad individual.
+
 | Método/ruta | Permiso | CSRF | Referencia |
 | --- | --- | --- | --- |
 | `POST /pos-api/login` | Público: Origin exacto y límite temporal de intentos | Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict | [src/pos_api.py:145](../../src/pos_api.py#L145) |

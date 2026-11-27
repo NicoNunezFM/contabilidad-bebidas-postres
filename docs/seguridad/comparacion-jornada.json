@@ -1,0 +1,66 @@
+{
+  "datos": "exclusivamente ficticios",
+  "codigo_seguridad": "b04100ec1311cf0f39d1b29857f7122d72b505dc",
+  "comparacion_base_41": {
+    "esperado_fisico": {
+      "base": 10750,
+      "seguridad": 10750,
+      "igual": true
+    },
+    "contado_fisico": {
+      "base": 10740,
+      "seguridad": 10740,
+      "igual": true
+    },
+    "diferencia": {
+      "base": -10,
+      "seguridad": -10,
+      "igual": true
+    },
+    "banco_registrado": {
+      "base": 13,
+      "seguridad": 13,
+      "igual": true
+    }
+  },
+  "contabilidad": {
+    "devengado_centavos": {
+      "base": 10013,
+      "seguridad": 10013,
+      "igual": true
+    },
+    "cobrado_neto_centavos": {
+      "base": 10013,
+      "seguridad": 10013,
+      "igual": true
+    },
+    "variacion_fiado_centavos": {
+      "base": 0,
+      "seguridad": 0,
+      "igual": true
+    },
+    "compras_centavos": {
+      "base": 300,
+      "seguridad": 300,
+      "igual": true
+    },
+    "gastos_centavos": {
+      "base": 50,
+      "seguridad": 50,
+      "igual": true
+    },
+    "resultado_devengado_centavos": {
+      "base": 9663,
+      "seguridad": 9663,
+      "igual": true
+    },
+    "diezmo_centavos": {
+      "base": 966,
+      "seguridad": 966,
+      "igual": true
+    }
+  },
+  "costo_ventas_igual": true,
+  "margen_bruto_igual": true,
+  "conciliacion_cuadrada": true
+}
