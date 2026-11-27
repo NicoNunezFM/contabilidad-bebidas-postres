@@ -1,5 +1,6 @@
 """Arqueo físico del POS en copias ficticias de etapa 6."""
 import json
+import sqlite3
 from datetime import datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -102,6 +103,8 @@ def guardar_evento(db, jornada, tipo, momento, usuario, *, importe=None, motivo=
     """, (jornada, tipo, momento, usuario["id_usuario"], usuario["usuario"], usuario["rol"],
           importe, motivo, movimiento_pos, clave, solicitud,
           json.dumps(resultado, ensure_ascii=False) if resultado is not None else None))
+    if cursor.rowcount != 1:
+        raise sqlite3.IntegrityError('No se guardó el evento completo del diario.')
     return cursor.lastrowid
 
 
@@ -326,8 +329,18 @@ def registrar_operacion(db, caja, tipo, entrada, usuario):
             exigir_jornada_actual(db, caja, fecha)
             if not motivo:
                 raise HTTPException(422, "Indicá el motivo del movimiento.")
-            if tipo == "retiro" and entrada.importe_centavos > saldo_fisico(db, jornada)["esperado_centavos"]:
+            from pos_conciliacion_financiera import disponibilidad, saldos_receptores
+            propio = disponibilidad(db, caja + '_efectivo')
+            from pos_saldo_unificado import existe as existe_unificado
+            if existe_unificado(db):
+                # El diario conserva su control físico; no descomponer el saldo agregado.
+                propio = saldo_fisico(db, jornada)['esperado_centavos']
+            custodia = next((f['custodia_delivery_centavos'] for f in saldos_receptores(db)
+                             if f['receptor'] == caja + '_efectivo'), 0)
+            if tipo == "retiro" and entrada.importe_centavos > propio:
                 raise HTTPException(409, "La caja no tiene efectivo suficiente para el retiro.")
+            if tipo == 'gasto' and custodia and entrada.importe_centavos > max(0, propio):
+                raise HTTPException(409, 'Los fondos de delivery en custodia no pagan gastos propios.')
             importe = entrada.importe_centavos if tipo == "aporte" else -entrada.importe_centavos
     resultado.update(id_jornada=jornada, caja=caja, fecha_hora=momento)
     evento = guardar_evento(db, jornada, tipo, momento, usuario, importe=importe, motivo=motivo,

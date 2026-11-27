@@ -84,6 +84,9 @@ def preparar_compras_caja(db):
 def movimiento_fisico(db, pagador, medio, importe, momento, usuario, motivo):
     if not importe:
         return None
+    if importe < 0:
+        from pos_conciliacion_financiera import proteger_custodia
+        proteger_custodia(db, pagador, -importe)
     from pos_saldo_unificado import validar_pago, existe, resumen
     if medio == "saldo_unificado" or existe(db):
         validar_pago(db, pagador, medio)
@@ -92,7 +95,8 @@ def movimiento_fisico(db, pagador, medio, importe, momento, usuario, motivo):
     if medio != "efectivo":
         return None
     jornada = exigir_jornada_actual(db, caja_receptora(pagador), momento[:10])
-    if importe < 0 and saldo_fisico(db, jornada)["esperado_centavos"] < -importe:
+    from pos_conciliacion_financiera import disponibilidad
+    if importe < 0 and disponibilidad(db, pagador) < -importe:
         raise HTTPException(409, "La caja pagadora no tiene efectivo suficiente.")
     return guardar_evento(db, jornada, "retiro" if importe < 0 else "aporte", momento,
                           usuario, importe=importe, motivo=motivo)
@@ -181,13 +185,15 @@ def operar_compra(db, evento, datos, usuario, identificador=None):
         "pagado_centavos": pagado if alta else 0, "saldo_pendiente_centavos": deuda if alta else 0,
         "reintegrado_centavos": 0 if alta else pagado, "id_movimiento_fisico": diario,
     }
-    db.execute("""
+    cursor = db.execute("""
         INSERT INTO pos_compras_caja (
             id_compra, evento, fecha, seccion, pagador, medio_pago, pagado_centavos, deuda_centavos,
             id_diario, id_usuario, id_solicitud, solicitud, resultado
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (identificador, evento, momento[:10], seccion, pagador, medio, pagado, deuda,
           diario, usuario["id_usuario"], clave, solicitud, json.dumps(resultado, ensure_ascii=False)))
+    if cursor.rowcount != 1:
+        raise HTTPException(409, 'No se guardó el comprobante completo de compra y pago.')
     return resultado
 
 

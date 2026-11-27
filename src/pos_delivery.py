@@ -75,8 +75,10 @@ def mover(db, venta, tipo, receptor, importe, usuario, clave, motivo, referencia
     if receptor != 'repartidor_directo':
         registrar_movimiento(db, evento, None, receptor, None, importe)
         movimiento = db.execute('SELECT id_movimiento FROM pos_movimientos_simulados WHERE id_evento=?', (evento,)).fetchone()[0]
-    db.execute('INSERT INTO pos_delivery_movimientos VALUES (?,?,?,?,?,?,?,?)',
+    cursor = db.execute('INSERT INTO pos_delivery_movimientos VALUES (?,?,?,?,?,?,?,?)',
                (evento, venta, tipo, receptor, importe, movimiento, referencia, evento_cobro))
+    if cursor.rowcount != 1:
+        raise HTTPException(409, 'No se guardó la trazabilidad completa de custodia de delivery.')
     terminar_evento(db, evento, {"id_venta": venta, "tipo": tipo, "receptor": receptor, "importe_centavos": importe})
 
 
@@ -148,23 +150,9 @@ def entregar_delivery(db, venta, cambio, usuario):
 
 
 def disponible_receptor(db, receptor):
-    from pos_caja_diaria import caja_diaria_activa, exigir_jornada_actual, ahora_local, saldo_fisico
-    from pos_cobros import caja_receptora
-
-    if receptor.endswith('_saldo_unificado'):
-        from pos_saldo_unificado import resumen
-        # Custodia recibida también está disponible para pagar SU envío.
-        caja = resumen(db)['cajas'][caja_receptora(receptor)]
-        return caja['saldo_centavos'] + caja['custodia_reparto_centavos']
-    if receptor.endswith('_efectivo') and caja_diaria_activa(db):
-        jornada = exigir_jornada_actual(db, caja_receptora(receptor), ahora_local()[:10])
-        disponible = saldo_fisico(db, jornada)['esperado_centavos']
-    else:
-        disponible = db.execute('SELECT COALESCE(SUM(importe_centavos),0) FROM pos_movimientos_simulados WHERE receptor=?',
-                                (receptor,)).fetchone()[0]
-        if db.execute("SELECT 1 FROM sqlite_schema WHERE name='pos_compras_caja'").fetchone():
-            disponible -= db.execute('SELECT COALESCE(SUM(pagado_centavos),0) FROM pos_compras_caja WHERE pagador=?', (receptor,)).fetchone()[0]
-    return disponible
+    from pos_conciliacion_financiera import disponibilidad
+    # Sólo delivery puede usar la custodia de envío, que no es saldo propio.
+    return disponibilidad(db, receptor, incluir_custodia_delivery=True)
 
 
 def reembolsar_delivery(db, venta, pedido, usuario, clave):

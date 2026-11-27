@@ -101,7 +101,11 @@ def conciliar_pos(conexion, pos):
                     AND COUNT(m.id_movimiento) = 2 AND COUNT(m.medio_pago) = 0
                     AND SUM(m.receptor = origen.receptor AND m.importe_centavos = -r.importe) = 1
                     AND SUM(m.receptor || '_en_transito' = origen.receptor AND m.importe_centavos = r.importe) = 1
-                ELSE COUNT(m.id_movimiento) = 2 AND COUNT(DISTINCT m.caja) = 2 AND COUNT(m.medio_pago) = 0
+                ELSE COUNT(m.id_movimiento) = 2 AND COUNT(DISTINCT m.receptor) = 2 AND COUNT(m.medio_pago) = 0
+                    AND SUM(m.receptor=json_extract(e.solicitud,'$.origen')
+                        AND m.importe_centavos=-json_extract(e.solicitud,'$.importe_centavos'))=1
+                    AND SUM(m.receptor=json_extract(e.solicitud,'$.destino')
+                        AND m.importe_centavos=json_extract(e.solicitud,'$.importe_centavos'))=1
             END)
             OR (e.id_venta IS NOT NULL AND COUNT(m.id_movimiento) <> SUM(CASE WHEN m.medio_pago IS NOT NULL OR (m.receptor IN ('comidas_saldo_unificado','bebidas_postres_saldo_unificado') AND m.id_venta IS NOT NULL) THEN 1 ELSE 0 END))
             OR (e.id_venta IS NULL AND (e.devengado_comidas <> 0 OR e.devengado_bebidas <> 0
@@ -165,6 +169,14 @@ def leer_conciliacion(conexion):
     if caja_diaria_activa(conexion):
         diferencias.extend(conciliar_caja_diaria(conexion))
         caja_diaria["caja_diaria_centavos"] = estado_cajas(conexion)
+    from pos_conciliacion_financiera import informe as informe_financiero
+    contrato = informe_financiero(conexion)
+    for diferencia in contrato['diferencias']:
+        if (diferencia['codigo']=='MOVIMIENTO_FISICO_SIN_CONCILIAR' and any(
+                previa.get('codigo')==diferencia['codigo'] and
+                previa.get('id_movimiento')==diferencia.get('id_movimiento') for previa in diferencias)):
+            continue
+        diferencias.append(diferencia)
     corte = corte_contable(conexion)
     integrada = {"contabilidad_centavos": calcular_periodo(conexion, corte[0], fecha_local())} if corte else {}
     return {
@@ -174,6 +186,7 @@ def leer_conciliacion(conexion):
         "cuadrado": not diferencias,
         "diferencias": diferencias,
         "pos_centavos": pos,
+        "contrato_financiero": contrato,
         **caja_diaria,
         "legado_pesos": {
             "caja_general": obtener_estado_caja(conexion=conexion),

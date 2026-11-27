@@ -227,7 +227,11 @@ def conciliacion(db):
     # La revisión cambia aun si dos movimientos compensados dejan el mismo saldo.
     libros = {t: db.execute(f'SELECT * FROM {t} ORDER BY rowid').fetchall() for t in (
         'pos_movimientos_simulados', 'pos_diario_caja', 'pos_compras_caja',
-        'pos_pagos_deuda_apertura', 'pos_reversos_deuda_apertura', 'pos_cierres_unificados')}
+        'pos_pagos_deuda_apertura', 'pos_reversos_deuda_apertura', 'pos_cierres_unificados',
+        'pos_eventos_simulados')}
+    for tabla in ('pos_delivery_movimientos', 'pos_fondos_reparto', 'pos_rendiciones_efectivo'):
+        if db.execute('SELECT 1 FROM sqlite_schema WHERE type=\'table\' AND name=?', (tabla,)).fetchone():
+            libros[tabla] = db.execute(f'SELECT * FROM {tabla} ORDER BY rowid').fetchall()
     revision = hashlib.sha256(json.dumps([estado, libros], sort_keys=True).encode()).hexdigest()
     cierres = [json.loads(r) for r, in db.execute('SELECT resultado FROM pos_cierres_unificados ORDER BY id_cierre')]
     return {'revision': revision, 'cajas': estado['cajas'], 'cierres': cierres}

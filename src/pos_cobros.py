@@ -1,5 +1,6 @@
 """Libro contable del POS ficticio. El llamador aporta una transacción SQLite."""
 import json
+import sqlite3
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -178,6 +179,8 @@ def iniciar_evento(conexion, tipo, usuario, entrada, id_venta=None, *, usar_uuid
         INSERT INTO pos_eventos_simulados (tipo, id_usuario, id_venta, id_solicitud, solicitud, periodo)
         VALUES (?, ?, ?, ?, ?, ?)
     """, (tipo, autor, id_venta, clave, solicitud, periodo_abierto(conexion)))
+    if cursor.rowcount != 1:
+        raise sqlite3.IntegrityError('No se inició el evento financiero completo.')
     return cursor.lastrowid, None
 
 
@@ -187,12 +190,14 @@ def terminar_evento(conexion, id_evento, resultado, *, antes=None, despues=None)
         despues.get(clave, {}).get(seccion, 0) - antes.get(clave, {}).get(seccion, 0)
         for clave in ("devengado_centavos", "cobrado_atribuido_centavos") for seccion in SECCIONES
     ]
-    conexion.execute("""
+    cursor = conexion.execute("""
         UPDATE pos_eventos_simulados
         SET resultado = ?, devengado_comidas = ?, devengado_bebidas = ?,
             cobrado_comidas = ?, cobrado_bebidas = ?
         WHERE id_evento = ?
     """, (json.dumps(resultado, ensure_ascii=False), *deltas, id_evento))
+    if cursor.rowcount != 1:
+        raise sqlite3.IntegrityError('No se completó el recibo del evento financiero.')
     return resultado
 
 
@@ -221,6 +226,8 @@ def _insertar_movimiento(conexion, evento, venta, receptor, medio, importe, refe
             (id_evento, id_venta, receptor, caja, medio_pago, importe_centavos, referencia, revierte)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (evento, venta, receptor, caja_receptora(receptor), medio, importe, referencia, revierte))
+    if cursor.rowcount != 1:
+        raise sqlite3.IntegrityError('No se guardó el movimiento financiero completo.')
     vincular_movimiento_pos(conexion, cursor.lastrowid, evento, receptor, importe)
 
 
@@ -277,7 +284,9 @@ def registrar_rendicion(conexion, id_cobro, entrada, usuario):
         SELECT receptor FROM pos_movimientos_simulados WHERE id_movimiento = ?
     """, (id_cobro,)).fetchone()[0]
     crear_rendiciones(conexion)
-    conexion.execute("INSERT INTO pos_rendiciones_efectivo VALUES (?, ?, ?)", (evento, id_cobro, importe))
+    cursor = conexion.execute("INSERT INTO pos_rendiciones_efectivo VALUES (?, ?, ?)", (evento, id_cobro, importe))
+    if cursor.rowcount != 1:
+        raise sqlite3.IntegrityError('No se guardó el comprobante de rendición.')
     registrar_movimiento(conexion, evento, None, receptor, None, -importe)
     registrar_movimiento(conexion, evento, None, receptor.removesuffix(SUFIJO_TRANSITO), None, importe)
     return terminar_evento(conexion, evento, {

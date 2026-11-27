@@ -334,6 +334,8 @@ def registrar_venta_simulada(entrada, usuario, *, db=None, id_pedido=None, estad
             "INSERT INTO pos_ventas_simuladas (id_usuario, id_solicitud, solicitud, pedido) VALUES (?, ?, ?, ?)",
             (*clave, solicitud, json.dumps(pedido, ensure_ascii=False)),
         )
+        if cursor.rowcount != 1:
+            raise HTTPException(409, 'No se registró la venta completa.')
         id_venta = cursor.lastrowid
         from pos_costos_historicos import capturar
         capturar(conexion, id_venta, pedido)
@@ -463,16 +465,24 @@ def transferir_simulado(entrada, usuario):
         if previo is not None:
             return previo
         origen, destino = caja_receptora(entrada.origen), caja_receptora(entrada.destino)
-        if origen == destino:
-            raise HTTPException(422, "Elegí receptores de secciones distintas.")
+        if entrada.origen == entrada.destino:
+            raise HTTPException(422, "Elegí dos receptores distintos.")
+        from pos_saldo_unificado import existe as saldo_unificado_existe, validar_pago
+        if saldo_unificado_existe(conexion):
+            validar_pago(conexion, entrada.origen, 'saldo_unificado')
+            validar_pago(conexion, entrada.destino, 'saldo_unificado')
         fisica = entrada.origen.endswith("_efectivo")
-        if fisica != entrada.destino.endswith("_efectivo") and caja_diaria_activa(conexion):
+        if origen != destino and fisica != entrada.destino.endswith("_efectivo") and caja_diaria_activa(conexion):
             raise HTTPException(422, "Elegí dos cajas físicas o dos cuentas digitales.")
+        from pos_conciliacion_financiera import disponibilidad
         resumen = resumen_libro(conexion)
-        disponible = next((min(r["saldo_centavos"], r.get("saldo_total_centavos", r["saldo_centavos"]))
+        libro_disponible = next((min(r["saldo_centavos"], r.get("saldo_total_centavos", r["saldo_centavos"]))
                            for r in resumen["receptores"] if r["receptor"] == entrada.origen), 0)
+        disponible = disponibilidad(conexion, entrada.origen)
         por_distribuir = resumen["secciones"][destino]["por_distribuir_centavos"]
-        if entrada.importe_centavos > min(disponible, por_distribuir):
+        if origen != destino:
+            disponible = min(disponible, libro_disponible, por_distribuir)
+        if entrada.importe_centavos > disponible:
             raise HTTPException(409, "La transferencia supera el saldo disponible o la distribución pendiente.")
         registrar_movimiento(conexion, evento, None, entrada.origen, None, -entrada.importe_centavos)
         registrar_movimiento(conexion, evento, None, entrada.destino, None, entrada.importe_centavos)
