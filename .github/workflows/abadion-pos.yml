@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: abadion-pos-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   sqlite-ficticio:
     runs-on: ubuntu-latest
@@ -34,7 +38,7 @@ jobs:
       - run: python -m pip install -r requirements-tablet-test.txt
       - name: Verificar inventario y procedencia de la consolidación
         run: python -B scripts/auditar_consolidacion.py --verificar
-      - run: python -m pytest -q --junitxml=resultados-linux.xml
+      - run: python -m pytest -q -ra --junitxml=resultados-linux.xml
         env:
           NEGOCIO_DB_PATH: ${{ runner.temp }}/abadion-ci-ficticio.db
       - run: node --check whatsapp-bot/index.js
@@ -67,7 +71,7 @@ jobs:
             throw 'No se encontró Microsoft Edge.'
           }
           $env:POS_UI_CAPTURAS = Join-Path $env:RUNNER_TEMP 'abadion-capturas'
-          python -m pytest -q --junitxml=resultados-windows-edge.xml
+          python -m pytest -q -ra --junitxml=resultados-windows-edge.xml
       - name: Publicar resultados completos de Windows y Edge
         if: always()
         uses: actions/upload-artifact@v4

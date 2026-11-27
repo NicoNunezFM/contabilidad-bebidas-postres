@@ -1,0 +1,24 @@
+{
+  "referencia": "3c4ef418f161d232a21f059349e7249247f9dbd3",
+  "alcance": [
+    "src",
+    "pos-web",
+    "whatsapp-bot",
+    "scripts",
+    "tests",
+    "requirements.txt",
+    "requirements-tablet-test.txt"
+  ],
+  "archivos_preexistentes_comprobados": 149,
+  "modificados_o_eliminados": [],
+  "archivos_nuevos": [
+    "scripts/auditar_consolidacion.py",
+    "tests/test_consolidacion_compatibilidad.py"
+  ],
+  "arboles_operativos": {
+    "src": "b96f5333052a40e9eb01d6c5a2612e4043351417",
+    "pos-web": "d2255f760766249dbffb16cad624a8e580c1e364",
+    "whatsapp-bot": "6ff5ed6a8815995b02994ead13e6aacf2cf807ea"
+  },
+  "nota": "Los objetos preexistentes se conservan; no certifica compatibilidad con instalaciones reales."
+}

@@ -10,21 +10,29 @@ PR #37, SHA `3c4ef418f161d232a21f059349e7249247f9dbd3`.
 Linux 493 aprobados / 36 omitidos; Windows candidata 48 aprobados; selección de flujos
 Windows/Edge 173 aprobados. Sintaxis Node aprobada. Suites solapadas: no sumar cifras.
 
-## Verificaciones de esta propuesta
+## Evidencia comprobada y registro de cierre
 
-| Verificación | Resultado al preparar el borrador |
+| Verificación | Evidencia |
 | --- | --- |
 | Inventario remoto | 41 ramas / 34 PR, sin cambios posteriores a #37 |
-| Comparación contra la referencia | Sin diferencias en src, POS, bot, requisitos, catálogos, launchers o instaladores |
+| Comparación contra la referencia | 149 archivos preexistentes sin modificar/eliminar; objetos de árboles operativos idénticos; ver conservacion-codigo.json |
 | Compatibilidad legada → POS | 2 aprobadas; rechazo 404 y bytes de la base sin cambios |
 | Sintaxis del adaptador Node | Aprobada con node --check; sin inicializar el cliente |
 | Dependencias locales | pip check aprobado; entorno Python 3.12 disponible |
-| Suite completa Windows sin navegador, referencia | En ejecución; se completará con resultados y evidencia |
-| Suite completa consolidada Windows/Edge | Pendiente; Edge está disponible |
-| CI Linux y Windows/Edge del nuevo SHA | Pendiente de publicación y ejecución |
+| Primera CI completa Linux de la consolidación, SHA 7a84c6e | 495 aprobadas, 36 omitidas, 0 fallidas, 0 errores; JUnit inspeccionado |
+| Windows local de referencia y Windows/Edge consolidado | Resultados de cierre por ejecución y SHA en la descripción del PR #38; no inferir aprobación de esta tabla |
+| CI del SHA final de esta propuesta | Consultar los checks y artefactos del PR #38; una ejecución de otro SHA no lo certifica |
 
-Los estados pendientes no constituyen aprobaciones. El historial de la PR registrará
-la evidencia final y el SHA al que corresponde. Un SHA anterior no valida otro posterior.
+El registro de cierre con cantidades aprobadas, fallidas, omitidas, repeticiones y pendientes
+se mantiene en la [descripción del PR #38](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/38)
+y enlaza las ejecuciones exactas. Esto permite registrar el resultado del último SHA sin
+crear otro commit sólo para decir que el anterior pasó. Antes de aceptar el PR, comprobar
+que sus checks correspondan a su cabeza actual. Un estado pendiente no es una aprobación.
+
+La [primera CI Linux](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/actions/runs/46023338197)
+añade exactamente 2 casos aprobados a los 493 de #37; conserva los 36 omitidos: 30 requieren
+navegador y 6 son controles nativos de Windows. El resumen JUnit está en
+`evidencia-linux-inicial.json`. No se suman plataformas ni repeticiones como casos únicos.
 
 ## Ejecución reproducible
 
@@ -41,8 +49,11 @@ node --check whatsapp-bot/index.js
 git diff --check
 ```
 
-La primera ejecución se inició en el SHA de referencia antes de cambiar pruebas;
-la segunda se realizará sobre el commit consolidado. CI publica JUnit por plataforma
+La ejecución local de referencia se inició con la colección original antes de agregar
+los dos casos. Código operativo y pruebas preexistentes permanecieron idénticos durante
+la inspección; las herramientas que exportan HEAD pueden incluir la nueva documentación
+y el auditor. La comparación estricta por SHA usa también la CI histórica inmutable de #37.
+La suite consolidada completa Windows/Edge se ejecuta en CI. CI publica JUnit por plataforma
 y capturas del navegador, con nombres de job conservados. Windows ahora ejecuta toda
 la suite con Edge en lugar de repetir candidata más una selección de módulos.
 

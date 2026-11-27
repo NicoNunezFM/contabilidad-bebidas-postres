@@ -15,6 +15,8 @@ reimportar código lateral que ya fue adaptado. Los únicos añadidos ejecutable
 la herramienta de auditoría Git y dos casos de compatibilidad con bases temporales.
 Se actualiza CI para main, stable/** y consolidate/**, ejecución manual, suite completa
 Windows/Edge y evidencias JUnit. No se cambia una política contable durante esta fase.
+La concurrencia agrupa push/PR por rama para evitar ensayos duplicados de una misma
+revisión; los registros incluyen motivos de omisión mediante pytest -ra.
 
 El nombre de rama expresa el destino del trabajo; no certifica estabilidad productiva.
 Persisten bloqueos contables y de migración enumerados abajo. No hay activación real.
@@ -63,6 +65,10 @@ La lista de commits exclusivos y los archivos afectados permite repetir la inspe
   del cierre/diferencias sigue pendiente y no se infiere de una prueba aprobada.
 - **Reinicio físico, pérdida de energía, dispositivos y respaldo externo:** no certificados
   por CI ni por estos ensayos locales. No se usaron datos ni dispositivos productivos.
+- **Reproducibilidad del entorno:** se conservan los requisitos directos fijados de #37;
+  no existe aún un lock completo de transitivas ni una imagen inmutable de los runners
+  latest. El SHA y los resultados son reproducibles como procedimiento, no una garantía
+  de entorno hermético. Revisar el empaquetado antes de certificar distribución estable.
 - No se alteran permisos, filtro de grupos o credenciales del bot instalado. El adaptador
   sigue siendo whatsapp-web.js, sin Cloud API añadida. No se inicia ni se conecta.
 

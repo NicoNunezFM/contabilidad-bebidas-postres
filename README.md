@@ -15,6 +15,7 @@ El relevamiento remoto del 27/11/2026 no encontró cambios posteriores.
 - [Todas las ramas y PR relevados](docs/consolidacion-v1/matriz-ramas-prs.md).
 - [Compatibilidad de bases y conflictos](docs/consolidacion-v1/compatibilidad-bases.md).
 - [Validación y comparación con la referencia](docs/consolidacion-v1/validacion.md).
+- [PR #38: resultados finales por SHA y estado de los bloqueos](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/pull/38).
 - [Inventario GitHub fechado](docs/consolidacion-v1/inventario-github.json) y
   [comparación estructural reproducible](docs/consolidacion-v1/comparacion-ramas.json).
 
