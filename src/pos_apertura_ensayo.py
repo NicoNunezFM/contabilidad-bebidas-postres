@@ -91,6 +91,7 @@ def ensayar_apertura(db, datos, usuario):
             raise HTTPException(409, 'La apertura ya fue registrada.')
         configuracion = {'productos', 'adicionales_catalogo', 'usuarios_pos', 'sesiones_pos',
                          'sesiones_pos_contexto', 'eventos_seguridad_pos',
+                         'abadion_esquema','abadion_migraciones',
                          'pos_catalogo_entrenamiento', 'pos_adicionales_producto',
                          'pos_inicio_caja_diaria', 'pos_inicio_contable', 'pos_preproduccion',
                          'pos_puente_ficticio', 'pos_saldos_iniciales', 'pos_stock_progresivo'}

@@ -49,9 +49,10 @@ def configuracion(carpeta):
 def verificar(db, identidad, modo=MODO):
     from pos_simulacion import ID_SQLITE_SIMULACION, VERSION_ESQUEMA_SIMULACION
     if (db.execute("PRAGMA application_id").fetchone()[0] != ID_SQLITE_SIMULACION
-            or db.execute("PRAGMA user_version").fetchone()[0] != VERSION_ESQUEMA_SIMULACION
             or db.execute("SELECT modo, instalacion FROM pos_preproduccion").fetchall() != [(modo, identidad)]):
         raise ValueError("Base ajena o versión incompatible con PREPRODUCCIÓN.")
+    from migraciones import verificar_version
+    verificar_version(db, VERSION_ESQUEMA_SIMULACION)
     if modo == MODO_PRUEBAS and not db.execute("SELECT 1 FROM sqlite_schema WHERE name='pos_pruebas_catalogo'").fetchone():
         raise ValueError("Falta la protección de catálogo de Abadion Pruebas.")
 
@@ -59,7 +60,8 @@ def verificar(db, identidad, modo=MODO):
 def abrir_base(carpeta, identidad, *, lectura=False):
     modo, archivo = perfil(carpeta)
     carpeta = Path(carpeta).absolute()
-    if configuracion(carpeta)["id"] != identidad:
+    datos=configuracion(carpeta)
+    if datos["id"] != identidad:
         raise ValueError("Identidad de instalación incorrecta.")
     ruta = carpeta / archivo
     comprobar_archivo(ruta)
@@ -68,6 +70,9 @@ def abrir_base(carpeta, identidad, *, lectura=False):
     db = sqlite3.connect(ruta.as_uri() + ("?mode=ro" if lectura else "?mode=rw"), uri=True, timeout=15)
     try:
         verificar(db, identidad, modo)
+        version=db.execute('PRAGMA user_version').fetchone()[0]
+        if datos.get('esquema_minimo',4) not in (4,5) or version<datos.get('esquema_minimo',4) or (version==5 and datos.get('esquema_minimo')!=5):
+            raise ValueError('Actualización pendiente o versión de instalación incompatible; usar migrador offline.')
         db.execute("PRAGMA foreign_keys=ON")
         db.execute("PRAGMA synchronous=FULL")
         return db
@@ -245,6 +250,11 @@ def restaurar(carpeta, nombre, *, base_ausente=False):
     modo, archivo = perfil(carpeta)
     destino = carpeta / archivo
     comprobar_archivo(destino)
+    with closing(sqlite3.connect(origen.as_uri()+'?mode=ro',uri=True)) as backup:
+        if backup.execute('PRAGMA user_version').fetchone()[0]<configuracion(carpeta).get('esquema_minimo',4):
+            raise ValueError('Restauración de versión anterior bloqueada.')
+    if destino.exists() and configuracion(carpeta).get('esquema_minimo',4)>=5:
+        raise ValueError('Recuperación gestionada requiere un destino nuevo; no sobrescribe operaciones confirmadas.')
     if not destino.exists() and not base_ausente:
         raise ValueError("Falta la base. Revisá la instalación y usá --base-ausente para recuperación explícita.")
     if destino.exists() and base_ausente:

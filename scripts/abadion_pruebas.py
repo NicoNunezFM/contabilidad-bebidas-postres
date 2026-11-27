@@ -230,29 +230,43 @@ def rollback(carpeta):
 def recuperar(carpeta, nombre, destino):
     destino = carpeta_pruebas(destino)
     with bloquear_entrenamiento(carpeta):
-        # Recovery must remain possible when the live DB is missing or corrupt.
-        datos = configuracion(carpeta)
-        if datos['modo'] != MODO_PRUEBAS:
-            raise ValueError('La recuperación sólo admite Abadion Pruebas.')
-        copia = validar_respaldo(carpeta, nombre)
-        comprobar_archivo(carpeta / 'credenciales.json')
-        if destino.exists():
-            raise ValueError('La recuperación requiere una carpeta Pruebas inexistente.')
-        destino.mkdir(parents=True)
-        if os.name == 'nt':
-            usuario = ejecutar(['whoami'], capture_output=True, text=True).stdout.strip()
-            ejecutar(['icacls.exe', str(destino), '/inheritance:r', '/grant:r',
-                      usuario + ':(OI)(CI)F', '*S-1-5-18:(OI)(CI)F'], capture_output=True)
-        (destino / 'backups').mkdir()
-        # New control token, same DB identity; restore never touches the source DB.
-        guardar(destino / 'instalacion.json', {**datos, 'carpeta': str(destino), 'control': secrets.token_urlsafe(32)})
-        for p in (copia, copia.with_suffix('.json')):
-            (destino / 'backups' / p.name).write_bytes(p.read_bytes())
-        (destino / 'credenciales.json').write_bytes((carpeta / 'credenciales.json').read_bytes())
-        with bloquear_entrenamiento(destino):
-            restaurar(destino, nombre, base_ausente=True)
+        _recuperar_bajo_bloqueo(carpeta,nombre,destino)
+
+
+def _recuperar_bajo_bloqueo(carpeta,nombre,destino,*,minimo_destino=None,permitir_preproduccion=False):
+    # Recovery must remain possible when the live DB is missing or corrupt.
+    datos = configuracion(carpeta)
+    from pos_preproduccion import MODO
+    if datos['modo'] != MODO_PRUEBAS and not (permitir_preproduccion and datos['modo']==MODO):
+        raise ValueError('La recuperación sólo admite Abadion Pruebas.')
+    copia = validar_respaldo(carpeta, nombre)
+    with closing(sqlite3.connect(copia.as_uri()+'?mode=ro',uri=True)) as db:
+        version_copia=db.execute('PRAGMA user_version').fetchone()[0]
+    piso=datos.get('esquema_minimo',4) if minimo_destino is None else minimo_destino
+    if version_copia<piso:
+        raise ValueError('No se recupera una versión anterior a la admitida por la instalación.')
+    comprobar_archivo(carpeta / 'credenciales.json')
+    if destino.exists():
+        raise ValueError('La recuperación requiere una carpeta Pruebas inexistente.')
+    destino.mkdir(parents=True)
+    if os.name == 'nt':
+        usuario = ejecutar(['whoami'], capture_output=True, text=True).stdout.strip()
+        ejecutar(['icacls.exe', str(destino), '/inheritance:r', '/grant:r',
+                  usuario + ':(OI)(CI)F', '*S-1-5-18:(OI)(CI)F'], capture_output=True)
+    (destino / 'backups').mkdir()
+    # New control token, same DB identity; restore never touches the source DB.
+    guardar(destino / 'instalacion.json', {**datos, 'esquema_minimo':piso, 'carpeta': str(destino), 'control': secrets.token_urlsafe(32)})
+    for p in (copia, copia.with_suffix('.json')):
+        (destino / 'backups' / p.name).write_bytes(p.read_bytes())
+    (destino / 'credenciales.json').write_bytes((carpeta / 'credenciales.json').read_bytes())
+    with bloquear_entrenamiento(destino):
+        restaurar(destino, nombre, base_ausente=True)
+    if datos['modo']==MODO_PRUEBAS:
         comprobar(destino)
-        print('Recuperación aislada verificada: ' + str(destino))
+    else:
+        with closing(abrir_base(destino,datos['id'],lectura=True)) as db:
+            integridad(db)
+    print('Recuperación aislada verificada: ' + str(destino))
 
 
 def main():

@@ -44,7 +44,7 @@ jobs:
         env:
           NEGOCIO_DB_PATH: ${{ runner.temp }}/abadion-ci-ficticio.db
       - run: node --check whatsapp-bot/index.js
-      - name: Conservar las identidades de los 647 casos de referencia
+      - name: Conservar las identidades de los 692 casos de referencia
         if: always()
         run: python scripts/verificar_referencia_pruebas.py resultados-linux.xml --salida referencia-linux.json
       - name: Publicar resultados de Python y SQLite
@@ -106,6 +106,8 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -121,7 +123,7 @@ jobs:
           }
           $env:POS_UI_CAPTURAS = Join-Path $env:RUNNER_TEMP 'abadion-capturas'
           python -m pytest -q -ra --junitxml=resultados-windows-edge.xml
-      - name: Comprobar los 647 casos y ausencia de omisiones en Windows y Edge
+      - name: Comprobar los 692 casos y ausencia de omisiones en Windows y Edge
         if: always()
         run: python scripts/verificar_referencia_pruebas.py resultados-windows-edge.xml --windows-edge --salida referencia-windows.json
       - name: Publicar resultados completos de Windows y Edge

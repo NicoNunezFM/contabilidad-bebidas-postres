@@ -1,0 +1,776 @@
+{
+  "procedencia": "PR42 1ec1ab98755a248f86c3a50ba3164320e4381448; fixtures nuevos",
+  "core": [
+    "adicionales_catalogo",
+    "ajustes_stock",
+    "ajustes_stock_insumos",
+    "cierres_mensuales",
+    "cierres_semanales",
+    "compras",
+    "compras_categorias_contables",
+    "compras_categorias_contables_alta",
+    "compras_insumos",
+    "contextos_conversacion",
+    "cuentas_deuda_negocio",
+    "gastos",
+    "historial_precios_adicionales_pos",
+    "historial_precios_pos",
+    "idx_ajustes_stock_insumos_insumo_fecha",
+    "idx_compras_insumos_insumo_fecha",
+    "idx_historial_precios_pos_producto",
+    "idx_importaciones_deuda_estado_fecha",
+    "idx_importaciones_deuda_movimiento",
+    "idx_movimientos_deuda_cuenta_fecha",
+    "idx_produccion_postres_insumos_produccion",
+    "idx_producciones_postres_fecha",
+    "idx_reserva_deuda_cuenta_fecha",
+    "idx_sesiones_pos_usuario",
+    "idx_venta_adicionales_catalogo",
+    "idx_venta_adicionales_id_venta",
+    "idx_ventas_operaciones_usuario_activa",
+    "importaciones_deuda",
+    "insumos",
+    "mensajes_procesados",
+    "movimientos_caja",
+    "movimientos_deuda_negocio",
+    "movimientos_diezmo",
+    "movimientos_reserva_deuda_negocio",
+    "pos_adicionales_producto",
+    "pos_anulaciones_simuladas",
+    "pos_catalogo_entrenamiento",
+    "pos_cierres_contables",
+    "pos_cierres_simulados",
+    "pos_clientes",
+    "pos_contable_compras_alta",
+    "pos_contable_compras_anulacion",
+    "pos_contable_gastos_alta",
+    "pos_contable_gastos_anulacion",
+    "pos_contable_ventas_alta",
+    "pos_contable_ventas_baja",
+    "pos_contable_ventas_cambio",
+    "pos_costos_contables",
+    "pos_costos_por_fecha",
+    "pos_diario_apertura_cierre",
+    "pos_diario_caja",
+    "pos_diario_por_jornada",
+    "pos_eventos_cliente_uuid",
+    "pos_eventos_clientes",
+    "pos_eventos_por_venta",
+    "pos_eventos_simulados",
+    "pos_ingredientes_producto",
+    "pos_inicio_caja_diaria",
+    "pos_inicio_contable",
+    "pos_jornada_caja_abierta",
+    "pos_jornadas_caja",
+    "pos_movimientos_por_caja",
+    "pos_movimientos_por_venta",
+    "pos_movimientos_reversion",
+    "pos_movimientos_simulados",
+    "pos_preproduccion",
+    "pos_puente_ficticio",
+    "pos_referencias_pago",
+    "pos_solicitudes_cliente",
+    "pos_solicitudes_clientes",
+    "pos_unidades_devueltas",
+    "pos_ventas_cliente",
+    "pos_ventas_clientes",
+    "pos_ventas_simuladas",
+    "presentaciones_insumos",
+    "produccion_postres_insumos",
+    "producciones_postres",
+    "productos",
+    "receta_insumos",
+    "recetas",
+    "sesiones_pos",
+    "usuarios_pos",
+    "venta_adicionales",
+    "ventas",
+    "ventas_categorias_contables",
+    "ventas_categorias_contables_alta",
+    "ventas_operaciones"
+  ],
+  "grupos": {
+    "seguridad": [
+      "eventos_seguridad_pos",
+      "seguridad_auditoria_inmutable_delete",
+      "seguridad_auditoria_inmutable_update",
+      "seguridad_revocar_cambio_usuario",
+      "sesiones_pos_contexto"
+    ],
+    "insumos": [
+      "operaciones_compras_insumos"
+    ],
+    "costos": [
+      "pos_costos_inmutables_delete",
+      "pos_costos_inmutables_update",
+      "pos_costos_lineas"
+    ],
+    "seguimiento": [
+      "pos_historial_pedidos",
+      "pos_seguimiento_pedidos"
+    ],
+    "fondos": [
+      "pos_fondos_reparto",
+      "pos_fondos_reparto_venta"
+    ],
+    "delivery": [
+      "pos_delivery_entrega_unica",
+      "pos_delivery_movimientos",
+      "pos_delivery_por_venta"
+    ],
+    "rendiciones": [
+      "pos_rendiciones_efectivo",
+      "pos_rendiciones_por_cobro"
+    ],
+    "compras_caja": [
+      "pos_compras_caja",
+      "pos_compras_caja_un_reverso"
+    ],
+    "unificado": [
+      "inmutable_pos_apertura_ensayo_DELETE",
+      "inmutable_pos_apertura_ensayo_UPDATE",
+      "inmutable_pos_cierres_unificados_DELETE",
+      "inmutable_pos_cierres_unificados_UPDATE",
+      "inmutable_pos_pagos_deuda_apertura_DELETE",
+      "inmutable_pos_pagos_deuda_apertura_UPDATE",
+      "inmutable_pos_reversos_deuda_apertura_DELETE",
+      "inmutable_pos_reversos_deuda_apertura_UPDATE",
+      "pago_deuda_activo",
+      "pos_apertura_ensayo",
+      "pos_cierres_unificados",
+      "pos_deudas_apertura",
+      "pos_pagos_deuda_apertura",
+      "pos_reversos_deuda_apertura",
+      "pos_saldos_iniciales",
+      "pos_stock_progresivo",
+      "pos_validaciones_stock"
+    ]
+  },
+  "objetos": {
+    "adicionales_catalogo": {
+      "tipo": "table",
+      "tabla": "adicionales_catalogo",
+      "sql": "CREATE TABLE adicionales_catalogo ( id_adicional_catalogo INTEGER PRIMARY KEY AUTOINCREMENT , nombre TEXT NOT NULL UNIQUE , precio_venta REAL , costo_unitario REAL , activo INTEGER NOT NULL DEFAULT 1 , fecha_actualizacion TEXT )"
+    },
+    "ajustes_stock": {
+      "tipo": "table",
+      "tabla": "ajustes_stock",
+      "sql": "CREATE TABLE ajustes_stock ( id_ajuste INTEGER PRIMARY KEY AUTOINCREMENT , id_producto INTEGER NOT NULL , fecha TEXT NOT NULL , cantidad_ajuste INTEGER NOT NULL , motivo TEXT NOT NULL , tipo TEXT NOT NULL DEFAULT 'Ajuste' , stock_anterior INTEGER NOT NULL , stock_nuevo INTEGER NOT NULL , FOREIGN KEY ( id_producto ) REFERENCES productos ( id_producto ) )"
+    },
+    "ajustes_stock_insumos": {
+      "tipo": "table",
+      "tabla": "ajustes_stock_insumos",
+      "sql": "CREATE TABLE ajustes_stock_insumos ( id_ajuste_insumo INTEGER PRIMARY KEY AUTOINCREMENT , id_insumo INTEGER NOT NULL , fecha_hora TEXT NOT NULL , tipo TEXT NOT NULL , cantidad_anterior REAL NOT NULL , cantidad_nueva REAL NOT NULL , diferencia REAL NOT NULL , canal_origen TEXT , usuario_origen TEXT , grupo_origen TEXT , id_mensaje_origen TEXT , FOREIGN KEY ( id_insumo ) REFERENCES insumos ( id_insumo ) )"
+    },
+    "cierres_mensuales": {
+      "tipo": "table",
+      "tabla": "cierres_mensuales",
+      "sql": "CREATE TABLE cierres_mensuales ( id_cierre INTEGER PRIMARY KEY AUTOINCREMENT , anio INTEGER NOT NULL , mes INTEGER NOT NULL , fecha_desde TEXT NOT NULL , fecha_hasta TEXT NOT NULL , ventas REAL NOT NULL , compras REAL NOT NULL , gastos REAL NOT NULL , resultado_negocio REAL NOT NULL , aportes REAL NOT NULL , retiros REAL NOT NULL , saldo_caja REAL NOT NULL , diezmo_correspondiente REAL NOT NULL , fecha_cierre TEXT NOT NULL , UNIQUE ( anio , mes ) )"
+    },
+    "cierres_semanales": {
+      "tipo": "table",
+      "tabla": "cierres_semanales",
+      "sql": "CREATE TABLE cierres_semanales ( id_cierre INTEGER PRIMARY KEY AUTOINCREMENT , fecha_desde TEXT NOT NULL , fecha_hasta TEXT NOT NULL , ventas REAL NOT NULL , compras REAL NOT NULL , gastos REAL NOT NULL , resultado_negocio REAL NOT NULL , aportes REAL NOT NULL , retiros REAL NOT NULL , saldo_caja REAL NOT NULL , fecha_cierre TEXT NOT NULL , diezmo REAL NOT NULL DEFAULT 0 , resultado_despues_diezmo REAL NOT NULL DEFAULT 0 )"
+    },
+    "compras": {
+      "tipo": "table",
+      "tabla": "compras",
+      "sql": "CREATE TABLE compras ( id_compra INTEGER PRIMARY KEY AUTOINCREMENT , id_producto INTEGER NOT NULL , fecha TEXT NOT NULL , cantidad INTEGER NOT NULL , precio_unitario REAL NOT NULL , medio_pago TEXT NOT NULL DEFAULT 'Caja' , id_cuenta_deuda INTEGER , id_movimiento_deuda INTEGER , anulada INTEGER NOT NULL DEFAULT 0 , fecha_anulacion TEXT , motivo_anulacion TEXT , FOREIGN KEY ( id_producto ) REFERENCES productos ( id_producto ) )"
+    },
+    "compras_categorias_contables": {
+      "tipo": "table",
+      "tabla": "compras_categorias_contables",
+      "sql": "CREATE TABLE compras_categorias_contables ( id INTEGER PRIMARY KEY REFERENCES compras ( id_compra ) ON DELETE CASCADE , categoria TEXT NOT NULL )"
+    },
+    "compras_categorias_contables_alta": {
+      "tipo": "trigger",
+      "tabla": "compras",
+      "sql": "CREATE TRIGGER compras_categorias_contables_alta AFTER INSERT ON compras BEGIN INSERT INTO compras_categorias_contables SELECT NEW . id_compra , categoria FROM productos WHERE id_producto = NEW . id_producto ; END"
+    },
+    "compras_insumos": {
+      "tipo": "table",
+      "tabla": "compras_insumos",
+      "sql": "CREATE TABLE compras_insumos ( id_compra_insumo INTEGER PRIMARY KEY AUTOINCREMENT , id_insumo INTEGER NOT NULL , fecha TEXT NOT NULL , cantidad_base REAL NOT NULL , costo_total REAL NOT NULL , comercio TEXT , id_gasto INTEGER , observaciones TEXT , FOREIGN KEY ( id_insumo ) REFERENCES insumos ( id_insumo ) , FOREIGN KEY ( id_gasto ) REFERENCES gastos ( id_gasto ) )"
+    },
+    "contextos_conversacion": {
+      "tipo": "table",
+      "tabla": "contextos_conversacion",
+      "sql": "CREATE TABLE contextos_conversacion ( id_contexto INTEGER PRIMARY KEY AUTOINCREMENT , canal TEXT NOT NULL , clave_contexto TEXT NOT NULL , tipo_contexto TEXT NOT NULL , fecha_actualizacion TEXT NOT NULL , UNIQUE ( canal , clave_contexto ) )"
+    },
+    "cuentas_deuda_negocio": {
+      "tipo": "table",
+      "tabla": "cuentas_deuda_negocio",
+      "sql": "CREATE TABLE cuentas_deuda_negocio ( id_cuenta INTEGER PRIMARY KEY AUTOINCREMENT , nombre TEXT NOT NULL UNIQUE , tipo TEXT NOT NULL DEFAULT 'Tarjeta' , moneda TEXT NOT NULL DEFAULT 'ARS' , proximo_vencimiento TEXT , activa INTEGER NOT NULL DEFAULT 1 , fecha_creacion TEXT NOT NULL )"
+    },
+    "eventos_seguridad_pos": {
+      "tipo": "table",
+      "tabla": "eventos_seguridad_pos",
+      "sql": "CREATE TABLE eventos_seguridad_pos ( id_evento INTEGER PRIMARY KEY , fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , evento TEXT NOT NULL , id_usuario INTEGER , ruta TEXT NOT NULL , estado_http INTEGER NOT NULL )"
+    },
+    "gastos": {
+      "tipo": "table",
+      "tabla": "gastos",
+      "sql": "CREATE TABLE gastos ( id_gasto INTEGER PRIMARY KEY AUTOINCREMENT , fecha TEXT NOT NULL , categoria TEXT NOT NULL , descripcion_gasto TEXT NOT NULL , valor_final REAL NOT NULL , seccion TEXT , subseccion TEXT , anulado INTEGER NOT NULL DEFAULT 0 , fecha_anulacion TEXT , motivo_anulacion TEXT )"
+    },
+    "historial_precios_adicionales_pos": {
+      "tipo": "table",
+      "tabla": "historial_precios_adicionales_pos",
+      "sql": "CREATE TABLE historial_precios_adicionales_pos ( id_cambio INTEGER PRIMARY KEY AUTOINCREMENT , id_adicional_catalogo INTEGER NOT NULL , id_usuario INTEGER NOT NULL , precio_anterior REAL , precio_nuevo REAL NOT NULL CHECK ( precio_nuevo > = 0 ) , fecha_hora TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , FOREIGN KEY ( id_adicional_catalogo ) REFERENCES adicionales_catalogo ( id_adicional_catalogo ) , FOREIGN KEY ( id_usuario ) REFERENCES usuarios_pos ( id_usuario ) )"
+    },
+    "historial_precios_pos": {
+      "tipo": "table",
+      "tabla": "historial_precios_pos",
+      "sql": "CREATE TABLE historial_precios_pos ( id_cambio INTEGER PRIMARY KEY AUTOINCREMENT , id_producto INTEGER NOT NULL , id_usuario INTEGER NOT NULL , precio_anterior REAL , precio_nuevo REAL NOT NULL CHECK ( precio_nuevo > 0 ) , fecha_hora TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , FOREIGN KEY ( id_producto ) REFERENCES productos ( id_producto ) , FOREIGN KEY ( id_usuario ) REFERENCES usuarios_pos ( id_usuario ) )"
+    },
+    "idx_ajustes_stock_insumos_insumo_fecha": {
+      "tipo": "index",
+      "tabla": "ajustes_stock_insumos",
+      "sql": "CREATE INDEX idx_ajustes_stock_insumos_insumo_fecha ON ajustes_stock_insumos ( id_insumo , fecha_hora , id_ajuste_insumo )"
+    },
+    "idx_compras_insumos_insumo_fecha": {
+      "tipo": "index",
+      "tabla": "compras_insumos",
+      "sql": "CREATE INDEX idx_compras_insumos_insumo_fecha ON compras_insumos ( id_insumo , fecha , id_compra_insumo )"
+    },
+    "idx_historial_precios_pos_producto": {
+      "tipo": "index",
+      "tabla": "historial_precios_pos",
+      "sql": "CREATE INDEX idx_historial_precios_pos_producto ON historial_precios_pos ( id_producto , fecha_hora )"
+    },
+    "idx_importaciones_deuda_estado_fecha": {
+      "tipo": "index",
+      "tabla": "importaciones_deuda",
+      "sql": "CREATE INDEX idx_importaciones_deuda_estado_fecha ON importaciones_deuda ( estado , fecha_operacion , id_importacion )"
+    },
+    "idx_importaciones_deuda_movimiento": {
+      "tipo": "index",
+      "tabla": "importaciones_deuda",
+      "sql": "CREATE INDEX idx_importaciones_deuda_movimiento ON importaciones_deuda ( id_movimiento_deuda )"
+    },
+    "idx_movimientos_deuda_cuenta_fecha": {
+      "tipo": "index",
+      "tabla": "movimientos_deuda_negocio",
+      "sql": "CREATE INDEX idx_movimientos_deuda_cuenta_fecha ON movimientos_deuda_negocio ( id_cuenta , fecha_hora , id_movimiento_deuda )"
+    },
+    "idx_produccion_postres_insumos_produccion": {
+      "tipo": "index",
+      "tabla": "produccion_postres_insumos",
+      "sql": "CREATE INDEX idx_produccion_postres_insumos_produccion ON produccion_postres_insumos ( id_produccion )"
+    },
+    "idx_producciones_postres_fecha": {
+      "tipo": "index",
+      "tabla": "producciones_postres",
+      "sql": "CREATE INDEX idx_producciones_postres_fecha ON producciones_postres ( fecha_hora , id_produccion )"
+    },
+    "idx_reserva_deuda_cuenta_fecha": {
+      "tipo": "index",
+      "tabla": "movimientos_reserva_deuda_negocio",
+      "sql": "CREATE INDEX idx_reserva_deuda_cuenta_fecha ON movimientos_reserva_deuda_negocio ( id_cuenta , fecha_hora , id_movimiento_reserva )"
+    },
+    "idx_sesiones_pos_usuario": {
+      "tipo": "index",
+      "tabla": "sesiones_pos",
+      "sql": "CREATE INDEX idx_sesiones_pos_usuario ON sesiones_pos ( id_usuario , revocada )"
+    },
+    "idx_venta_adicionales_catalogo": {
+      "tipo": "index",
+      "tabla": "venta_adicionales",
+      "sql": "CREATE INDEX idx_venta_adicionales_catalogo ON venta_adicionales ( id_adicional_catalogo )"
+    },
+    "idx_venta_adicionales_id_venta": {
+      "tipo": "index",
+      "tabla": "venta_adicionales",
+      "sql": "CREATE INDEX idx_venta_adicionales_id_venta ON venta_adicionales ( id_venta )"
+    },
+    "idx_ventas_operaciones_usuario_activa": {
+      "tipo": "index",
+      "tabla": "ventas_operaciones",
+      "sql": "CREATE INDEX idx_ventas_operaciones_usuario_activa ON ventas_operaciones ( usuario_origen , anulada , id_operacion )"
+    },
+    "importaciones_deuda": {
+      "tipo": "table",
+      "tabla": "importaciones_deuda",
+      "sql": "CREATE TABLE importaciones_deuda ( id_importacion INTEGER PRIMARY KEY AUTOINCREMENT , fuente TEXT NOT NULL , id_externo TEXT NOT NULL , id_cuenta_deuda INTEGER , fecha_operacion TEXT , fecha_importacion TEXT NOT NULL , importe REAL NOT NULL , moneda TEXT NOT NULL DEFAULT 'ARS' , comercio TEXT , titular TEXT , tipo_tarjeta TEXT , plan TEXT , estado TEXT NOT NULL , id_movimiento_deuda INTEGER , asunto TEXT , FOREIGN KEY ( id_cuenta_deuda ) REFERENCES cuentas_deuda_negocio ( id_cuenta ) , FOREIGN KEY ( id_movimiento_deuda ) REFERENCES movimientos_deuda_negocio ( id_movimiento_deuda ) , UNIQUE ( fuente , id_externo ) )"
+    },
+    "inmutable_pos_apertura_ensayo_DELETE": {
+      "tipo": "trigger",
+      "tabla": "pos_apertura_ensayo",
+      "sql": "CREATE TRIGGER inmutable_pos_apertura_ensayo_DELETE BEFORE DELETE ON pos_apertura_ensayo BEGIN SELECT RAISE ( ABORT , 'Registro auditable inmutable' ) ; END"
+    },
+    "inmutable_pos_apertura_ensayo_UPDATE": {
+      "tipo": "trigger",
+      "tabla": "pos_apertura_ensayo",
+      "sql": "CREATE TRIGGER inmutable_pos_apertura_ensayo_UPDATE BEFORE UPDATE ON pos_apertura_ensayo BEGIN SELECT RAISE ( ABORT , 'Registro auditable inmutable' ) ; END"
+    },
+    "inmutable_pos_cierres_unificados_DELETE": {
+      "tipo": "trigger",
+      "tabla": "pos_cierres_unificados",
+      "sql": "CREATE TRIGGER inmutable_pos_cierres_unificados_DELETE BEFORE DELETE ON pos_cierres_unificados BEGIN SELECT RAISE ( ABORT , 'Registro auditable inmutable' ) ; END"
+    },
+    "inmutable_pos_cierres_unificados_UPDATE": {
+      "tipo": "trigger",
+      "tabla": "pos_cierres_unificados",
+      "sql": "CREATE TRIGGER inmutable_pos_cierres_unificados_UPDATE BEFORE UPDATE ON pos_cierres_unificados BEGIN SELECT RAISE ( ABORT , 'Registro auditable inmutable' ) ; END"
+    },
+    "inmutable_pos_pagos_deuda_apertura_DELETE": {
+      "tipo": "trigger",
+      "tabla": "pos_pagos_deuda_apertura",
+      "sql": "CREATE TRIGGER inmutable_pos_pagos_deuda_apertura_DELETE BEFORE DELETE ON pos_pagos_deuda_apertura BEGIN SELECT RAISE ( ABORT , 'Registro auditable inmutable' ) ; END"
+    },
+    "inmutable_pos_pagos_deuda_apertura_UPDATE": {
+      "tipo": "trigger",
+      "tabla": "pos_pagos_deuda_apertura",
+      "sql": "CREATE TRIGGER inmutable_pos_pagos_deuda_apertura_UPDATE BEFORE UPDATE ON pos_pagos_deuda_apertura BEGIN SELECT RAISE ( ABORT , 'Registro auditable inmutable' ) ; END"
+    },
+    "inmutable_pos_reversos_deuda_apertura_DELETE": {
+      "tipo": "trigger",
+      "tabla": "pos_reversos_deuda_apertura",
+      "sql": "CREATE TRIGGER inmutable_pos_reversos_deuda_apertura_DELETE BEFORE DELETE ON pos_reversos_deuda_apertura BEGIN SELECT RAISE ( ABORT , 'Registro auditable inmutable' ) ; END"
+    },
+    "inmutable_pos_reversos_deuda_apertura_UPDATE": {
+      "tipo": "trigger",
+      "tabla": "pos_reversos_deuda_apertura",
+      "sql": "CREATE TRIGGER inmutable_pos_reversos_deuda_apertura_UPDATE BEFORE UPDATE ON pos_reversos_deuda_apertura BEGIN SELECT RAISE ( ABORT , 'Registro auditable inmutable' ) ; END"
+    },
+    "insumos": {
+      "tipo": "table",
+      "tabla": "insumos",
+      "sql": "CREATE TABLE insumos ( id_insumo INTEGER PRIMARY KEY AUTOINCREMENT , nombre TEXT NOT NULL UNIQUE , unidad_base TEXT NOT NULL , seccion TEXT NOT NULL DEFAULT 'bebidas_postres' , stock_base REAL NOT NULL DEFAULT 0 , controla_stock INTEGER NOT NULL DEFAULT 1 , activo INTEGER NOT NULL DEFAULT 1 )"
+    },
+    "mensajes_procesados": {
+      "tipo": "table",
+      "tabla": "mensajes_procesados",
+      "sql": "CREATE TABLE mensajes_procesados ( id_registro INTEGER PRIMARY KEY AUTOINCREMENT , canal TEXT NOT NULL , id_externo TEXT NOT NULL , fecha_recepcion TEXT NOT NULL , fecha_actualizacion TEXT , mensaje TEXT NOT NULL , estado TEXT NOT NULL DEFAULT 'Procesando' , respuesta_json TEXT , UNIQUE ( canal , id_externo ) )"
+    },
+    "movimientos_caja": {
+      "tipo": "table",
+      "tabla": "movimientos_caja",
+      "sql": "CREATE TABLE movimientos_caja ( id_movimiento INTEGER PRIMARY KEY AUTOINCREMENT , fecha TEXT NOT NULL , tipo TEXT NOT NULL , descripcion TEXT NOT NULL , monto REAL NOT NULL , anulado INTEGER NOT NULL DEFAULT 0 , fecha_anulacion TEXT , motivo_anulacion TEXT )"
+    },
+    "movimientos_deuda_negocio": {
+      "tipo": "table",
+      "tabla": "movimientos_deuda_negocio",
+      "sql": "CREATE TABLE movimientos_deuda_negocio ( id_movimiento_deuda INTEGER PRIMARY KEY AUTOINCREMENT , id_cuenta INTEGER NOT NULL , fecha_hora TEXT NOT NULL , tipo TEXT NOT NULL , importe REAL NOT NULL , descripcion TEXT , id_movimiento_caja INTEGER , FOREIGN KEY ( id_cuenta ) REFERENCES cuentas_deuda_negocio ( id_cuenta ) , FOREIGN KEY ( id_movimiento_caja ) REFERENCES movimientos_caja ( id_movimiento ) )"
+    },
+    "movimientos_diezmo": {
+      "tipo": "table",
+      "tabla": "movimientos_diezmo",
+      "sql": "CREATE TABLE movimientos_diezmo ( id_movimiento INTEGER PRIMARY KEY AUTOINCREMENT , anio INTEGER NOT NULL , mes INTEGER NOT NULL , fecha TEXT NOT NULL , tipo TEXT NOT NULL , monto REAL NOT NULL , descripcion TEXT NOT NULL , anulado INTEGER NOT NULL DEFAULT 0 , fecha_anulacion TEXT , motivo_anulacion TEXT )"
+    },
+    "movimientos_reserva_deuda_negocio": {
+      "tipo": "table",
+      "tabla": "movimientos_reserva_deuda_negocio",
+      "sql": "CREATE TABLE movimientos_reserva_deuda_negocio ( id_movimiento_reserva INTEGER PRIMARY KEY AUTOINCREMENT , id_cuenta INTEGER NOT NULL , fecha_hora TEXT NOT NULL , tipo TEXT NOT NULL , importe REAL NOT NULL , descripcion TEXT , id_movimiento_deuda INTEGER , FOREIGN KEY ( id_cuenta ) REFERENCES cuentas_deuda_negocio ( id_cuenta ) , FOREIGN KEY ( id_movimiento_deuda ) REFERENCES movimientos_deuda_negocio ( id_movimiento_deuda ) )"
+    },
+    "operaciones_compras_insumos": {
+      "tipo": "table",
+      "tabla": "operaciones_compras_insumos",
+      "sql": "CREATE TABLE operaciones_compras_insumos ( id_operacion TEXT NOT NULL PRIMARY KEY , id_compra_insumo INTEGER NOT NULL UNIQUE REFERENCES compras_insumos , canal TEXT NOT NULL , id_solicitud TEXT , indice_linea INTEGER NOT NULL CHECK ( indice_linea > = 0 ) , solicitud_json TEXT NOT NULL , contexto_json TEXT NOT NULL , resultado_json TEXT NOT NULL , fecha_hora TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , UNIQUE ( canal , id_solicitud , indice_linea ) )"
+    },
+    "pago_deuda_activo": {
+      "tipo": "trigger",
+      "tabla": "pos_pagos_deuda_apertura",
+      "sql": "CREATE TRIGGER pago_deuda_activo BEFORE INSERT ON pos_pagos_deuda_apertura WHEN EXISTS ( SELECT 1 FROM pos_pagos_deuda_apertura p WHERE p . id_deuda = NEW . id_deuda AND NOT EXISTS ( SELECT 1 FROM pos_reversos_deuda_apertura r WHERE r . id_pago = p . id_pago ) ) BEGIN SELECT RAISE ( ABORT , 'La deuda ya tiene un pago vigente' ) ; END"
+    },
+    "pos_adicionales_producto": {
+      "tipo": "table",
+      "tabla": "pos_adicionales_producto",
+      "sql": "CREATE TABLE pos_adicionales_producto ( id_producto INTEGER NOT NULL , id_adicional_catalogo INTEGER NOT NULL , PRIMARY KEY ( id_producto , id_adicional_catalogo ) , FOREIGN KEY ( id_producto ) REFERENCES productos ( id_producto ) , FOREIGN KEY ( id_adicional_catalogo ) REFERENCES adicionales_catalogo ( id_adicional_catalogo ) )"
+    },
+    "pos_anulaciones_simuladas": {
+      "tipo": "table",
+      "tabla": "pos_anulaciones_simuladas",
+      "sql": "CREATE TABLE pos_anulaciones_simuladas ( id_venta INTEGER PRIMARY KEY REFERENCES pos_ventas_simuladas ( id_venta ) , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos ( id_usuario ) , motivo TEXT NOT NULL , fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP )"
+    },
+    "pos_apertura_ensayo": {
+      "tipo": "table",
+      "tabla": "pos_apertura_ensayo",
+      "sql": "CREATE TABLE pos_apertura_ensayo ( id INTEGER PRIMARY KEY CHECK ( id = 1 ) , id_solicitud TEXT NOT NULL UNIQUE , solicitud TEXT NOT NULL , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , fecha TEXT NOT NULL , resultado TEXT NOT NULL )"
+    },
+    "pos_catalogo_entrenamiento": {
+      "tipo": "table",
+      "tabla": "pos_catalogo_entrenamiento",
+      "sql": "CREATE TABLE pos_catalogo_entrenamiento ( id_producto INTEGER PRIMARY KEY REFERENCES productos ( id_producto ) , estado TEXT NOT NULL CHECK ( estado IN ( 'disponible' , 'sin_stock' , 'fuera_menu' ) ) , grupo_promo TEXT )"
+    },
+    "pos_cierres_contables": {
+      "tipo": "table",
+      "tabla": "pos_cierres_contables",
+      "sql": "CREATE TABLE pos_cierres_contables ( tipo TEXT NOT NULL CHECK ( tipo IN ( 'semanal' , 'mensual' ) ) , id_cierre INTEGER NOT NULL , resumen TEXT NOT NULL , PRIMARY KEY ( tipo , id_cierre ) )"
+    },
+    "pos_cierres_simulados": {
+      "tipo": "table",
+      "tabla": "pos_cierres_simulados",
+      "sql": "CREATE TABLE pos_cierres_simulados ( periodo INTEGER PRIMARY KEY , id_evento INTEGER NOT NULL UNIQUE REFERENCES pos_eventos_simulados , resumen TEXT NOT NULL )"
+    },
+    "pos_cierres_unificados": {
+      "tipo": "table",
+      "tabla": "pos_cierres_unificados",
+      "sql": "CREATE TABLE pos_cierres_unificados ( id_cierre INTEGER PRIMARY KEY , caja TEXT NOT NULL REFERENCES pos_saldos_iniciales , secuencia INTEGER NOT NULL CHECK ( secuencia > 0 ) , id_solicitud TEXT NOT NULL UNIQUE , solicitud TEXT NOT NULL , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , fecha TEXT NOT NULL , resultado TEXT NOT NULL , UNIQUE ( caja , secuencia ) )"
+    },
+    "pos_clientes": {
+      "tipo": "table",
+      "tabla": "pos_clientes",
+      "sql": "CREATE TABLE pos_clientes ( id_cliente INTEGER PRIMARY KEY , nombre TEXT NOT NULL , telefono TEXT , referencia TEXT , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP )"
+    },
+    "pos_compras_caja": {
+      "tipo": "table",
+      "tabla": "pos_compras_caja",
+      "sql": "CREATE TABLE pos_compras_caja ( id_compra INTEGER NOT NULL REFERENCES compras ( id_compra ) , evento TEXT NOT NULL CHECK ( evento IN ( 'alta' , 'anulacion' , 'devolucion' ) ) , fecha TEXT NOT NULL , seccion TEXT NOT NULL CHECK ( seccion IN ( 'comidas' , 'bebidas_postres' ) ) , pagador TEXT , medio_pago TEXT , pagado_centavos INTEGER NOT NULL , deuda_centavos INTEGER NOT NULL , id_diario INTEGER UNIQUE REFERENCES pos_diario_caja ( id_evento ) , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos ( id_usuario ) , id_solicitud TEXT NOT NULL UNIQUE , solicitud TEXT NOT NULL , resultado TEXT NOT NULL , PRIMARY KEY ( id_compra , evento ) )"
+    },
+    "pos_compras_caja_un_reverso": {
+      "tipo": "index",
+      "tabla": "pos_compras_caja",
+      "sql": "CREATE UNIQUE INDEX pos_compras_caja_un_reverso ON pos_compras_caja ( id_compra ) WHERE evento < > 'alta'"
+    },
+    "pos_contable_compras_alta": {
+      "tipo": "trigger",
+      "tabla": "compras",
+      "sql": "CREATE TRIGGER pos_contable_compras_alta AFTER INSERT ON compras WHEN NEW . anulada = 0 BEGIN INSERT INTO pos_costos_contables VALUES ( 'compra' , NEW . id_compra , 'alta' , date ( 'now' , '-3 hours' ) , CAST ( round ( ( NEW . cantidad * NEW . precio_unitario ) * 100 ) AS INTEGER ) , ( SELECT CASE WHEN lower ( trim ( categoria ) ) IN ( 'bebidas' , 'postres' ) THEN 'bebidas_postres' ELSE 'comidas' END FROM productos WHERE id_producto = NEW . id_producto ) , NEW . medio_pago ) ; END"
+    },
+    "pos_contable_compras_anulacion": {
+      "tipo": "trigger",
+      "tabla": "compras",
+      "sql": "CREATE TRIGGER pos_contable_compras_anulacion AFTER UPDATE OF anulada ON compras WHEN OLD . anulada = 0 AND NEW . anulada = 1 BEGIN SELECT CASE WHEN NOT EXISTS ( SELECT 1 FROM pos_costos_contables WHERE tipo = 'compra' AND id_origen = OLD . id_compra AND evento = 'alta' ) THEN RAISE ( ABORT , 'El costo es anterior al corte contable ficticio.' ) END ; INSERT INTO pos_costos_contables SELECT tipo , id_origen , 'anulacion' , date ( 'now' , '-3 hours' ) , - importe_centavos , seccion , medio_declarado FROM pos_costos_contables WHERE tipo = 'compra' AND id_origen = OLD . id_compra AND evento = 'alta' ; END"
+    },
+    "pos_contable_gastos_alta": {
+      "tipo": "trigger",
+      "tabla": "gastos",
+      "sql": "CREATE TRIGGER pos_contable_gastos_alta AFTER INSERT ON gastos WHEN NEW . anulado = 0 BEGIN INSERT INTO pos_costos_contables VALUES ( 'gasto' , NEW . id_gasto , 'alta' , date ( 'now' , '-3 hours' ) , CAST ( round ( ( NEW . valor_final ) * 100 ) AS INTEGER ) , NEW . seccion , NULL ) ; END"
+    },
+    "pos_contable_gastos_anulacion": {
+      "tipo": "trigger",
+      "tabla": "gastos",
+      "sql": "CREATE TRIGGER pos_contable_gastos_anulacion AFTER UPDATE OF anulado ON gastos WHEN OLD . anulado = 0 AND NEW . anulado = 1 BEGIN SELECT CASE WHEN NOT EXISTS ( SELECT 1 FROM pos_costos_contables WHERE tipo = 'gasto' AND id_origen = OLD . id_gasto AND evento = 'alta' ) THEN RAISE ( ABORT , 'El costo es anterior al corte contable ficticio.' ) END ; INSERT INTO pos_costos_contables SELECT tipo , id_origen , 'anulacion' , date ( 'now' , '-3 hours' ) , - importe_centavos , seccion , medio_declarado FROM pos_costos_contables WHERE tipo = 'gasto' AND id_origen = OLD . id_gasto AND evento = 'alta' ; END"
+    },
+    "pos_contable_ventas_alta": {
+      "tipo": "trigger",
+      "tabla": "ventas",
+      "sql": "CREATE TRIGGER pos_contable_ventas_alta BEFORE INSERT ON ventas BEGIN SELECT RAISE ( ABORT , 'Usá el POS para ventas nuevas. El historial legado queda archivado.' ) ; END"
+    },
+    "pos_contable_ventas_baja": {
+      "tipo": "trigger",
+      "tabla": "ventas",
+      "sql": "CREATE TRIGGER pos_contable_ventas_baja BEFORE DELETE ON ventas BEGIN SELECT RAISE ( ABORT , 'Usá el POS para ventas nuevas. El historial legado queda archivado.' ) ; END"
+    },
+    "pos_contable_ventas_cambio": {
+      "tipo": "trigger",
+      "tabla": "ventas",
+      "sql": "CREATE TRIGGER pos_contable_ventas_cambio BEFORE UPDATE ON ventas BEGIN SELECT RAISE ( ABORT , 'Usá el POS para ventas nuevas. El historial legado queda archivado.' ) ; END"
+    },
+    "pos_costos_contables": {
+      "tipo": "table",
+      "tabla": "pos_costos_contables",
+      "sql": "CREATE TABLE pos_costos_contables ( tipo TEXT NOT NULL CHECK ( tipo IN ( 'compra' , 'gasto' ) ) , id_origen INTEGER NOT NULL , evento TEXT NOT NULL CHECK ( evento IN ( 'alta' , 'anulacion' ) ) , fecha TEXT NOT NULL , importe_centavos INTEGER NOT NULL , seccion TEXT , medio_declarado TEXT , PRIMARY KEY ( tipo , id_origen , evento ) )"
+    },
+    "pos_costos_inmutables_delete": {
+      "tipo": "trigger",
+      "tabla": "pos_costos_lineas",
+      "sql": "CREATE TRIGGER pos_costos_inmutables_delete BEFORE DELETE ON pos_costos_lineas BEGIN SELECT RAISE ( ABORT , 'El costo histórico POS es inmutable.' ) ; END"
+    },
+    "pos_costos_inmutables_update": {
+      "tipo": "trigger",
+      "tabla": "pos_costos_lineas",
+      "sql": "CREATE TRIGGER pos_costos_inmutables_update BEFORE UPDATE ON pos_costos_lineas BEGIN SELECT RAISE ( ABORT , 'El costo histórico POS es inmutable.' ) ; END"
+    },
+    "pos_costos_lineas": {
+      "tipo": "table",
+      "tabla": "pos_costos_lineas",
+      "sql": "CREATE TABLE pos_costos_lineas ( id_venta INTEGER NOT NULL REFERENCES pos_ventas_simuladas , linea INTEGER NOT NULL CHECK ( linea > 0 ) , cantidad INTEGER NOT NULL CHECK ( cantidad > 0 ) , estado TEXT NOT NULL CHECK ( estado IN ( 'conocido' , 'estimado' , 'parcial' , 'desconocido' ) ) , costo_unitario TEXT , costo_total_centavos INTEGER CHECK ( costo_total_centavos > = 0 ) , costo_parcial_centavos INTEGER NOT NULL CHECK ( costo_parcial_centavos > = 0 ) , fuente TEXT NOT NULL , metodo TEXT NOT NULL , version_receta INTEGER , version_modelo INTEGER NOT NULL CHECK ( version_modelo = 1 ) , detalle TEXT NOT NULL , PRIMARY KEY ( id_venta , linea ) , CHECK ( ( estado IN ( 'conocido' , 'estimado' ) ) = ( costo_unitario IS NOT NULL AND costo_total_centavos IS NOT NULL ) ) , CHECK ( estado IN ( 'conocido' , 'estimado' ) OR ( costo_unitario IS NULL AND costo_total_centavos IS NULL ) ) )"
+    },
+    "pos_costos_por_fecha": {
+      "tipo": "index",
+      "tabla": "pos_costos_contables",
+      "sql": "CREATE INDEX pos_costos_por_fecha ON pos_costos_contables ( fecha )"
+    },
+    "pos_delivery_entrega_unica": {
+      "tipo": "index",
+      "tabla": "pos_delivery_movimientos",
+      "sql": "CREATE UNIQUE INDEX pos_delivery_entrega_unica ON pos_delivery_movimientos ( id_venta ) WHERE tipo = 'entrega'"
+    },
+    "pos_delivery_movimientos": {
+      "tipo": "table",
+      "tabla": "pos_delivery_movimientos",
+      "sql": "CREATE TABLE pos_delivery_movimientos ( id_evento INTEGER PRIMARY KEY REFERENCES pos_eventos_simulados , id_venta INTEGER NOT NULL REFERENCES pos_ventas_simuladas , tipo TEXT NOT NULL CHECK ( tipo IN ( 'recepcion' , 'entrega' , 'reembolso' ) ) , receptor TEXT NOT NULL , importe_centavos INTEGER NOT NULL CHECK ( importe_centavos < > 0 ) , id_movimiento INTEGER UNIQUE REFERENCES pos_movimientos_simulados , referencia TEXT , id_evento_cobro INTEGER REFERENCES pos_eventos_simulados , CHECK ( ( tipo = 'recepcion' ) = ( importe_centavos > 0 ) ) , UNIQUE ( receptor , referencia ) )"
+    },
+    "pos_delivery_por_venta": {
+      "tipo": "index",
+      "tabla": "pos_delivery_movimientos",
+      "sql": "CREATE INDEX pos_delivery_por_venta ON pos_delivery_movimientos ( id_venta )"
+    },
+    "pos_deudas_apertura": {
+      "tipo": "table",
+      "tabla": "pos_deudas_apertura",
+      "sql": "CREATE TABLE pos_deudas_apertura ( id_deuda INTEGER PRIMARY KEY , caja TEXT NOT NULL REFERENCES pos_saldos_iniciales , concepto TEXT NOT NULL , importe_centavos INTEGER NOT NULL CHECK ( importe_centavos > 0 ) , vencimiento TEXT NOT NULL , modalidad TEXT NOT NULL CHECK ( modalidad = 'pago_unico' ) )"
+    },
+    "pos_diario_apertura_cierre": {
+      "tipo": "index",
+      "tabla": "pos_diario_caja",
+      "sql": "CREATE UNIQUE INDEX pos_diario_apertura_cierre ON pos_diario_caja ( id_jornada , tipo ) WHERE tipo IN ( 'apertura' , 'cierre' )"
+    },
+    "pos_diario_caja": {
+      "tipo": "table",
+      "tabla": "pos_diario_caja",
+      "sql": "CREATE TABLE pos_diario_caja ( id_evento INTEGER PRIMARY KEY , id_jornada INTEGER NOT NULL REFERENCES pos_jornadas_caja , tipo TEXT NOT NULL CHECK ( tipo IN ( 'apertura' , 'cobro' , 'reembolso' , 'transferencia' , 'gasto' , 'aporte' , 'retiro' , 'arqueo' , 'cierre' ) ) , fecha_hora TEXT NOT NULL , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , usuario TEXT NOT NULL , rol TEXT NOT NULL , id_solicitud TEXT UNIQUE , solicitud TEXT , resultado TEXT , importe_centavos INTEGER , motivo TEXT , id_movimiento_pos INTEGER UNIQUE REFERENCES pos_movimientos_simulados )"
+    },
+    "pos_diario_por_jornada": {
+      "tipo": "index",
+      "tabla": "pos_diario_caja",
+      "sql": "CREATE INDEX pos_diario_por_jornada ON pos_diario_caja ( id_jornada , id_evento )"
+    },
+    "pos_eventos_cliente_uuid": {
+      "tipo": "index",
+      "tabla": "pos_eventos_clientes",
+      "sql": "CREATE INDEX pos_eventos_cliente_uuid ON pos_eventos_clientes ( uuid )"
+    },
+    "pos_eventos_clientes": {
+      "tipo": "table",
+      "tabla": "pos_eventos_clientes",
+      "sql": "CREATE TABLE pos_eventos_clientes ( id_evento INTEGER PRIMARY KEY REFERENCES pos_eventos_simulados , uuid TEXT NOT NULL REFERENCES pos_solicitudes_clientes )"
+    },
+    "pos_eventos_por_venta": {
+      "tipo": "index",
+      "tabla": "pos_eventos_simulados",
+      "sql": "CREATE INDEX pos_eventos_por_venta ON pos_eventos_simulados ( id_venta )"
+    },
+    "pos_eventos_simulados": {
+      "tipo": "table",
+      "tabla": "pos_eventos_simulados",
+      "sql": "CREATE TABLE pos_eventos_simulados ( id_evento INTEGER PRIMARY KEY , id_venta INTEGER REFERENCES pos_ventas_simuladas , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , id_solicitud TEXT UNIQUE , solicitud TEXT NOT NULL , tipo TEXT NOT NULL CHECK ( tipo IN ( 'venta' , 'abono' , 'anulacion' , 'devolucion' , 'transferencia_interna' , 'cierre' ) ) , periodo INTEGER NOT NULL CHECK ( periodo > 0 ) , fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , devengado_comidas INTEGER NOT NULL DEFAULT 0 , devengado_bebidas INTEGER NOT NULL DEFAULT 0 , cobrado_comidas INTEGER NOT NULL DEFAULT 0 , cobrado_bebidas INTEGER NOT NULL DEFAULT 0 , resultado TEXT , CHECK ( ( id_venta IS NULL ) = ( tipo IN ( 'transferencia_interna' , 'cierre' ) ) ) )"
+    },
+    "pos_fondos_reparto": {
+      "tipo": "table",
+      "tabla": "pos_fondos_reparto",
+      "sql": "CREATE TABLE pos_fondos_reparto ( id_evento INTEGER PRIMARY KEY REFERENCES pos_eventos_simulados , id_venta INTEGER NOT NULL REFERENCES pos_ventas_simuladas , receptor TEXT NOT NULL , importe_centavos INTEGER NOT NULL CHECK ( importe_centavos < > 0 ) , referencia TEXT NOT NULL , tipo TEXT NOT NULL CHECK ( tipo IN ( 'recepcion' , 'liquidacion' , 'reembolso' , 'directo' ) ) , CHECK ( ( tipo IN ( 'recepcion' , 'directo' ) ) = ( importe_centavos > 0 ) ) , CHECK ( ( tipo = 'directo' ) = ( receptor = 'repartidor_directo' ) ) , UNIQUE ( receptor , tipo , referencia ) )"
+    },
+    "pos_fondos_reparto_venta": {
+      "tipo": "index",
+      "tabla": "pos_fondos_reparto",
+      "sql": "CREATE INDEX pos_fondos_reparto_venta ON pos_fondos_reparto ( id_venta , receptor )"
+    },
+    "pos_historial_pedidos": {
+      "tipo": "table",
+      "tabla": "pos_historial_pedidos",
+      "sql": "CREATE TABLE pos_historial_pedidos ( id_pedido INTEGER NOT NULL REFERENCES pos_seguimiento_pedidos , version INTEGER NOT NULL , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , estado TEXT NOT NULL , motivo TEXT , solicitud_id TEXT UNIQUE , solicitud TEXT , resultado TEXT , PRIMARY KEY ( id_pedido , version ) )"
+    },
+    "pos_ingredientes_producto": {
+      "tipo": "table",
+      "tabla": "pos_ingredientes_producto",
+      "sql": "CREATE TABLE pos_ingredientes_producto ( id_producto INTEGER NOT NULL , ingrediente TEXT NOT NULL COLLATE NOCASE CHECK ( LENGTH ( TRIM ( ingrediente ) ) > 0 ) , PRIMARY KEY ( id_producto , ingrediente ) , FOREIGN KEY ( id_producto ) REFERENCES productos ( id_producto ) )"
+    },
+    "pos_inicio_caja_diaria": {
+      "tipo": "table",
+      "tabla": "pos_inicio_caja_diaria",
+      "sql": "CREATE TABLE pos_inicio_caja_diaria ( ultimo_movimiento_anterior INTEGER NOT NULL )"
+    },
+    "pos_inicio_contable": {
+      "tipo": "table",
+      "tabla": "pos_inicio_contable",
+      "sql": "CREATE TABLE pos_inicio_contable ( id INTEGER PRIMARY KEY CHECK ( id = 1 ) , fecha TEXT NOT NULL , ultimo_evento_pos INTEGER NOT NULL , ultimo_evento_diario INTEGER NOT NULL )"
+    },
+    "pos_jornada_caja_abierta": {
+      "tipo": "index",
+      "tabla": "pos_jornadas_caja",
+      "sql": "CREATE UNIQUE INDEX pos_jornada_caja_abierta ON pos_jornadas_caja ( caja ) WHERE cerrada = 0"
+    },
+    "pos_jornadas_caja": {
+      "tipo": "table",
+      "tabla": "pos_jornadas_caja",
+      "sql": "CREATE TABLE pos_jornadas_caja ( id_jornada INTEGER PRIMARY KEY , caja TEXT NOT NULL CHECK ( caja IN ( 'comidas' , 'bebidas_postres' ) ) , fecha TEXT NOT NULL , cerrada INTEGER NOT NULL DEFAULT 0 CHECK ( cerrada IN ( 0 , 1 ) ) , UNIQUE ( caja , fecha ) )"
+    },
+    "pos_movimientos_por_caja": {
+      "tipo": "index",
+      "tabla": "pos_movimientos_simulados",
+      "sql": "CREATE INDEX pos_movimientos_por_caja ON pos_movimientos_simulados ( caja , id_movimiento )"
+    },
+    "pos_movimientos_por_venta": {
+      "tipo": "index",
+      "tabla": "pos_movimientos_simulados",
+      "sql": "CREATE INDEX pos_movimientos_por_venta ON pos_movimientos_simulados ( id_venta )"
+    },
+    "pos_movimientos_reversion": {
+      "tipo": "index",
+      "tabla": "pos_movimientos_simulados",
+      "sql": "CREATE INDEX pos_movimientos_reversion ON pos_movimientos_simulados ( revierte )"
+    },
+    "pos_movimientos_simulados": {
+      "tipo": "table",
+      "tabla": "pos_movimientos_simulados",
+      "sql": "CREATE TABLE pos_movimientos_simulados ( id_movimiento INTEGER PRIMARY KEY , id_evento INTEGER NOT NULL REFERENCES pos_eventos_simulados , id_venta INTEGER REFERENCES pos_ventas_simuladas , receptor TEXT NOT NULL , caja TEXT NOT NULL CHECK ( caja IN ( 'bebidas_postres' , 'comidas' ) ) , medio_pago TEXT CHECK ( medio_pago IN ( 'efectivo' , 'transferencia' , 'mercado_pago' ) ) , importe_centavos INTEGER NOT NULL CHECK ( importe_centavos < > 0 ) , referencia TEXT , revierte INTEGER REFERENCES pos_movimientos_simulados )"
+    },
+    "pos_pagos_deuda_apertura": {
+      "tipo": "table",
+      "tabla": "pos_pagos_deuda_apertura",
+      "sql": "CREATE TABLE pos_pagos_deuda_apertura ( id_pago INTEGER PRIMARY KEY , id_deuda INTEGER NOT NULL REFERENCES pos_deudas_apertura , id_solicitud TEXT NOT NULL UNIQUE , solicitud TEXT NOT NULL , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , fecha TEXT NOT NULL , importe_centavos INTEGER NOT NULL CHECK ( importe_centavos > 0 ) , resultado TEXT NOT NULL )"
+    },
+    "pos_preproduccion": {
+      "tipo": "table",
+      "tabla": "pos_preproduccion",
+      "sql": "CREATE TABLE pos_preproduccion ( modo TEXT NOT NULL , instalacion TEXT NOT NULL )"
+    },
+    "pos_pruebas_catalogo": {
+      "tipo": "table",
+      "tabla": "pos_pruebas_catalogo",
+      "sql": "CREATE TABLE pos_pruebas_catalogo ( sha256 TEXT PRIMARY KEY , aprobada_utc TEXT NOT NULL )"
+    },
+    "pos_puente_ficticio": {
+      "tipo": "table",
+      "tabla": "pos_puente_ficticio",
+      "sql": "CREATE TABLE pos_puente_ficticio ( version INTEGER PRIMARY KEY CHECK ( version = 1 ) )"
+    },
+    "pos_referencias_pago": {
+      "tipo": "index",
+      "tabla": "pos_movimientos_simulados",
+      "sql": "CREATE UNIQUE INDEX pos_referencias_pago ON pos_movimientos_simulados ( receptor , referencia ) WHERE referencia IS NOT NULL"
+    },
+    "pos_rendiciones_efectivo": {
+      "tipo": "table",
+      "tabla": "pos_rendiciones_efectivo",
+      "sql": "CREATE TABLE pos_rendiciones_efectivo ( id_evento INTEGER PRIMARY KEY REFERENCES pos_eventos_simulados , id_cobro INTEGER NOT NULL REFERENCES pos_movimientos_simulados , importe_centavos INTEGER NOT NULL CHECK ( importe_centavos > 0 ) )"
+    },
+    "pos_rendiciones_por_cobro": {
+      "tipo": "index",
+      "tabla": "pos_rendiciones_efectivo",
+      "sql": "CREATE INDEX pos_rendiciones_por_cobro ON pos_rendiciones_efectivo ( id_cobro )"
+    },
+    "pos_reversos_deuda_apertura": {
+      "tipo": "table",
+      "tabla": "pos_reversos_deuda_apertura",
+      "sql": "CREATE TABLE pos_reversos_deuda_apertura ( id_pago INTEGER PRIMARY KEY REFERENCES pos_pagos_deuda_apertura , id_solicitud TEXT NOT NULL UNIQUE , solicitud TEXT NOT NULL , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , fecha TEXT NOT NULL , resultado TEXT NOT NULL )"
+    },
+    "pos_saldos_iniciales": {
+      "tipo": "table",
+      "tabla": "pos_saldos_iniciales",
+      "sql": "CREATE TABLE pos_saldos_iniciales ( caja TEXT PRIMARY KEY CHECK ( caja IN ( 'comidas' , 'bebidas_postres' ) ) , saldo_centavos INTEGER CHECK ( saldo_centavos > = 0 ) , corte TEXT , responsable TEXT , CHECK ( ( saldo_centavos IS NULL AND corte IS NULL AND responsable IS NULL ) OR ( saldo_centavos IS NOT NULL AND corte IS NOT NULL AND responsable IS NOT NULL ) ) )"
+    },
+    "pos_seguimiento_pedidos": {
+      "tipo": "table",
+      "tabla": "pos_seguimiento_pedidos",
+      "sql": "CREATE TABLE pos_seguimiento_pedidos ( id_pedido INTEGER PRIMARY KEY , id_venta INTEGER UNIQUE REFERENCES pos_ventas_simuladas , estado TEXT NOT NULL CHECK ( estado IN ( 'pendiente' , 'preparacion' , 'listo' , 'en_camino' , 'entregado' , 'cancelado' ) ) , version INTEGER NOT NULL CHECK ( version > 0 ) , fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , estimacion TEXT , entrada TEXT , alta_usuario INTEGER REFERENCES usuarios_pos , alta_uuid TEXT , CHECK ( id_venta IS NOT NULL OR ( entrada IS NOT NULL AND estimacion IS NOT NULL ) ) , UNIQUE ( alta_usuario , alta_uuid ) )"
+    },
+    "pos_solicitudes_cliente": {
+      "tipo": "index",
+      "tabla": "pos_solicitudes_clientes",
+      "sql": "CREATE INDEX pos_solicitudes_cliente ON pos_solicitudes_clientes ( id_cliente )"
+    },
+    "pos_solicitudes_clientes": {
+      "tipo": "table",
+      "tabla": "pos_solicitudes_clientes",
+      "sql": "CREATE TABLE pos_solicitudes_clientes ( uuid TEXT PRIMARY KEY , id_cliente INTEGER NOT NULL REFERENCES pos_clientes , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , tipo TEXT NOT NULL CHECK ( tipo IN ( 'alta' , 'abono' , 'correccion' ) ) , solicitud TEXT NOT NULL , resultado TEXT NOT NULL , fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP )"
+    },
+    "pos_stock_progresivo": {
+      "tipo": "table",
+      "tabla": "pos_stock_progresivo",
+      "sql": "CREATE TABLE pos_stock_progresivo ( id_producto INTEGER PRIMARY KEY REFERENCES productos , habilitado INTEGER NOT NULL CHECK ( habilitado IN ( 0 , 1 ) ) )"
+    },
+    "pos_unidades_devueltas": {
+      "tipo": "table",
+      "tabla": "pos_unidades_devueltas",
+      "sql": "CREATE TABLE pos_unidades_devueltas ( id_evento INTEGER NOT NULL REFERENCES pos_eventos_simulados , linea INTEGER NOT NULL , cantidad INTEGER NOT NULL CHECK ( cantidad > 0 ) , PRIMARY KEY ( id_evento , linea ) )"
+    },
+    "pos_validaciones_stock": {
+      "tipo": "table",
+      "tabla": "pos_validaciones_stock",
+      "sql": "CREATE TABLE pos_validaciones_stock ( id_solicitud TEXT PRIMARY KEY , id_producto INTEGER NOT NULL REFERENCES productos , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos , fecha TEXT NOT NULL , referencia TEXT NOT NULL , cantidad INTEGER NOT NULL CHECK ( cantidad > 0 ) )"
+    },
+    "pos_ventas_cliente": {
+      "tipo": "index",
+      "tabla": "pos_ventas_clientes",
+      "sql": "CREATE INDEX pos_ventas_cliente ON pos_ventas_clientes ( id_cliente , id_venta )"
+    },
+    "pos_ventas_clientes": {
+      "tipo": "table",
+      "tabla": "pos_ventas_clientes",
+      "sql": "CREATE TABLE pos_ventas_clientes ( id_venta INTEGER PRIMARY KEY REFERENCES pos_ventas_simuladas , id_cliente INTEGER NOT NULL REFERENCES pos_clientes )"
+    },
+    "pos_ventas_simuladas": {
+      "tipo": "table",
+      "tabla": "pos_ventas_simuladas",
+      "sql": "CREATE TABLE pos_ventas_simuladas ( id_venta INTEGER PRIMARY KEY , id_usuario INTEGER NOT NULL REFERENCES usuarios_pos ( id_usuario ) , id_solicitud TEXT NOT NULL , solicitud TEXT NOT NULL , fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , pedido TEXT NOT NULL , UNIQUE ( id_usuario , id_solicitud ) )"
+    },
+    "presentaciones_insumos": {
+      "tipo": "table",
+      "tabla": "presentaciones_insumos",
+      "sql": "CREATE TABLE presentaciones_insumos ( id_presentacion INTEGER PRIMARY KEY AUTOINCREMENT , id_insumo INTEGER NOT NULL , nombre TEXT NOT NULL , contenido_base REAL NOT NULL , activa INTEGER NOT NULL DEFAULT 1 , FOREIGN KEY ( id_insumo ) REFERENCES insumos ( id_insumo ) , UNIQUE ( id_insumo , nombre ) )"
+    },
+    "produccion_postres_insumos": {
+      "tipo": "table",
+      "tabla": "produccion_postres_insumos",
+      "sql": "CREATE TABLE produccion_postres_insumos ( id_produccion_insumo INTEGER PRIMARY KEY AUTOINCREMENT , id_produccion INTEGER NOT NULL , id_insumo INTEGER NOT NULL , insumo TEXT NOT NULL , cantidad_base REAL NOT NULL , unidad_base TEXT NOT NULL , costo_unitario_base REAL NOT NULL , costo_estimado REAL NOT NULL , controla_stock INTEGER NOT NULL DEFAULT 1 , stock_anterior REAL , stock_nuevo REAL , FOREIGN KEY ( id_produccion ) REFERENCES producciones_postres ( id_produccion ) , FOREIGN KEY ( id_insumo ) REFERENCES insumos ( id_insumo ) )"
+    },
+    "producciones_postres": {
+      "tipo": "table",
+      "tabla": "producciones_postres",
+      "sql": "CREATE TABLE producciones_postres ( id_produccion INTEGER PRIMARY KEY AUTOINCREMENT , fecha_hora TEXT NOT NULL , id_producto INTEGER NOT NULL , producto TEXT NOT NULL , cantidad_producida INTEGER NOT NULL , id_receta INTEGER NOT NULL , version_receta INTEGER NOT NULL , costo_insumos REAL NOT NULL , costo_fijo REAL NOT NULL , costo_total REAL NOT NULL , costo_unitario REAL NOT NULL , canal_origen TEXT , usuario_origen TEXT , grupo_origen TEXT , id_mensaje_origen TEXT , FOREIGN KEY ( id_producto ) REFERENCES productos ( id_producto ) , FOREIGN KEY ( id_receta ) REFERENCES recetas ( id_receta ) )"
+    },
+    "productos": {
+      "tipo": "table",
+      "tabla": "productos",
+      "sql": "CREATE TABLE productos ( id_producto INTEGER PRIMARY KEY AUTOINCREMENT , nombre TEXT NOT NULL , categoria TEXT NOT NULL , presentacion TEXT , contenido REAL , unidad_medida TEXT , unidades_por_pack INTEGER , stock INTEGER NOT NULL DEFAULT 0 , precio_venta REAL , controla_stock INTEGER NOT NULL DEFAULT 1 )"
+    },
+    "receta_insumos": {
+      "tipo": "table",
+      "tabla": "receta_insumos",
+      "sql": "CREATE TABLE receta_insumos ( id_receta_insumo INTEGER PRIMARY KEY AUTOINCREMENT , id_receta INTEGER NOT NULL , id_insumo INTEGER NOT NULL , cantidad_base REAL NOT NULL , FOREIGN KEY ( id_receta ) REFERENCES recetas ( id_receta ) , FOREIGN KEY ( id_insumo ) REFERENCES insumos ( id_insumo ) , UNIQUE ( id_receta , id_insumo ) )"
+    },
+    "recetas": {
+      "tipo": "table",
+      "tabla": "recetas",
+      "sql": "CREATE TABLE recetas ( id_receta INTEGER PRIMARY KEY AUTOINCREMENT , nombre TEXT NOT NULL , producto TEXT NOT NULL , version INTEGER NOT NULL DEFAULT 1 , rendimiento REAL NOT NULL , costo_fijo_por_unidad REAL NOT NULL DEFAULT 0 , activa INTEGER NOT NULL DEFAULT 1 , notas TEXT , UNIQUE ( producto , version ) )"
+    },
+    "seguridad_auditoria_inmutable_delete": {
+      "tipo": "trigger",
+      "tabla": "eventos_seguridad_pos",
+      "sql": "CREATE TRIGGER seguridad_auditoria_inmutable_delete BEFORE DELETE ON eventos_seguridad_pos BEGIN SELECT RAISE ( ABORT , 'La auditoría de seguridad es inmutable.' ) ; END"
+    },
+    "seguridad_auditoria_inmutable_update": {
+      "tipo": "trigger",
+      "tabla": "eventos_seguridad_pos",
+      "sql": "CREATE TRIGGER seguridad_auditoria_inmutable_update BEFORE UPDATE ON eventos_seguridad_pos BEGIN SELECT RAISE ( ABORT , 'La auditoría de seguridad es inmutable.' ) ; END"
+    },
+    "seguridad_revocar_cambio_usuario": {
+      "tipo": "trigger",
+      "tabla": "usuarios_pos",
+      "sql": "CREATE TRIGGER seguridad_revocar_cambio_usuario AFTER UPDATE OF password_hash , rol , activo , usuario ON usuarios_pos WHEN NEW . password_hash IS NOT OLD . password_hash OR NEW . rol IS NOT OLD . rol OR NEW . activo IS NOT OLD . activo OR NEW . usuario IS NOT OLD . usuario BEGIN UPDATE sesiones_pos SET revocada = 1 WHERE id_usuario = OLD . id_usuario AND revocada = 0 ; INSERT INTO eventos_seguridad_pos ( evento , id_usuario , ruta , estado_http ) VALUES ( 'usuario_modificado' , NEW . id_usuario , 'cambio_directo_usuario' , 0 ) ; END"
+    },
+    "sesiones_pos": {
+      "tipo": "table",
+      "tabla": "sesiones_pos",
+      "sql": "CREATE TABLE sesiones_pos ( id_sesion INTEGER PRIMARY KEY AUTOINCREMENT , id_usuario INTEGER NOT NULL , token_hash TEXT NOT NULL UNIQUE , creada_en TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP , expira_en TEXT NOT NULL , revocada INTEGER NOT NULL DEFAULT 0 CHECK ( revocada IN ( 0 , 1 ) ) , FOREIGN KEY ( id_usuario ) REFERENCES usuarios_pos ( id_usuario ) )"
+    },
+    "sesiones_pos_contexto": {
+      "tipo": "table",
+      "tabla": "sesiones_pos_contexto",
+      "sql": "CREATE TABLE sesiones_pos_contexto ( token_hash TEXT PRIMARY KEY REFERENCES sesiones_pos ( token_hash ) , huella TEXT NOT NULL CHECK ( length ( huella ) = 64 ) )"
+    },
+    "usuarios_pos": {
+      "tipo": "table",
+      "tabla": "usuarios_pos",
+      "sql": "CREATE TABLE usuarios_pos ( id_usuario INTEGER PRIMARY KEY AUTOINCREMENT , usuario TEXT NOT NULL UNIQUE COLLATE NOCASE , rol TEXT NOT NULL CHECK ( rol IN ( 'admin' , 'ventas' ) ) , password_hash TEXT NOT NULL , activo INTEGER NOT NULL DEFAULT 1 CHECK ( activo IN ( 0 , 1 ) ) , fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP )"
+    },
+    "venta_adicionales": {
+      "tipo": "table",
+      "tabla": "venta_adicionales",
+      "sql": "CREATE TABLE venta_adicionales ( id_adicional INTEGER PRIMARY KEY AUTOINCREMENT , id_venta INTEGER NOT NULL , id_adicional_catalogo INTEGER , descripcion TEXT NOT NULL , cantidad INTEGER NOT NULL DEFAULT 1 , precio_total REAL NOT NULL DEFAULT 0 , costo_unitario_snapshot REAL , fuente_costo_snapshot TEXT , FOREIGN KEY ( id_venta ) REFERENCES ventas ( id_venta ) , FOREIGN KEY ( id_adicional_catalogo ) REFERENCES adicionales_catalogo ( id_adicional_catalogo ) )"
+    },
+    "ventas": {
+      "tipo": "table",
+      "tabla": "ventas",
+      "sql": "CREATE TABLE ventas ( id_venta INTEGER PRIMARY KEY AUTOINCREMENT , id_producto INTEGER NOT NULL , fecha TEXT NOT NULL , cantidad INTEGER NOT NULL , precio_unitario REAL NOT NULL , costo_unitario_snapshot REAL , fuente_costo_snapshot TEXT , id_operacion INTEGER , anulada INTEGER NOT NULL DEFAULT 0 , fecha_anulacion TEXT , motivo_anulacion TEXT , FOREIGN KEY ( id_producto ) REFERENCES productos ( id_producto ) , FOREIGN KEY ( id_operacion ) REFERENCES ventas_operaciones ( id_operacion ) )"
+    },
+    "ventas_categorias_contables": {
+      "tipo": "table",
+      "tabla": "ventas_categorias_contables",
+      "sql": "CREATE TABLE ventas_categorias_contables ( id INTEGER PRIMARY KEY REFERENCES ventas ( id_venta ) ON DELETE CASCADE , categoria TEXT NOT NULL )"
+    },
+    "ventas_categorias_contables_alta": {
+      "tipo": "trigger",
+      "tabla": "ventas",
+      "sql": "CREATE TRIGGER ventas_categorias_contables_alta AFTER INSERT ON ventas BEGIN INSERT INTO ventas_categorias_contables SELECT NEW . id_venta , categoria FROM productos WHERE id_producto = NEW . id_producto ; END"
+    },
+    "ventas_operaciones": {
+      "tipo": "table",
+      "tabla": "ventas_operaciones",
+      "sql": "CREATE TABLE ventas_operaciones ( id_operacion INTEGER PRIMARY KEY AUTOINCREMENT , fecha TEXT NOT NULL , estado_pago TEXT NOT NULL DEFAULT 'Cobrado' , fecha_hora TEXT , canal_origen TEXT , usuario_origen TEXT , numero_origen TEXT , grupo_origen TEXT , id_mensaje_origen TEXT , anulada INTEGER NOT NULL DEFAULT 0 , fecha_anulacion TEXT , motivo_anulacion TEXT , usuario_anulacion TEXT , id_mensaje_anulacion TEXT )"
+    }
+  }
+}
