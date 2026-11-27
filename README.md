@@ -1,5 +1,10 @@
 # Abadion — propuesta de consolidación V1
 
+Esta rama añade la [corrección de compras atómicas de insumos](docs/compras-atomicas.md),
+basada en el PR #38. Incluye inspección previa, decisiones contables, trazabilidad y
+pruebas de fallos/concurrencia. Los informes de consolidación de abajo conservan la
+evidencia histórica del PR #38; no afirman que el código del fix sea idéntico a esa base.
+
 Software de gestión de Lo de Clau: POS, contabilidad operativa, dos cajas, pedidos,
 delivery, clientes/fiados, inventario, recetas/costos, permisos y recuperación.
 

@@ -786,6 +786,24 @@ def crear_tabla_contextos_conversacion():
     conexion.close()
 
 
+def crear_esquema_operaciones_insumos(conexion):
+    """DDL transaccional; no confirma ni cierra la conexión del llamador."""
+    conexion.execute("""
+        CREATE TABLE IF NOT EXISTS operaciones_compras_insumos (
+            id_operacion TEXT NOT NULL PRIMARY KEY,
+            id_compra_insumo INTEGER NOT NULL UNIQUE REFERENCES compras_insumos,
+            canal TEXT NOT NULL,
+            id_solicitud TEXT,
+            indice_linea INTEGER NOT NULL CHECK(indice_linea >= 0),
+            solicitud_json TEXT NOT NULL,
+            contexto_json TEXT NOT NULL,
+            resultado_json TEXT NOT NULL,
+            fecha_hora TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(canal, id_solicitud, indice_linea)
+        )
+    """)
+
+
 def crear_tablas_costos_postres():
 
     conexion = obtener_conexion()
@@ -1018,6 +1036,7 @@ def crear_tablas_costos_postres():
             ADD COLUMN stock_nuevo REAL
         """)
 
+    crear_esquema_operaciones_insumos(conexion)
     conexion.commit()
     conexion.close()
 

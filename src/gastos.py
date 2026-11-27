@@ -1,5 +1,6 @@
 from datetime import datetime
 import sqlite3
+import math
 
 from database import obtener_conexion
 from pos_contabilidad import corte_contable, fecha_local, validar_fecha_costo, validar_reversion_costo
@@ -27,7 +28,9 @@ def registrar_gasto(
     valor_final,
     fecha=None,
     seccion=None,
-    subseccion=None
+    subseccion=None,
+    *,
+    _conexion=None,
 ):
     """
     Registra un gasto en la base de datos.
@@ -73,7 +76,11 @@ def registrar_gasto(
             "mensaje": "El valor del gasto debe ser un número."
         }
 
-    if valor_final <= 0:
+    try:
+        valido = math.isfinite(valor_final) and valor_final > 0
+    except OverflowError:
+        valido = False
+    if not valido:
         return {
             "ok": False,
             "codigo": "DATOS_INVALIDOS",
@@ -81,10 +88,14 @@ def registrar_gasto(
         }
 
     # Fecha automática
-    conexion = obtener_conexion()
+    propia = _conexion is None
+    conexion = obtener_conexion() if propia else _conexion
+    if not propia and not conexion.in_transaction:
+        raise ValueError("El gasto subordinado requiere una transacción activa.")
 
     try:
-        conexion.execute("BEGIN IMMEDIATE")
+        if propia:
+            conexion.execute("BEGIN IMMEDIATE")
         integrada = corte_contable(conexion) is not None
         fecha = fecha if fecha is not None else (fecha_local() if integrada else datetime.now().date().isoformat())
         rechazo = validar_fecha_costo(fecha) if integrada else None
@@ -124,9 +135,12 @@ def registrar_gasto(
             )
         )
 
+        if cursor.rowcount != 1:
+            raise sqlite3.IntegrityError("No se insertó el gasto completo.")
         id_gasto = cursor.lastrowid
 
-        conexion.commit()
+        if propia:
+            conexion.commit()
 
         return {
             "ok": True,
@@ -152,6 +166,8 @@ def registrar_gasto(
         }
 
     except sqlite3.Error as error:
+        if not propia:
+            raise
         conexion.rollback()
 
         return {
@@ -161,7 +177,8 @@ def registrar_gasto(
         }
 
     finally:
-        conexion.close()
+        if propia:
+            conexion.close()
 
 
 # ============================================================

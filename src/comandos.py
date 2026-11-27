@@ -3518,10 +3518,10 @@ def procesar_bloque(
     respuestas = []
     ok_general = True
 
-    for linea in lineas:
+    for indice, linea in enumerate(lineas, 1):
         resultado = procesar_comando(
             linea,
-            contexto=contexto,
+            contexto={**(contexto or {}), "_indice_linea": indice},
             _desde_bloque=True,
         )
 
