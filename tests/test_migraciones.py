@@ -98,7 +98,8 @@ def test_versiones_no_soportadas_no_escriben(instalada,version):
     "PRAGMA application_id=1", "ALTER TABLE pos_preproduccion RENAME COLUMN instalacion TO identidad",
     "UPDATE pos_preproduccion SET instalacion='00000000-0000-0000-0000-000000000001'",
     'CREATE TABLE saldos_iniciales_caja(id INTEGER)', 'CREATE TABLE candidata_corte(id INTEGER)',
-    'CREATE TABLE desconocida(id INTEGER)', 'DROP TABLE sesiones_pos_contexto',
+    'CREATE TABLE desconocida(id INTEGER)', 'CREATE TABLE sqliteXdesconocida(id INTEGER)',
+    'DROP TABLE sesiones_pos_contexto',
     'DROP TRIGGER seguridad_revocar_cambio_usuario', 'ALTER TABLE productos ADD COLUMN ajena TEXT'])
 def test_identidad_y_esquemas_incompletos_rechazados(instalada,alteracion):
     sql(instalada,alteracion)

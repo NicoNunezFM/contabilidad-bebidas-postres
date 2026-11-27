@@ -25,7 +25,7 @@ def normalizar(sql):
 
 def objetos(db):
     return {nombre:{'tipo':tipo,'tabla':tabla,'sql':normalizar(sql)} for tipo,nombre,tabla,sql in
-            db.execute("SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY name")}
+            db.execute("SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT GLOB 'sqlite_*' ORDER BY name")}
 
 
 def contrato():
