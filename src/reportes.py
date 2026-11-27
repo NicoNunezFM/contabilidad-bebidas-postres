@@ -192,6 +192,20 @@ def resumen_pos_periodo(fecha_desde, fecha_hasta, *, conexion=None):
         return calcular_periodo(db, fecha_desde, fecha_hasta)
 
 
+def rentabilidad_historica_por_periodo(fecha_desde, fecha_hasta, *, conexion=None):
+    """Margen de mercadería y cobertura; no cambia el resultado financiero ni la caja."""
+    from datetime import date
+    from pos_costos_historicos import informe
+
+    desde, hasta = date.fromisoformat(fecha_desde), date.fromisoformat(fecha_hasta)
+    if desde > hasta:
+        raise ValueError('El inicio del período debe preceder al final.')
+    with lectura_contable(conexion) as db:
+        if conexion is None:
+            db.execute('BEGIN')
+        return informe(db, desde.isoformat(), hasta.isoformat())
+
+
 def resumen_por_periodo(fecha_desde, fecha_hasta, *, conexion=None):
     informe = resumen_pos_periodo(fecha_desde, fecha_hasta, conexion=conexion)
     if informe is not None:
@@ -216,6 +230,7 @@ def resumen_por_periodo(fecha_desde, fecha_hasta, *, conexion=None):
             "aportes": aportes, "retiros": retiros,
             "saldo_caja": movimiento_fisico / 100,
             "contabilidad_centavos": informe,
+            "rentabilidad_historica": informe["rentabilidad_historica"],
         }
 
 
@@ -250,7 +265,8 @@ def resumen_por_periodo(fecha_desde, fecha_hasta, *, conexion=None):
         "resultado_negocio": resultado_negocio,
         "aportes": aportes,
         "retiros": retiros,
-        "saldo_caja": saldo_caja
+        "saldo_caja": saldo_caja,
+        "rentabilidad_historica": rentabilidad_historica_por_periodo(fecha_desde, fecha_hasta, conexion=conexion),
     }
 def resumen_semana_actual():
 

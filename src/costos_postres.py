@@ -699,7 +699,7 @@ def _costo_unitario_reciente(
     return costo / cantidad
 
 
-def obtener_receta(producto):
+def obtener_receta(producto, *, _conexion=None):
     consulta = _normalizar(producto)
 
     aliases = {
@@ -716,7 +716,7 @@ def obtener_receta(producto):
         consulta
     )
 
-    conexion = obtener_conexion()
+    conexion = _conexion if _conexion is not None else obtener_conexion()
 
     try:
         recetas = conexion.execute(
@@ -790,13 +790,15 @@ def obtener_receta(producto):
         }
 
     finally:
-        conexion.close()
+        if _conexion is None:
+            conexion.close()
 
 
 def estimar_costo_receta(
     producto,
     cantidad_objetivo,
     compras_a_promediar=3,
+    *, _conexion=None,
 ):
     if (
         isinstance(cantidad_objetivo, bool)
@@ -815,7 +817,7 @@ def estimar_costo_receta(
         }
 
     receta_resultado = obtener_receta(
-        producto
+        producto, _conexion=_conexion
     )
 
     if not receta_resultado["ok"]:
@@ -827,7 +829,7 @@ def estimar_costo_receta(
         / receta["rendimiento"]
     )
 
-    conexion = obtener_conexion()
+    conexion = _conexion if _conexion is not None else obtener_conexion()
 
     try:
         detalle = []
@@ -904,7 +906,8 @@ def estimar_costo_receta(
         }
 
     finally:
-        conexion.close()
+        if _conexion is None:
+            conexion.close()
 
 
 def historial_gastos_postres(

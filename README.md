@@ -44,3 +44,8 @@ identidades y rutas propias. Consultar la matriz antes de utilizar cualquiera.
 La candidata V3 sólo se prepara en un destino nuevo mediante su herramienta offline;
 no tiene comando de activación ni servidor. Las guías históricas documentan etapas
 distintas y no son instrucciones acumulables para actualizar una instalación.
+
+Costos históricos del POS: [inspección y contratos](docs/costos-historicos-pos-inspeccion.md)
+y [modelo, cobertura, transacciones y compatibilidad](docs/costos-historicos-pos.md).
+La propuesta captura costos solo en ventas nuevas, conserva los faltantes como
+desconocidos y mantiene bloqueada la producción.
