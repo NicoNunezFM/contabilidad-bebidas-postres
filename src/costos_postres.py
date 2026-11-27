@@ -1,8 +1,12 @@
 from datetime import datetime
+from contextlib import closing
+import json
+import math
 import re
 import unicodedata
+from uuid import uuid4
 
-from database import obtener_conexion
+from database import crear_esquema_operaciones_insumos, obtener_conexion
 from gastos import registrar_gasto
 
 
@@ -341,14 +345,14 @@ def inicializar_costos_postres():
         conexion.close()
 
 
-def resolver_insumo(nombre):
+def resolver_insumo(nombre, *, _conexion=None):
     consulta = _normalizar(nombre)
     consulta = ALIASES_INSUMOS.get(
         consulta,
         consulta
     )
 
-    conexion = obtener_conexion()
+    conexion = obtener_conexion() if _conexion is None else _conexion
 
     try:
         filas = conexion.execute(
@@ -367,7 +371,8 @@ def resolver_insumo(nombre):
         ).fetchall()
 
     finally:
-        conexion.close()
+        if _conexion is None:
+            conexion.close()
 
     candidatos = []
 
@@ -430,7 +435,7 @@ def convertir_a_base(
     ):
         raise ValueError("Cantidad inválida.")
 
-    if cantidad <= 0:
+    if not math.isfinite(cantidad) or cantidad <= 0:
         raise ValueError("La cantidad debe ser mayor que cero.")
 
     u = _normalizar(unidad)
@@ -481,166 +486,170 @@ def convertir_a_base(
 
 
 def registrar_compra_insumo(
-    nombre_insumo,
-    cantidad,
-    unidad,
-    costo_total,
-    comercio=None,
-    fecha=None,
-    observaciones=None,
+    nombre_insumo, cantidad, unidad, costo_total, comercio=None, fecha=None,
+    observaciones=None, *, id_solicitud=None, contexto=None,
 ):
-    resolucion = resolver_insumo(
-        nombre_insumo
-    )
+    return _comprar_insumo({
+        "tipo": "unidad", "nombre_insumo": nombre_insumo, "cantidad": cantidad,
+        "unidad": unidad, "costo_total": costo_total, "comercio": comercio,
+        "fecha": fecha, "observaciones": observaciones,
+    }, id_solicitud=id_solicitud, contexto=contexto)
 
+
+def _identidad_compra_insumo(contexto, id_solicitud):
+    if contexto is not None and not isinstance(contexto, dict):
+        raise ValueError("El contexto debe ser un objeto.")
+    contexto = contexto or {}
+    origen = {}
+    for campo in ("canal", "id_mensaje", "usuario_id", "usuario_numero", "grupo_id"):
+        valor = contexto.get(campo)
+        if valor is not None and (not isinstance(valor, str) or len(valor) > 512):
+            raise ValueError("Identidad de origen inválida.")
+        origen[campo] = valor.strip() if valor is not None else None
+    canal = origen["canal"] or "insumos"
+    clave = id_solicitud if id_solicitud is not None else origen["id_mensaje"]
+    if clave is not None and (not isinstance(clave, str) or not clave.strip() or len(clave) > 512):
+        raise ValueError("La solicitud debe tener un identificador no vacío.")
+    indice = contexto.get("_indice_linea", 0)
+    if type(indice) is not int or not 0 <= indice <= 10000:
+        raise ValueError("Índice de línea inválido.")
+    origen["canal"] = canal
+    origen["_indice_linea"] = indice
+    return canal, clave.strip() if clave is not None else None, indice, origen
+
+
+def _comprar_insumo(datos, *, id_solicitud, contexto):
+    """Único dueño de la transacción; ni el gasto ni los resolutores confirman."""
+    try:
+        costo = datos["costo_total"]
+        valido = (not isinstance(costo, bool) and isinstance(costo, (int, float))
+                  and math.isfinite(costo) and costo > 0)
+    except (OverflowError, ValueError):
+        valido = False
+    if not valido:
+        return {"ok": False, "codigo": "COSTO_INSUMO_INVALIDO",
+                "mensaje": "El costo debe ser un número finito mayor que cero."}
+    try:
+        canal, clave, indice, origen = _identidad_compra_insumo(contexto, id_solicitud)
+        if datos["comercio"] is not None and not isinstance(datos["comercio"], str):
+            raise ValueError("El comercio debe ser texto.")
+        if datos.get("observaciones") is not None and not isinstance(datos["observaciones"], str):
+            raise ValueError("Las observaciones deben ser texto.")
+        solicitud = json.dumps(datos, sort_keys=True, ensure_ascii=False, allow_nan=False)
+        origen_json = json.dumps(origen, sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError) as error:
+        return {"ok": False, "codigo": "DATOS_COMPRA_INSUMO_INVALIDOS", "mensaje": str(error)}
+
+    with closing(obtener_conexion()) as conexion:
+        try:
+            conexion.execute("BEGIN IMMEDIATE")
+            # DDL compatible para copias ficticias anteriores: revierte junto a la compra.
+            crear_esquema_operaciones_insumos(conexion)
+            if clave is not None:
+                previo = conexion.execute("""
+                    SELECT solicitud_json, contexto_json, resultado_json
+                    FROM operaciones_compras_insumos
+                    WHERE canal=? AND id_solicitud=? AND indice_linea=?
+                """, (canal, clave, indice)).fetchone()
+                if previo is not None:
+                    conexion.rollback()
+                    if previo[:2] != (solicitud, origen_json):
+                        return {"ok": False, "codigo": "SOLICITUD_COMPRA_INSUMO_CONFLICTIVA",
+                                "mensaje": "La solicitud ya corresponde a otros datos u origen."}
+                    return json.loads(previo[2])
+            resultado = _insertar_compra_insumo(conexion, datos)
+            if not resultado["ok"]:
+                conexion.rollback()
+                return resultado
+            resultado["id_operacion"] = str(uuid4())
+            recibo = conexion.execute("""
+                INSERT INTO operaciones_compras_insumos
+                    (id_operacion,id_compra_insumo,canal,id_solicitud,indice_linea,
+                     solicitud_json,contexto_json,resultado_json)
+                VALUES (?,?,?,?,?,?,?,?)
+            """, (resultado["id_operacion"], resultado["id_compra_insumo"], canal, clave,
+                  indice, solicitud, origen_json,
+                  json.dumps(resultado, ensure_ascii=False, allow_nan=False)))
+            if recibo.rowcount != 1:
+                raise ValueError("No se pudo registrar el recibo de la compra.")
+            conexion.commit()
+            return resultado
+        except BaseException:
+            conexion.rollback()
+            raise
+
+
+def _insertar_compra_insumo(conexion, datos):
+    paquetes = datos["tipo"] == "paquetes"
+    if paquetes:
+        cantidad_paquetes = datos["cantidad_paquetes"]
+        if type(cantidad_paquetes) is not int or cantidad_paquetes <= 0:
+            return {"ok": False, "codigo": "CANTIDAD_PAQUETES_INVALIDA",
+                    "mensaje": "La cantidad de paquetes debe ser un entero mayor que cero."}
+        resolucion = resolver_presentacion_insumo(datos["nombre_insumo"], datos["presentacion"],
+                                                 _conexion=conexion)
+    else:
+        resolucion = resolver_insumo(datos["nombre_insumo"], _conexion=conexion)
     if not resolucion["ok"]:
         return resolucion
-
     insumo = resolucion["insumo"]
-
+    observaciones = datos.get("observaciones")
+    cantidad, unidad = datos.get("cantidad"), datos.get("unidad")
+    if paquetes:
+        presentacion = resolucion["presentacion"]
+        cantidad = cantidad_paquetes * presentacion["contenido_base"]
+        unidad = insumo["unidad_base"]
+        observaciones = f"{cantidad_paquetes} paquete(s) x {presentacion['nombre']}"
     try:
-        cantidad_base = convertir_a_base(
-            cantidad,
-            unidad,
-            insumo["unidad_base"],
-        )
-    except ValueError as error:
-        return {
-            "ok": False,
-            "codigo": "UNIDAD_INSUMO_INVALIDA",
-            "mensaje": str(error),
-        }
-
-    if isinstance(costo_total, bool) or not isinstance(
-        costo_total,
-        (int, float)
-    ):
-        return {
-            "ok": False,
-            "codigo": "COSTO_INSUMO_INVALIDO",
-            "mensaje": "El costo debe ser numérico.",
-        }
-
-    if costo_total <= 0:
-        return {
-            "ok": False,
-            "codigo": "COSTO_INSUMO_INVALIDO",
-            "mensaje": "El costo debe ser mayor que cero.",
-        }
-
-    if fecha is None:
-        fecha = datetime.now().strftime(
-            "%Y-%m-%d"
-        )
-
-    descripcion = (
-        f"{insumo['nombre']} "
-        f"{cantidad:g} {unidad}"
-    )
-
-    if comercio:
-        descripcion += f" - {comercio}"
-
+        cantidad_base = convertir_a_base(cantidad, unidad, insumo["unidad_base"])
+        if not math.isfinite(cantidad_base):
+            raise ValueError("Cantidad fuera de rango.")
+    except (ValueError, OverflowError) as error:
+        return {"ok": False, "codigo": "UNIDAD_INSUMO_INVALIDA", "mensaje": str(error)}
+    descripcion = f"{insumo['nombre']} {cantidad:g} {unidad}"
+    if datos["comercio"]:
+        descripcion += f" - {datos['comercio']}"
     if observaciones:
         descripcion += f" ({observaciones})"
-
     gasto = registrar_gasto(
-        categoria="Materia prima",
-        descripcion_gasto=descripcion,
-        valor_final=float(costo_total),
-        fecha=fecha,
-        seccion="bebidas_postres",
-        subseccion="postres",
+        categoria="Materia prima", descripcion_gasto=descripcion,
+        valor_final=float(datos["costo_total"]), fecha=datos["fecha"],
+        seccion="bebidas_postres", subseccion="postres", _conexion=conexion,
     )
-
     if not gasto["ok"]:
         return gasto
-
-    conexion = obtener_conexion()
-
-    try:
-        cursor = conexion.cursor()
-
-        cursor.execute(
-            """
-            INSERT INTO compras_insumos (
-                id_insumo,
-                fecha,
-                cantidad_base,
-                costo_total,
-                comercio,
-                id_gasto,
-                observaciones
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                insumo["id_insumo"],
-                fecha,
-                cantidad_base,
-                float(costo_total),
-                comercio.strip()
-                if isinstance(comercio, str)
-                and comercio.strip()
-                else None,
-                gasto["id_gasto"],
-                observaciones,
-            )
-        )
-
-        id_compra_insumo = cursor.lastrowid
-
-        stock_anterior = float(
-            cursor.execute(
-                """
-                SELECT stock_base
-                FROM insumos
-                WHERE id_insumo = ?
-                """,
-                (insumo["id_insumo"],)
-            ).fetchone()[0] or 0
-        )
-
-        if insumo.get("controla_stock", True):
-            cursor.execute(
-                """
-                UPDATE insumos
-                SET stock_base = stock_base + ?
-                WHERE id_insumo = ?
-                """,
-                (
-                    cantidad_base,
-                    insumo["id_insumo"],
-                )
-            )
-            stock_nuevo = stock_anterior + cantidad_base
-        else:
-            stock_nuevo = stock_anterior
-
-        conexion.commit()
-
-    except Exception:
-        conexion.rollback()
-        raise
-
-    finally:
-        conexion.close()
-
-    return {
-        "ok": True,
-        "codigo": "COMPRA_INSUMO_REGISTRADA",
-        "id_compra_insumo": id_compra_insumo,
-        "id_gasto": gasto["id_gasto"],
-        "insumo": insumo["nombre"],
-        "cantidad_base": cantidad_base,
-        "unidad_base": insumo["unidad_base"],
-        "costo_total": float(costo_total),
-        "comercio": comercio,
-        "fecha": fecha,
-        "controla_stock": insumo.get("controla_stock", True),
-        "stock_anterior": stock_anterior,
-        "stock_nuevo": stock_nuevo,
+    cursor = conexion.execute("""
+        INSERT INTO compras_insumos
+            (id_insumo,fecha,cantidad_base,costo_total,comercio,id_gasto,observaciones)
+        VALUES (?,?,?,?,?,?,?)
+    """, (insumo["id_insumo"], gasto["fecha"], cantidad_base, float(datos["costo_total"]),
+          datos["comercio"].strip() or None if datos["comercio"] is not None else None,
+          gasto["id_gasto"], observaciones))
+    if cursor.rowcount != 1:
+        raise ValueError("No se pudo registrar la compra completa.")
+    numero = cursor.lastrowid
+    anterior = insumo["stock_base"]
+    nuevo = anterior + cantidad_base if insumo["controla_stock"] else anterior
+    if not math.isfinite(nuevo):
+        raise ValueError("Stock fuera de rango.")
+    if insumo["controla_stock"]:
+        cursor = conexion.execute("UPDATE insumos SET stock_base=stock_base+? WHERE id_insumo=?",
+                                  (cantidad_base, insumo["id_insumo"]))
+        if cursor.rowcount != 1:
+            raise ValueError("El insumo cambió durante la compra.")
+    resultado = {
+        "ok": True, "codigo": "COMPRA_INSUMO_REGISTRADA", "id_compra_insumo": numero,
+        "id_gasto": gasto["id_gasto"], "insumo": insumo["nombre"], "cantidad_base": cantidad_base,
+        "unidad_base": insumo["unidad_base"], "costo_total": float(datos["costo_total"]),
+        "comercio": datos["comercio"], "fecha": gasto["fecha"],
+        "controla_stock": insumo["controla_stock"], "stock_anterior": anterior, "stock_nuevo": nuevo,
     }
+    if paquetes:
+        resultado.update(cantidad_paquetes=cantidad_paquetes, presentacion=presentacion["nombre"],
+                         contenido_por_paquete=presentacion["contenido_base"],
+                         cantidad_base_total=cantidad_base,
+                         costo_por_paquete=float(datos["costo_total"]) / cantidad_paquetes)
+    return resultado
 
 
 def _costo_unitario_reciente(
@@ -1381,10 +1390,12 @@ def historial_producciones_postres(
 
 def resolver_presentacion_insumo(
     nombre_insumo,
-    presentacion
+    presentacion,
+    *,
+    _conexion=None,
 ):
     resolucion = resolver_insumo(
-        nombre_insumo
+        nombre_insumo, _conexion=_conexion
     )
 
     if not resolucion["ok"]:
@@ -1426,7 +1437,7 @@ def resolver_presentacion_insumo(
         consulta
     )
 
-    conexion = obtener_conexion()
+    conexion = obtener_conexion() if _conexion is None else _conexion
 
     try:
         filas = conexion.execute(
@@ -1444,7 +1455,8 @@ def resolver_presentacion_insumo(
         ).fetchall()
 
     finally:
-        conexion.close()
+        if _conexion is None:
+            conexion.close()
 
     if contenido_buscado is not None:
         candidatos = [
@@ -1538,75 +1550,14 @@ def resolver_presentacion_insumo(
 
 
 def registrar_compra_insumo_paquetes(
-    nombre_insumo,
-    cantidad_paquetes,
-    presentacion,
-    costo_total,
-    comercio=None,
-    fecha=None,
+    nombre_insumo, cantidad_paquetes, presentacion, costo_total, comercio=None,
+    fecha=None, *, id_solicitud=None, contexto=None,
 ):
-    if (
-        isinstance(cantidad_paquetes, bool)
-        or not isinstance(cantidad_paquetes, int)
-        or cantidad_paquetes <= 0
-    ):
-        return {
-            "ok": False,
-            "codigo": "CANTIDAD_PAQUETES_INVALIDA",
-            "mensaje": (
-                "La cantidad de paquetes debe ser un entero "
-                "mayor que cero."
-            ),
-        }
-
-    resolucion = resolver_presentacion_insumo(
-        nombre_insumo,
-        presentacion,
-    )
-
-    if not resolucion["ok"]:
-        return resolucion
-
-    insumo = resolucion["insumo"]
-    presentacion_resuelta = resolucion["presentacion"]
-
-    cantidad_base_total = (
-        cantidad_paquetes
-        * presentacion_resuelta["contenido_base"]
-    )
-
-    observaciones = (
-        f"{cantidad_paquetes} paquete(s) x "
-        f"{presentacion_resuelta['nombre']}"
-    )
-
-    resultado = registrar_compra_insumo(
-        nombre_insumo=insumo["nombre"],
-        cantidad=cantidad_base_total,
-        unidad=insumo["unidad_base"],
-        costo_total=costo_total,
-        comercio=comercio,
-        fecha=fecha,
-        observaciones=observaciones,
-    )
-
-    if not resultado["ok"]:
-        return resultado
-
-    resultado.update({
-        "cantidad_paquetes": cantidad_paquetes,
-        "presentacion": presentacion_resuelta["nombre"],
-        "contenido_por_paquete": (
-            presentacion_resuelta["contenido_base"]
-        ),
-        "cantidad_base_total": cantidad_base_total,
-        "costo_por_paquete": (
-            float(costo_total)
-            / cantidad_paquetes
-        ),
-    })
-
-    return resultado
+    return _comprar_insumo({
+        "tipo": "paquetes", "nombre_insumo": nombre_insumo,
+        "cantidad_paquetes": cantidad_paquetes, "presentacion": presentacion,
+        "costo_total": costo_total, "comercio": comercio, "fecha": fecha,
+    }, id_solicitud=id_solicitud, contexto=contexto)
 
 
 

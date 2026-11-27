@@ -1129,12 +1129,17 @@ def accion_historial_producciones_postres(datos):
 
 
 def accion_registrar_compra_insumo_paquetes(datos):
+    rechazo = _medio_compra_insumo(datos)
+    if rechazo:
+        return rechazo
     resultado = registrar_compra_insumo_paquetes(
         nombre_insumo=datos.get("insumo"),
         cantidad_paquetes=datos.get("cantidad_paquetes"),
         presentacion=datos.get("presentacion"),
         costo_total=datos.get("costo_total"),
         comercio=datos.get("comercio"),
+        id_solicitud=datos.get("id_solicitud"),
+        contexto=datos.get("contexto"),
     )
 
     if not resultado["ok"]:
@@ -1148,6 +1153,9 @@ def accion_registrar_compra_insumo_paquetes(datos):
 
 
 def accion_registrar_compra_insumo(datos):
+    rechazo = _medio_compra_insumo(datos)
+    if rechazo:
+        return rechazo
     resultado = registrar_compra_insumo(
         nombre_insumo=datos.get("insumo"),
         cantidad=datos.get("cantidad"),
@@ -1155,6 +1163,8 @@ def accion_registrar_compra_insumo(datos):
         costo_total=datos.get("costo_total"),
         comercio=datos.get("comercio"),
         observaciones=datos.get("observaciones"),
+        id_solicitud=datos.get("id_solicitud"),
+        contexto=datos.get("contexto"),
     )
 
     if not resultado["ok"]:
@@ -1165,6 +1175,14 @@ def accion_registrar_compra_insumo(datos):
         "codigo": "ACCION_COMPRA_INSUMO_REGISTRADA",
         "datos": resultado,
     }
+
+
+def _medio_compra_insumo(datos):
+    # Este circuito siempre fue gasto inmediato; no interpretar crédito como pago.
+    if any(campo in datos for campo in ("medio_pago", "cuenta_deuda", "pagador", "pagado_centavos")):
+        return {"ok": False, "codigo": "MEDIO_PAGO_INSUMO_NO_SOPORTADO",
+                "mensaje": "Compras de insumos no admite financiación ni selección de cuenta pagadora."}
+    return None
 
 
 def accion_consultar_receta(datos):
