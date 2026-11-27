@@ -14,7 +14,7 @@ se actualizará con SHA, jobs Linux/Windows/Edge y resultados JUnit antes de ent
   snapshot al reintentar una venta. Se corrigió el código para conservar idempotencia;
   no se relajó esa prueba de recuperación.
 
-## Cambio justificado de una prueba existente
+## Cambios justificados de tres pruebas existentes
 
 `test_pos_simulacion.test_revalida_total_y_revierte_si_falla_el_stock` conserva el
 trigger de fallo, el rechazo de total inválido y todas las comprobaciones de stock,
@@ -22,6 +22,13 @@ ventas y movimientos revertidos. La frontera HTTP ahora convierte la excepción
 SQLite en HTTP 500 genérico: la prueba exige exactamente esa respuesta en lugar de
 que TestClient propague el detalle del driver. No se reduce la cobertura contable
 ni se elimina el caso. Las pruebas internas de rollback siguen exigiendo excepciones.
+
+`test_consultar_adicionales_pos` y `test_consultar_personalizaciones_pos` ahora
+comprueban primero el rechazo sin sesión y después ejecutan todas sus comprobaciones
+originales bajo sesión ficticia de Ventas. Incluyen los mismos precios, ingredientes,
+activos y exclusión de costos internos. Esto valida el catálogo privado corregido;
+no se vuelve a abrirlo para obtener resultados favorables. Se conservan los IDs de
+los 647 casos de referencia.
 
 ## Reproducción aislada
 

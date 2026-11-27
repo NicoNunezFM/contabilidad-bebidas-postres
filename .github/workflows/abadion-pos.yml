@@ -44,12 +44,17 @@ jobs:
         env:
           NEGOCIO_DB_PATH: ${{ runner.temp }}/abadion-ci-ficticio.db
       - run: node --check whatsapp-bot/index.js
+      - name: Conservar las identidades de los 647 casos de referencia
+        if: always()
+        run: python scripts/verificar_referencia_pruebas.py resultados-linux.xml --salida referencia-linux.json
       - name: Publicar resultados de Python y SQLite
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: abadion-resultados-linux
-          path: resultados-linux.xml
+          path: |
+            resultados-linux.xml
+            referencia-linux.json
           if-no-files-found: warn
       - name: Publicar conciliación de jornada ficticia
         if: always()
@@ -116,12 +121,17 @@ jobs:
           }
           $env:POS_UI_CAPTURAS = Join-Path $env:RUNNER_TEMP 'abadion-capturas'
           python -m pytest -q -ra --junitxml=resultados-windows-edge.xml
+      - name: Comprobar los 647 casos y ausencia de omisiones en Windows y Edge
+        if: always()
+        run: python scripts/verificar_referencia_pruebas.py resultados-windows-edge.xml --windows-edge --salida referencia-windows.json
       - name: Publicar resultados completos de Windows y Edge
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: abadion-resultados-windows-edge
-          path: resultados-windows-edge.xml
+          path: |
+            resultados-windows-edge.xml
+            referencia-windows.json
           if-no-files-found: warn
       - name: Publicar conciliación de jornada ficticia
         if: always()

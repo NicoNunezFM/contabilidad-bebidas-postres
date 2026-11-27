@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from api import app
 from database import obtener_conexion
+from pos_auth import crear_sesion_pos
 
 
 def test_consultar_adicionales_pos(base_prueba):
@@ -27,12 +28,17 @@ def test_consultar_adicionales_pos(base_prueba):
             ("cheddar",)
         )
 
+        id_usuario = conexion.execute(
+            "INSERT INTO usuarios_pos(usuario,rol,password_hash) VALUES('lector ficticio','ventas','prueba')"
+        ).lastrowid
         conexion.commit()
 
     finally:
         conexion.close()
 
     cliente = TestClient(app)
+    assert cliente.get('/pos-api/catalogo/adicionales').status_code == 401
+    cliente.cookies.set('abadion_pos_ventas', crear_sesion_pos(id_usuario), path='/pos-api')
 
     respuesta = cliente.get(
         "/pos-api/catalogo/adicionales"
