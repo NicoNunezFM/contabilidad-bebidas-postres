@@ -1,0 +1,1190 @@
+[
+  {
+    "ruta": "/pos-api/login",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Público: Origin exacto y límite temporal de intentos",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 145,
+    "dependencias": []
+  },
+  {
+    "ruta": "/pos-api/yo",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 207,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/pedidos/validar",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 212,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/estado",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Público: capacidades ficticias sin datos personales",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 226,
+    "dependencias": [
+      "evitar_cache_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/caja-diaria",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 282,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/caja-diaria/{caja}/historial",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 289,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/caja-diaria/alertas",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 301,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/caja-diaria/{caja}/historial/{id_jornada}",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 312,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/caja-diaria/{caja}/apertura",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 332,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/caja-diaria/{caja}/arqueo",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 340,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/caja-diaria/{caja}/cierre",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 348,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/caja-diaria/{caja}/movimientos",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 356,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/compras",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 374,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/compras",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 384,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/compras/{id_compra}/{evento}",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 392,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/clientes",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 408,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/clientes",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 413,
+    "dependencias": [
+      "comprobar_origen",
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/clientes/{id_cliente}",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 420,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/clientes/{id_cliente}/abonos/vista-previa",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 425,
+    "dependencias": [
+      "comprobar_origen",
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/clientes/{id_cliente}/abonos",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 431,
+    "dependencias": [
+      "comprobar_origen",
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/clientes/{id_cliente}/abonos/{uuid_abono}/correccion",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 438,
+    "dependencias": [
+      "comprobar_origen",
+      "evitar_cache_pos",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/ventas",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 448,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/pedidos",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 458,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/pedidos/{id_pedido}/cotizacion",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 468,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/pedidos/{id_pedido}/venta",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 476,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/pedidos",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 487,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/pedidos/{id_pedido}/estado",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 500,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/ventas",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 514,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/ventas/{id_venta}/anulacion",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 523,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/ventas/{id_venta}/abonos",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 534,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_simulacion_activa",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/ventas/{id_venta}/devoluciones",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 545,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/ventas/{id_venta}/fondos-reparto/{tipo}",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 556,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/cobros/{id_cobro}/rendiciones",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 575,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/cajas/transferencias",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 590,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/cierres",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 600,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/cierres/{periodo}",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 610,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/cajas",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 617,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/contabilidad",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 622,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/conciliacion",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 637,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/conciliacion-financiera",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 644,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/cajas/movimientos",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 653,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos",
+      "exigir_simulacion_activa"
+    ]
+  },
+  {
+    "ruta": "/pos-api/logout",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Origin exacto; revoca cookie presentada, idempotente sin sesión",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 662,
+    "dependencias": []
+  },
+  {
+    "ruta": "/pos-api/admin/verificar",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 682,
+    "dependencias": [
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/admin/productos/{id_producto}/precio",
+    "metodos": [
+      "PATCH"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 694,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/catalogo/productos",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Público solo con marca ficticia válida; sesión en legado",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 781,
+    "dependencias": [
+      "evitar_cache_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/catalogo/adicionales",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Público solo con marca ficticia válida; sesión en legado",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 822,
+    "dependencias": [
+      "exigir_lectura_catalogo"
+    ]
+  },
+  {
+    "ruta": "/pos-api/catalogo/productos/{id_producto}/personalizaciones",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Público solo con marca ficticia válida; sesión en legado",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 856,
+    "dependencias": [
+      "exigir_lectura_catalogo"
+    ]
+  },
+  {
+    "ruta": "/pos-api/admin/productos/{id_producto}/personalizaciones",
+    "metodos": [
+      "PUT"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 893,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/admin/adicionales/{id_adicional}/precio",
+    "metodos": [
+      "PATCH"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 1032,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/saldo-unificado",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración o Ventas",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 1122,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_usuario_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/saldo-unificado/deudas/{numero}/pago",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 1128,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/saldo-unificado/bebidas/{producto}/validar",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 1136,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/saldo-unificado/pagos/{numero}/reverso",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 1144,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/saldo-unificado/conciliacion",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Administración",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/pos_api.py",
+    "linea": 1152,
+    "dependencias": [
+      "evitar_cache_pos",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/pos-api/simulacion/saldo-unificado/cierres",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Administración",
+    "csrf": "Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict",
+    "archivo": "src/pos_api.py",
+    "linea": 1158,
+    "dependencias": [
+      "comprobar_origen",
+      "exigir_administrador_pos"
+    ]
+  },
+  {
+    "ruta": "/",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Shell público, sin datos comerciales",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 338,
+    "dependencias": []
+  },
+  {
+    "ruta": "/comandos",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer bot o integración; identidad humana pendiente (bot sin cambios)",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 771,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_comandos"
+    ]
+  },
+  {
+    "ruta": "/productos",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 350,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/stock",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 366,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/ventas",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 392,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/ventas/{id_venta}/anular",
+    "metodos": [
+      "PATCH"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 409,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/compras",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 427,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/compras/{id_compra}/anular",
+    "metodos": [
+      "PATCH"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 444,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/gastos",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 462,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/gastos/{id_gasto}/anular",
+    "metodos": [
+      "PATCH"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 481,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/inventario",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 499,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/reportes/hoy",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 516,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/reportes/semana",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 527,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/reportes/mes",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 533,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/caja",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 543,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/caja/secciones/{seccion}",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 549,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/recaudado/{categoria}",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 569,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/caja/aportes",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 592,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/caja/retiros",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 608,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/caja/movimientos/{id_movimiento}/anular",
+    "metodos": [
+      "PATCH"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 624,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/diezmo/{anio}/{mes}",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 642,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/diezmo/reservas",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 654,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/diezmo/entregas",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 682,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/cierres/semanales",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 714,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/cierres/semanales",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 730,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/cierres/mensuales",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 743,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/cierres/mensuales",
+    "metodos": [
+      "GET"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 759,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  },
+  {
+    "ruta": "/acciones",
+    "metodos": [
+      "POST"
+    ],
+    "permiso": "Bearer integración; cookie POS y token bot insuficientes",
+    "csrf": "No aplica (lectura o Bearer explícito)",
+    "archivo": "src/api.py",
+    "linea": 821,
+    "dependencias": [
+      "HTTPBearer",
+      "exigir_integracion"
+    ]
+  }
+]

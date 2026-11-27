@@ -214,6 +214,9 @@ def transaccion_simulacion(*, escritura=False):
             conexion.execute("PRAGMA query_only = ON")
         with conexion:
             conexion.execute("BEGIN IMMEDIATE" if escritura else "BEGIN")
+            if escritura:
+                from pos_seguridad import validar_sesion_en_transaccion
+                validar_sesion_en_transaccion(conexion)
             from pos_saldo_unificado import existe, exigir
             if escritura and existe(conexion):
                 exigir(conexion)

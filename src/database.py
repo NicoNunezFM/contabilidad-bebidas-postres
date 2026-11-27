@@ -1214,6 +1214,10 @@ def crear_tabla_sesiones_pos():
             ON sesiones_pos (id_usuario, revocada)
         """)
 
+        from pos_seguridad import preparar_esquema
+        conexion.execute('BEGIN IMMEDIATE')
+        preparar_esquema(conexion)
+
         conexion.commit()
     finally:
         conexion.close()

@@ -38,6 +38,8 @@ jobs:
       - run: python -m pip install -r requirements-tablet-test.txt
       - name: Verificar inventario y procedencia de la consolidación
         run: python -B scripts/auditar_consolidacion.py --verificar
+      - name: Verificar contratos de autenticación y permisos de endpoints
+        run: python -B scripts/auditar_endpoints.py
       - run: python -m pytest -q -ra --junitxml=resultados-linux.xml
         env:
           NEGOCIO_DB_PATH: ${{ runner.temp }}/abadion-ci-ficticio.db
@@ -58,6 +60,40 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
+  seguridad-python:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pip-audit==2.10.1
+      - name: Avisos de dependencias Python (sin excepciones silenciadas)
+        run: python -m pip_audit -r requirements-tablet-test.txt --format json --output dependencias-python.json --progress-spinner off
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abadion-seguridad-python
+          path: dependencias-python.json
+
+  seguridad-node-inspeccion:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspeccionar lock del bot sin instalarlo ni modificarlo
+        run: python scripts/auditar_dependencias_node.py --salida dependencias-node.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abadion-seguridad-node-pendiente
+          path: dependencias-node.json
   pos-edge:
     runs-on: windows-latest
     env:

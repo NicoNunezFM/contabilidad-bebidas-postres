@@ -1,0 +1,146 @@
+{
+  "fuente": "npm-registry-bulk",
+  "paquetes": 162,
+  "asesorias": {
+    "basic-ftp": [
+      {
+        "id": 1240853,
+        "url": "https://github.com/advisories/GHSA-c475-qrg2-pj4r",
+        "title": "basic-ftp: Quadratic-time CPU denial of service in Client.list() Unix directory-listing parser (RE_LINE backtracking)",
+        "severity": "high",
+        "vulnerable_versions": "<=6.2.0",
+        "cwe": [
+          "CWE-1333"
+        ],
+        "cvss": {
+          "score": 0,
+          "vectorString": null
+        }
+      },
+      {
+        "id": 1246355,
+        "url": "https://github.com/advisories/GHSA-5pm8-86m8-9m6r",
+        "title": "basic-ftp: Uncaught TypeError in MLSD directory-listing parser via __proto__ fact name causes DoS in Client.list()",
+        "severity": "moderate",
+        "vulnerable_versions": "<=6.2.3",
+        "cwe": [
+          "CWE-248",
+          "CWE-1321"
+        ],
+        "cvss": {
+          "score": 5.3,
+          "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+        }
+      },
+      {
+        "id": 1246367,
+        "url": "https://github.com/advisories/GHSA-r4jh-29pc-gfqr",
+        "title": "basic-ftp: Uncaught exception crashes the Node.js process when a password (or resumed-download path) contains CR/LF",
+        "severity": "moderate",
+        "vulnerable_versions": "<=6.2.2",
+        "cwe": [
+          "CWE-248",
+          "CWE-755"
+        ],
+        "cvss": {
+          "score": 5.9,
+          "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+        }
+      }
+    ],
+    "extract-zip": [
+      {
+        "id": 1139346,
+        "url": "https://github.com/advisories/GHSA-jmr9-qjv8-65gv",
+        "title": "extract-zip unvalidated symlink path traversal",
+        "severity": "high",
+        "vulnerable_versions": "<=2.0.1",
+        "cwe": [
+          "CWE-22"
+        ],
+        "cvss": {
+          "score": 8.1,
+          "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+        }
+      },
+      {
+        "id": 1193685,
+        "url": "https://github.com/advisories/GHSA-7pqw-9j4j-h8q3",
+        "title": "extract-zip allows arbitrary file writes through symlink archive entries",
+        "severity": "high",
+        "vulnerable_versions": "<=2.0.1",
+        "cwe": [
+          "CWE-22"
+        ],
+        "cvss": {
+          "score": 8.1,
+          "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:H"
+        }
+      }
+    ],
+    "glob": [
+      {
+        "id": 1244013,
+        "url": "https://github.com/advisories/GHSA-3g3m-2fjr-6pw4",
+        "title": "Glob: AbortSignal cancellation bypass allows post-timeout filesystem traversal",
+        "severity": "moderate",
+        "vulnerable_versions": ">=9.0.0 <=14.0.1",
+        "cwe": [
+          "CWE-400"
+        ],
+        "cvss": {
+          "score": 0,
+          "vectorString": null
+        }
+      }
+    ],
+    "ip-address": [
+      {
+        "id": 1242883,
+        "url": "https://github.com/advisories/GHSA-rxp7-6hxx-x8q5",
+        "title": "ip-address: Address6 matches a zone identifier in quadratic time ahead of its length limit, allowing a single long string to stall the process",
+        "severity": "moderate",
+        "vulnerable_versions": "<=10.7.3",
+        "cwe": [
+          "CWE-1333"
+        ],
+        "cvss": {
+          "score": 0,
+          "vectorString": null
+        }
+      }
+    ],
+    "minimatch": [
+      {
+        "id": 1244623,
+        "url": "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+        "title": "minimatch has potential denial of service via globparts amplification",
+        "severity": "moderate",
+        "vulnerable_versions": ">=7.0.0 <11.0.1",
+        "cwe": [
+          "CWE-405"
+        ],
+        "cvss": {
+          "score": 0,
+          "vectorString": null
+        }
+      }
+    ],
+    "zod": [
+      {
+        "id": 1243066,
+        "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
+        "title": "Zod can exhaust memory while validating oversized constrained collections",
+        "severity": "high",
+        "vulnerable_versions": "<4.6.6",
+        "cwe": [
+          "CWE-770"
+        ],
+        "cvss": {
+          "score": 7.5,
+          "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+        }
+      }
+    ]
+  }
+}

@@ -11,11 +11,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Requ
 from pydantic import BaseModel, Field
 
 from pos_auth import (
-    autenticar_usuario,
-    crear_sesion_pos,
+    autenticar_y_crear_sesion,
     obtener_usuario_sesion_pos,
     revocar_sesion_pos,
 )
+from pos_seguridad import RutaPosSegura, fijar_identidad, limitar_login, validar_sesion_en_transaccion
 
 from database import RUTA_ENTRENAMIENTO, obtener_conexion
 from pos_entrenamiento_db import clientes_activos, consultar_catalogo_entrenamiento
@@ -61,7 +61,7 @@ from pos_simulacion import (
     transaccion_simulacion,
 )
 
-router = APIRouter(prefix="/pos-api", tags=["POS - Sesiones"])
+router = APIRouter(prefix="/pos-api", tags=["POS - Sesiones"], route_class=RutaPosSegura)
 
 COOKIE_ADMIN = "abadion_pos_admin"
 COOKIE_VENTAS = "abadion_pos_ventas"
@@ -99,10 +99,11 @@ class PersonalizacionesEntrada(BaseModel):
 
 
 def comprobar_origen(request: Request):
-    origen = request.headers.get("origin")
+    origenes = request.headers.getlist("origin")
     esperado = f"{request.url.scheme}://{request.url.netloc}"
 
-    if origen != esperado:
+    if (len(request.headers.getlist('host')) != 1 or origenes != [esperado]
+            or request.headers.get('sec-fetch-site') == 'cross-site'):
         raise HTTPException(
             status_code=403,
             detail="Origen no permitido."
@@ -121,6 +122,7 @@ def exigir_administrador_pos(request: Request) -> dict:
         usuario = obtener_usuario_sesion_pos(token_admin)
 
         if usuario is not None and usuario["rol"] == "admin":
+            fijar_identidad(request,token_admin,usuario)
             return usuario
 
     token_ventas = request.cookies.get(cookie_ventas)
@@ -147,19 +149,19 @@ def iniciar_sesion(
     response: Response,
 ):
     comprobar_origen(request)
-
-    usuario = autenticar_usuario(
+    limitar_login(request)
+    autenticacion = autenticar_y_crear_sesion(
         datos.usuario,
         datos.contrasena
     )
 
-    if usuario is None:
+    if autenticacion is None:
         raise HTTPException(
             status_code=401,
             detail="Usuario o contraseña incorrectos."
         )
 
-    token = crear_sesion_pos(usuario["id_usuario"])
+    usuario, token = autenticacion
 
     es_admin = usuario["rol"] == "admin"
     cookie_admin, cookie_ventas = cookies_pos(request)
@@ -193,6 +195,7 @@ def exigir_usuario_pos(request: Request):
         usuario = obtener_usuario_sesion_pos(token)
 
         if usuario is not None and usuario["rol"] == rol:
+            fijar_identidad(request,token,usuario)
             return usuario
 
     raise HTTPException(
@@ -273,7 +276,7 @@ class MovimientoCajaEntrada(JornadaCajaEntrada, ReversionEntrada):
     importe_centavos: Centavos
 
 
-diario = APIRouter(prefix="/simulacion/caja-diaria", dependencies=[Depends(exigir_simulacion_activa)])
+diario = APIRouter(prefix="/simulacion/caja-diaria", dependencies=[Depends(exigir_simulacion_activa)], route_class=RutaPosSegura)
 
 
 @diario.get("", dependencies=[Depends(evitar_cache_pos)])
@@ -365,7 +368,7 @@ router.include_router(diario)
 
 compras_caja = APIRouter(prefix="/simulacion/compras", dependencies=[
     Depends(exigir_simulacion_activa),
-])
+], route_class=RutaPosSegura)
 
 
 @compras_caja.get("", dependencies=[Depends(evitar_cache_pos)])
@@ -399,7 +402,7 @@ router.include_router(compras_caja)
 
 
 clientes = APIRouter(prefix="/simulacion/clientes", dependencies=[Depends(exigir_simulacion_activa),
-                                                                 Depends(evitar_cache_pos)])
+                                                                 Depends(evitar_cache_pos)], route_class=RutaPosSegura)
 
 
 @clientes.get("")
@@ -688,7 +691,7 @@ def verificar_acceso_administrador(
     }
 
 
-@router.patch("/admin/productos/{id_producto}/precio")
+@router.patch("/admin/productos/{id_producto}/precio", dependencies=[Depends(comprobar_origen)])
 def actualizar_precio_producto_pos(
     id_producto: int,
     datos: PrecioNuevoEntrada,
@@ -701,6 +704,7 @@ def actualizar_precio_producto_pos(
 
     try:
         conexion.execute("BEGIN IMMEDIATE")
+        validar_sesion_en_transaccion(conexion)
 
         producto = conexion.execute(
             """
@@ -805,7 +809,17 @@ def consultar_productos_pos(request: Request):
     return {"ok": True, "productos": productos}
 
 
-@router.get("/catalogo/adicionales")
+def exigir_lectura_catalogo(request: Request):
+    try:
+        with transaccion_simulacion():
+            return
+    except HTTPException as error:
+        if error.status_code!=404:
+            raise
+    exigir_usuario_pos(request)
+
+
+@router.get("/catalogo/adicionales", dependencies=[Depends(exigir_lectura_catalogo)])
 def consultar_adicionales_pos():
     conexion = obtener_conexion()
 
@@ -839,7 +853,7 @@ def consultar_adicionales_pos():
         conexion.close()
 
 
-@router.get("/catalogo/productos/{id_producto}/personalizaciones")
+@router.get("/catalogo/productos/{id_producto}/personalizaciones", dependencies=[Depends(exigir_lectura_catalogo)])
 def consultar_personalizaciones_pos(id_producto: int):
     conexion = obtener_conexion()
 
@@ -876,7 +890,7 @@ def consultar_personalizaciones_pos(id_producto: int):
         conexion.close()
 
 
-@router.put("/admin/productos/{id_producto}/personalizaciones")
+@router.put("/admin/productos/{id_producto}/personalizaciones", dependencies=[Depends(comprobar_origen)])
 def configurar_personalizaciones_pos(
     id_producto: int,
     datos: PersonalizacionesEntrada,
@@ -921,6 +935,7 @@ def configurar_personalizaciones_pos(
 
     try:
         conexion.execute("BEGIN IMMEDIATE")
+        validar_sesion_en_transaccion(conexion)
 
         producto = conexion.execute(
             """
@@ -1014,7 +1029,7 @@ def configurar_personalizaciones_pos(
         conexion.close()
 
 
-@router.patch("/admin/adicionales/{id_adicional}/precio")
+@router.patch("/admin/adicionales/{id_adicional}/precio", dependencies=[Depends(comprobar_origen)])
 def actualizar_precio_adicional_pos(
     id_adicional: int,
     datos: PrecioAdicionalEntrada,
@@ -1027,6 +1042,7 @@ def actualizar_precio_adicional_pos(
 
     try:
         conexion.execute("BEGIN IMMEDIATE")
+        validar_sesion_en_transaccion(conexion)
 
         adicional = conexion.execute(
             """

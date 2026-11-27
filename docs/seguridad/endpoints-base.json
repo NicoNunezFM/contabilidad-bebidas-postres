@@ -1,0 +1,1103 @@
+{
+  "base": "3c5b5ae53b4a1d660314923f48b6f96349171a0e",
+  "endpoints": [
+    {
+      "ruta": "/pos-api/login",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "iniciar_sesion",
+      "archivo": "src\\pos_api.py",
+      "linea": 143,
+      "dependencias": []
+    },
+    {
+      "ruta": "/pos-api/yo",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "usuario_actual",
+      "archivo": "src\\pos_api.py",
+      "linea": 204,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/pedidos/validar",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "validar_pedido_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 209,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/estado",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "estado_simulacion_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 223,
+      "dependencias": [
+        "evitar_cache_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/caja-diaria",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_caja_diaria",
+      "archivo": "src\\pos_api.py",
+      "linea": 279,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/caja-diaria/{caja}/historial",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_historial_caja_diaria",
+      "archivo": "src\\pos_api.py",
+      "linea": 286,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/caja-diaria/alertas",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_alertas_diarias",
+      "archivo": "src\\pos_api.py",
+      "linea": 298,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/caja-diaria/{caja}/historial/{id_jornada}",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_eventos_caja_diaria",
+      "archivo": "src\\pos_api.py",
+      "linea": 309,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/caja-diaria/{caja}/apertura",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "abrir_caja_diaria",
+      "archivo": "src\\pos_api.py",
+      "linea": 329,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/caja-diaria/{caja}/arqueo",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "arquear_caja_diaria",
+      "archivo": "src\\pos_api.py",
+      "linea": 337,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/caja-diaria/{caja}/cierre",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "cerrar_caja_diaria",
+      "archivo": "src\\pos_api.py",
+      "linea": 345,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/caja-diaria/{caja}/movimientos",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "mover_caja_diaria",
+      "archivo": "src\\pos_api.py",
+      "linea": 353,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/compras",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_compras_caja",
+      "archivo": "src\\pos_api.py",
+      "linea": 371,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/compras",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "crear_compra_caja",
+      "archivo": "src\\pos_api.py",
+      "linea": 381,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/compras/{id_compra}/{evento}",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "revertir_compra_caja",
+      "archivo": "src\\pos_api.py",
+      "linea": 389,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/clientes",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "listar_clientes",
+      "archivo": "src\\pos_api.py",
+      "linea": 405,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/clientes",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "crear_cliente",
+      "archivo": "src\\pos_api.py",
+      "linea": 410,
+      "dependencias": [
+        "comprobar_origen",
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/clientes/{id_cliente}",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "ver_cliente",
+      "archivo": "src\\pos_api.py",
+      "linea": 417,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/clientes/{id_cliente}/abonos/vista-previa",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "vista_previa_abono",
+      "archivo": "src\\pos_api.py",
+      "linea": 422,
+      "dependencias": [
+        "comprobar_origen",
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/clientes/{id_cliente}/abonos",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_abono_cliente",
+      "archivo": "src\\pos_api.py",
+      "linea": 428,
+      "dependencias": [
+        "comprobar_origen",
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/clientes/{id_cliente}/abonos/{uuid_abono}/correccion",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "corregir_abono_cliente",
+      "archivo": "src\\pos_api.py",
+      "linea": 435,
+      "dependencias": [
+        "comprobar_origen",
+        "evitar_cache_pos",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/ventas",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "simular_venta_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 445,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/pedidos",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "guardar_pedido_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 455,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/pedidos/{id_pedido}/cotizacion",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "cotizar_pedido_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 465,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/pedidos/{id_pedido}/venta",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "convertir_pedido_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 473,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/pedidos",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "listar_pedidos_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 484,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/pedidos/{id_pedido}/estado",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "cambiar_pedido_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 497,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/ventas",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_historial_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 511,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/ventas/{id_venta}/anulacion",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "anular_venta_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 520,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/ventas/{id_venta}/abonos",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "abonar_venta_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 531,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_simulacion_activa",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/ventas/{id_venta}/devoluciones",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "devolver_venta_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 542,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/ventas/{id_venta}/fondos-reparto/{tipo}",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "operar_fondo_reparto_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 553,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/cobros/{id_cobro}/rendiciones",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "rendir_efectivo_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 572,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/cajas/transferencias",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "transferir_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 587,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/cierres",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "cerrar_periodo_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 597,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/cierres/{periodo}",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_cierre_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 607,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/cajas",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_cajas_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 614,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/contabilidad",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "contabilidad_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 619,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/conciliacion",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "conciliacion_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 634,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/conciliacion-financiera",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_contrato_financiero",
+      "archivo": "src\\pos_api.py",
+      "linea": 641,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/cajas/movimientos",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_movimientos_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 650,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos",
+        "exigir_simulacion_activa"
+      ]
+    },
+    {
+      "ruta": "/pos-api/logout",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "cerrar_sesion",
+      "archivo": "src\\pos_api.py",
+      "linea": 659,
+      "dependencias": []
+    },
+    {
+      "ruta": "/pos-api/admin/verificar",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "verificar_acceso_administrador",
+      "archivo": "src\\pos_api.py",
+      "linea": 679,
+      "dependencias": [
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/admin/productos/{id_producto}/precio",
+      "metodos": [
+        "PATCH"
+      ],
+      "funcion": "actualizar_precio_producto_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 691,
+      "dependencias": [
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/catalogo/productos",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_productos_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 777,
+      "dependencias": [
+        "evitar_cache_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/catalogo/adicionales",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_adicionales_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 808,
+      "dependencias": []
+    },
+    {
+      "ruta": "/pos-api/catalogo/productos/{id_producto}/personalizaciones",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_personalizaciones_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 842,
+      "dependencias": []
+    },
+    {
+      "ruta": "/pos-api/admin/productos/{id_producto}/personalizaciones",
+      "metodos": [
+        "PUT"
+      ],
+      "funcion": "configurar_personalizaciones_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 879,
+      "dependencias": [
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/admin/adicionales/{id_adicional}/precio",
+      "metodos": [
+        "PATCH"
+      ],
+      "funcion": "actualizar_precio_adicional_pos",
+      "archivo": "src\\pos_api.py",
+      "linea": 1017,
+      "dependencias": [
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/saldo-unificado",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_saldo_unificado",
+      "archivo": "src\\pos_api.py",
+      "linea": 1106,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_usuario_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/saldo-unificado/deudas/{numero}/pago",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "pagar_deuda_apertura",
+      "archivo": "src\\pos_api.py",
+      "linea": 1112,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/saldo-unificado/bebidas/{producto}/validar",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "validar_stock_bebida",
+      "archivo": "src\\pos_api.py",
+      "linea": 1120,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/saldo-unificado/pagos/{numero}/reverso",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "reversar_pago_apertura",
+      "archivo": "src\\pos_api.py",
+      "linea": 1128,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/saldo-unificado/conciliacion",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_conciliacion_unificada",
+      "archivo": "src\\pos_api.py",
+      "linea": 1136,
+      "dependencias": [
+        "evitar_cache_pos",
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/pos-api/simulacion/saldo-unificado/cierres",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "cierre_saldo_unificado",
+      "archivo": "src\\pos_api.py",
+      "linea": 1142,
+      "dependencias": [
+        "comprobar_origen",
+        "exigir_administrador_pos"
+      ]
+    },
+    {
+      "ruta": "/",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "inicio",
+      "archivo": "src\\api.py",
+      "linea": 318,
+      "dependencias": []
+    },
+    {
+      "ruta": "/comandos",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "procesar_comando_api",
+      "archivo": "src\\api.py",
+      "linea": 751,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_comandos"
+      ]
+    },
+    {
+      "ruta": "/productos",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "listar_productos_api",
+      "archivo": "src\\api.py",
+      "linea": 330,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/stock",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_stock_api",
+      "archivo": "src\\api.py",
+      "linea": 346,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/ventas",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_venta_api",
+      "archivo": "src\\api.py",
+      "linea": 372,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/ventas/{id_venta}/anular",
+      "metodos": [
+        "PATCH"
+      ],
+      "funcion": "anular_venta_api",
+      "archivo": "src\\api.py",
+      "linea": 389,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/compras",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_compra_api",
+      "archivo": "src\\api.py",
+      "linea": 407,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/compras/{id_compra}/anular",
+      "metodos": [
+        "PATCH"
+      ],
+      "funcion": "anular_compra_api",
+      "archivo": "src\\api.py",
+      "linea": 424,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/gastos",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_gasto_api",
+      "archivo": "src\\api.py",
+      "linea": 442,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/gastos/{id_gasto}/anular",
+      "metodos": [
+        "PATCH"
+      ],
+      "funcion": "anular_gasto_api",
+      "archivo": "src\\api.py",
+      "linea": 461,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/inventario",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_inventario_api",
+      "archivo": "src\\api.py",
+      "linea": 479,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/reportes/hoy",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "reporte_hoy_api",
+      "archivo": "src\\api.py",
+      "linea": 496,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/reportes/semana",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "reporte_semana_api",
+      "archivo": "src\\api.py",
+      "linea": 507,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/reportes/mes",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "reporte_mes_api",
+      "archivo": "src\\api.py",
+      "linea": 513,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/caja",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_caja_api",
+      "archivo": "src\\api.py",
+      "linea": 523,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/caja/secciones/{seccion}",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_caja_seccion_api",
+      "archivo": "src\\api.py",
+      "linea": 529,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/recaudado/{categoria}",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_recaudado_categoria_api",
+      "archivo": "src\\api.py",
+      "linea": 549,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/caja/aportes",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_aporte_api",
+      "archivo": "src\\api.py",
+      "linea": 572,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/caja/retiros",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_retiro_api",
+      "archivo": "src\\api.py",
+      "linea": 588,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/caja/movimientos/{id_movimiento}/anular",
+      "metodos": [
+        "PATCH"
+      ],
+      "funcion": "anular_movimiento_caja_api",
+      "archivo": "src\\api.py",
+      "linea": 604,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/diezmo/{anio}/{mes}",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "consultar_diezmo_api",
+      "archivo": "src\\api.py",
+      "linea": 622,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/diezmo/reservas",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_reserva_diezmo_api",
+      "archivo": "src\\api.py",
+      "linea": 634,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/diezmo/entregas",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_entrega_diezmo_api",
+      "archivo": "src\\api.py",
+      "linea": 662,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/cierres/semanales",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_cierre_semanal_api",
+      "archivo": "src\\api.py",
+      "linea": 694,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/cierres/semanales",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "obtener_cierres_semanales_api",
+      "archivo": "src\\api.py",
+      "linea": 710,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/cierres/mensuales",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "registrar_cierre_mensual_api",
+      "archivo": "src\\api.py",
+      "linea": 723,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/cierres/mensuales",
+      "metodos": [
+        "GET"
+      ],
+      "funcion": "obtener_cierres_mensuales_api",
+      "archivo": "src\\api.py",
+      "linea": 739,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    },
+    {
+      "ruta": "/acciones",
+      "metodos": [
+        "POST"
+      ],
+      "funcion": "ejecutar_accion_api",
+      "archivo": "src\\api.py",
+      "linea": 801,
+      "dependencias": [
+        "<fastapi.security.http.HTTPBearer object at 0x00000247E5877D40>",
+        "exigir_integracion"
+      ]
+    }
+  ]
+}
