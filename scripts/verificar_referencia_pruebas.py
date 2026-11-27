@@ -1,4 +1,4 @@
-"""Compara identidades JUnit con los 647 casos de #41; no toca DB ni servidores."""
+"""Compara identidades JUnit con los 692 casos de #42; no toca DB ni servidores."""
 import argparse
 import json
 from pathlib import Path
@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 def comparar(archivo, *, windows=False):
     raiz=Path(__file__).resolve().parents[1]
-    referencia=json.loads((raiz/'docs/seguridad/casos-referencia-647.json').read_text(encoding='utf-8'))
+    referencia=json.loads((raiz/'docs/migraciones/casos-referencia-692.json').read_text(encoding='utf-8'))
     esperados=set(referencia['casos'])
     casos=list(ET.parse(archivo).iter('testcase'))
     actuales={c.get('classname')+'::'+c.get('name'):c for c in casos}
@@ -18,7 +18,7 @@ def comparar(archivo, *, windows=False):
                'casos_actuales':len(casos),'nuevos':len(actuales.keys()-esperados),
                'faltantes':faltantes,'fallidos':fallidos,'omitidos':omitidos,
                'duplicados':len(casos)-len(actuales),'windows_edge':windows}
-    resultado['conforme']=(len(esperados)==647 and not faltantes and not fallidos
+    resultado['conforme']=(len(esperados)==692 and not faltantes and not fallidos
                            and not resultado['duplicados'] and (not windows or not omitidos))
     return resultado
 

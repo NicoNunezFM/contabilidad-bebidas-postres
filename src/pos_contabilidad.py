@@ -32,11 +32,16 @@ def etapa_contable_activa(db):
     ):
         return False
 
+    from migraciones import verificar_version
+    try:
+        verificar_version(db, VERSION_ESQUEMA_SIMULACION)
+    except ValueError:
+        return False
+
     return (
         (entrenamiento or bool(os.getenv("NEGOCIO_DB_PATH")))
         and obtener_ruta_base().resolve().name.casefold() != "negocio.db"
         and db.execute("PRAGMA application_id").fetchone()[0] == ID_SQLITE_SIMULACION
-        and db.execute("PRAGMA user_version").fetchone()[0] == VERSION_ESQUEMA_SIMULACION
         and corte_contable(db) is not None
     )
 

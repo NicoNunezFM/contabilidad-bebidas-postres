@@ -208,7 +208,10 @@ def transaccion_simulacion(*, escritura=False):
     try:
         if conexion.execute("PRAGMA application_id").fetchone()[0] != ID_SQLITE_SIMULACION:
             raise HTTPException(404, "Simulación POS deshabilitada.")
-        if conexion.execute("PRAGMA user_version").fetchone()[0] != VERSION_ESQUEMA_SIMULACION:
+        from migraciones import verificar_version
+        try:
+            verificar_version(conexion, VERSION_ESQUEMA_SIMULACION)
+        except ValueError:
             raise HTTPException(409, "Prepará una base nueva para esta versión de la simulación POS.")
         if not escritura:
             conexion.execute("PRAGMA query_only = ON")
