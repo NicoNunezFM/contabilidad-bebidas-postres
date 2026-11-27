@@ -157,8 +157,9 @@ def test_revalida_total_y_revierte_si_falla_el_stock(venta_prueba):
             """)
     finally:
         conexion.close()
-    with pytest.raises(sqlite3.IntegrityError):
-        cliente.post(VENTAS, headers=ORIGEN, json=venta)
+    respuesta = cliente.post(VENTAS, headers=ORIGEN, json=venta)
+    assert respuesta.status_code == 500
+    assert respuesta.json() == {"detail": "No se pudo completar la operación."}
     assert _estado() == (10, 0, 0, 0)
 
 

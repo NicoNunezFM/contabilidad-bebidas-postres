@@ -1,0 +1,12 @@
+{
+  "referencia": "3c5b5ae53b4a1d660314923f48b6f96349171a0e",
+  "casos_referencia": 647,
+  "casos_actuales": 692,
+  "nuevos": 45,
+  "faltantes": [],
+  "fallidos": [],
+  "omitidos": [],
+  "duplicados": 0,
+  "windows_edge": true,
+  "conforme": true
+}

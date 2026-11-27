@@ -260,6 +260,8 @@ def restaurar(carpeta, nombre, *, base_ausente=False):
             verificar(fuente, identidad, modo)
             integridad(fuente)
             fuente.backup(copia)
+            if copia.execute("SELECT 1 FROM sqlite_schema WHERE name='sesiones_pos_contexto'").fetchone():
+                copia.execute("DELETE FROM sesiones_pos_contexto")
             copia.execute("DELETE FROM sesiones_pos")
             copia.commit()
             integridad(copia)

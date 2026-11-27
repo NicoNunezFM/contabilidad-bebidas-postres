@@ -90,6 +90,7 @@ def ensayar_apertura(db, datos, usuario):
         if db.execute('SELECT 1 FROM pos_apertura_ensayo').fetchone():
             raise HTTPException(409, 'La apertura ya fue registrada.')
         configuracion = {'productos', 'adicionales_catalogo', 'usuarios_pos', 'sesiones_pos',
+                         'sesiones_pos_contexto', 'eventos_seguridad_pos',
                          'pos_catalogo_entrenamiento', 'pos_adicionales_producto',
                          'pos_inicio_caja_diaria', 'pos_inicio_contable', 'pos_preproduccion',
                          'pos_puente_ficticio', 'pos_saldos_iniciales', 'pos_stock_progresivo'}

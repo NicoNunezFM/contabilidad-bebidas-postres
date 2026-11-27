@@ -2,6 +2,9 @@ import os
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+import sqlite3
+from pos_seguridad import errores_validacion_seguros
 from pydantic import BaseModel, Field
 
 from acciones import ejecutar_accion
@@ -81,6 +84,18 @@ app = FastAPI(
     title="Lo de Clau API",
     version="1.0.0"
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validacion_sin_datos_sensibles(request, error):
+    return JSONResponse({'detail': errores_validacion_seguros(error)}, status_code=422,
+                        headers={'Cache-Control': 'no-store'})
+
+
+@app.exception_handler(sqlite3.Error)
+async def error_sqlite_seguro(request, error):
+    return JSONResponse({'detail': 'No se pudo completar la operación.'}, status_code=500,
+                        headers={'Cache-Control': 'no-store'})
 
 app.include_router(pos_router)
 contabilidad = APIRouter(dependencies=[Depends(exigir_integracion)])
@@ -180,6 +195,11 @@ def responder_resultado(
         )
 
     codigo = resultado.get("codigo")
+
+    if codigo == 'ERROR_BASE_DATOS':
+        # Los módulos legados pueden incluir el texto del driver. Nunca publicarlo.
+        resultado = {'ok': False, 'codigo': codigo,
+                     'mensaje': 'No se pudo completar la operación.'}
 
     status_code = CODIGOS_HTTP.get(
         codigo,
@@ -297,18 +317,9 @@ def preparar_base_de_datos():
 
     if resultado_backup.get("ok"):
         if resultado_backup.get("creado"):
-            print(
-                "Backup diario creado:",
-                resultado_backup["ruta"]
-            )
+            print("Backup diario creado.")
     else:
-        print(
-            "ADVERTENCIA: no se pudo crear el backup diario:",
-            resultado_backup.get(
-                "mensaje",
-                resultado_backup.get("codigo")
-            )
-        )
+        print("ADVERTENCIA: no se pudo crear el backup diario. Revisá el respaldo local.")
 
 
 # ============================================================

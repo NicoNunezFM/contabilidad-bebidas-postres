@@ -1,0 +1,42 @@
+{
+  "codigo_validado": "b04100ec1311cf0f39d1b29857f7122d72b505dc",
+  "base": "3c5b5ae53b4a1d660314923f48b6f96349171a0e",
+  "datos": "exclusivamente ficticios",
+  "produccion_habilitada": false,
+  "referencia_conservada": 647,
+  "casos_nuevos": 45,
+  "linux_ci": {
+    "tests": "692",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "38",
+    "time": "226.138",
+    "aprobados": 654
+  },
+  "windows_edge_local": {
+    "tests": "692",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "867.711",
+    "aprobados": 692
+  },
+  "windows_edge_ci": {
+    "estado": "in_progress",
+    "conclusion": null,
+    "job": 140735288071,
+    "observado_utc": "2026-11-27T21:29:14Z",
+    "resultado_validado": false,
+    "limitacion": "Ejecución activa, logs no disponibles en curso; no se cuenta como aprobada."
+  },
+  "ci_run": 46067197677,
+  "python_avisos_conocidos": 0,
+  "node_paquetes_con_avisos": 6,
+  "node_avisos": 9,
+  "bot_tree_base_y_candidata": "6ff5ed6a8815995b02994ead13e6aacf2cf807ea",
+  "sha256": {
+    ".audit-artifacts/resultados-linux.xml": "54eaee95957155effe9d13096a843cf7d259e5920b3d3e5e937f4426fbff8e28",
+    ".audit-artifacts/windows-final-692.xml": "4a0f646937743e6f38c6b728ca3d8e218bca2f1c11d23a18d1a3ca984bb2aa7d",
+    "docs/seguridad/junit-windows-local.xml": "50dc094132a23ce21144f7bed06b3fef327afe00f5a6798b13ec43ca0fccd880"
+  }
+}

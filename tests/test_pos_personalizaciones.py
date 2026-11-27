@@ -3,7 +3,7 @@ from database import obtener_conexion
 
 from fastapi.testclient import TestClient
 from api import app
-from pos_auth import generar_hash
+from pos_auth import generar_hash, crear_sesion_pos
 
 
 def test_consultar_personalizaciones_pos(producto_prueba):
@@ -59,6 +59,9 @@ def test_consultar_personalizaciones_pos(producto_prueba):
                 (producto_prueba, ids[nombre])
             )
 
+        id_usuario = conexion.execute(
+            "INSERT INTO usuarios_pos(usuario,rol,password_hash) VALUES('lector ficticio','ventas','prueba')"
+        ).lastrowid
         conexion.commit()
 
     finally:
@@ -70,6 +73,8 @@ def test_consultar_personalizaciones_pos(producto_prueba):
         f"/pos-api/catalogo/productos/"
         f"{producto_prueba}/personalizaciones"
     )
+    assert cliente.get(ruta).status_code == 401
+    cliente.cookies.set('abadion_pos_ventas', crear_sesion_pos(id_usuario), path='/pos-api')
 
     respuesta = cliente.get(ruta)
 
