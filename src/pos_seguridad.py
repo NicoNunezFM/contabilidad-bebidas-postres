@@ -136,18 +136,18 @@ def auditar_http(request,estado):
         sensible=False
     if not sensible and estado not in (401,403):
         return
-    if estado in (401,403,429) and _consumir(_AUDITORIA,_clave_origen(request),20):
-        return  # Acotar escritura de auditoría anónima, sin registrar cada paquete de un ataque.
     identidad=getattr(request.state,'identidad_pos',None)
+    if (estado in (401,403,429) or identidad is None) and _consumir(_AUDITORIA,_clave_origen(request),20):
+        return  # Acotar escritura de auditoría anónima, sin registrar cada paquete de un ataque.
     usuario=identidad[1] if identidad else None
     evento=('login_denegado' if ruta=='/pos-api/login' else 'acceso_denegado') if estado in (401,403,429) else 'solicitud_sensible'
     emitir=LOG.warning if estado in (401,403,429) else LOG.info
     emitir('evento=%s ruta=%s metodo=%s estado=%d id_usuario=%s',evento,ruta,request.method,estado,usuario)
     if estado>=400:
         return  # Denegaciones al log seguro, sin escribir dentro de una operación revertida.
-    if ruta not in ('/pos-api/login','/pos-api/logout') and not ruta.startswith('/pos-api/admin/'):
+    if identidad is None or not ruta.startswith('/pos-api/admin/'):
         # Las operaciones comerciales ya tienen eventos transaccionales e idempotencia.
-        # Registrar un segundo evento SQLite en cada reintento rompería su contrato.
+        # Emisión/revocación ya se auditan atómicamente; logout anónimo no debe escribir.
         return
     try:
         from database import obtener_conexion

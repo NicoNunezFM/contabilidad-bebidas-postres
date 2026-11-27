@@ -191,6 +191,11 @@ def revocar_sesion_pos(token: str) -> bool:
     from pos_seguridad import guardar_evento,preparar_esquema
     conexion=obtener_conexion()
     try:
+        # Una cookie inventada/revocada no debe iniciar migraciones ni tomar el
+        # bloqueo de escritura. Revalidar el estado bajo el bloqueo más abajo.
+        if conexion.execute('SELECT 1 FROM sesiones_pos WHERE token_hash=? AND revocada=0',
+                            (token_hash,)).fetchone() is None:
+            return False
         with conexion:
             conexion.execute('BEGIN IMMEDIATE')
             preparar_esquema(conexion)

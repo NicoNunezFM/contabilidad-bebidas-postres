@@ -280,7 +280,7 @@ def test_auditoria_http_fallida_no_convierte_commit_en_error(venta_prueba,caplog
     r=cliente.post(VENTAS,headers=ORIGEN,json=venta)
     assert r.status_code==200,r.text
     assert _estado()==(8,1,0,1)
-    request=SimpleNamespace(method='PATCH', state=SimpleNamespace(identidad_pos=None),
+    request=SimpleNamespace(method='PATCH', state=SimpleNamespace(identidad_pos=('hash-ficticio',1,'admin')),
                             scope={'route':SimpleNamespace(path='/pos-api/admin/productos/{id_producto}/precio')})
     seguridad.auditar_http(request,200)
     assert 'auditoria_seguridad_no_disponible' in caplog.text
@@ -330,3 +330,23 @@ def test_inicio_api_no_registra_ruta_ni_error_del_backup(base_prueba,monkeypatch
     assert secreto not in salida.out+salida.err
     esperado='Backup diario creado.' if correcto else 'no se pudo crear el backup diario'
     assert esperado in salida.out
+
+
+def test_logout_anonimo_no_escribe_auditoria_ni_modifica_base(base_prueba,caplog):
+    cliente=TestClient(app)
+    caplog.set_level('INFO',logger='abadion.seguridad')
+    antes=base_prueba.read_bytes()
+    for _ in range(25):
+        assert cliente.post('/pos-api/logout',headers=ORIGEN).status_code==200
+    assert base_prueba.read_bytes()==antes
+    assert sql('SELECT COUNT(*) FROM eventos_seguridad_pos')==[(0,)]
+    assert len([r for r in caplog.records if r.name=='abadion.seguridad'])==20
+    # Esquema ficticio anterior: una cookie inventada tampoco debe migrarlo.
+    sql('DROP TRIGGER seguridad_revocar_cambio_usuario')
+    sql('DROP TABLE sesiones_pos_contexto')
+    sql('DROP TABLE eventos_seguridad_pos')
+    cliente.cookies.set('abadion_pos_admin','token-inventado',path='/pos-api')
+    anterior=base_prueba.read_bytes()
+    assert cliente.post('/pos-api/logout',headers=ORIGEN).status_code==200
+    assert base_prueba.read_bytes()==anterior
+    assert sql("SELECT name FROM sqlite_schema WHERE name='eventos_seguridad_pos'")==[]
