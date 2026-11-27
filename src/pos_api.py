@@ -638,6 +638,15 @@ def conciliacion_pos():
     return consultar_puente_ficticio()
 
 
+@router.get('/simulacion/conciliacion-financiera', dependencies=[
+    Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos),
+])
+def consultar_contrato_financiero():
+    from pos_conciliacion_financiera import informe
+    with transaccion_simulacion() as db:
+        return {'ok': True, 'simulacion': True, **informe(db)}
+
+
 @router.get("/simulacion/cajas/movimientos", dependencies=[Depends(exigir_simulacion_activa), Depends(exigir_administrador_pos), Depends(evitar_cache_pos)])
 def consultar_movimientos_pos(
     caja: Literal["comidas", "bebidas_postres"],

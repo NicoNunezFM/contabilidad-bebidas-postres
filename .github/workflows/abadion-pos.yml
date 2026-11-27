@@ -49,6 +49,14 @@ jobs:
           name: abadion-resultados-linux
           path: resultados-linux.xml
           if-no-files-found: warn
+      - name: Publicar conciliación de jornada ficticia
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abadion-conciliacion-jornada-linux
+          path: .audit-artifacts/jornada-financiera.json
+          include-hidden-files: true
+          if-no-files-found: warn
 
   pos-edge:
     runs-on: windows-latest
@@ -78,6 +86,14 @@ jobs:
         with:
           name: abadion-resultados-windows-edge
           path: resultados-windows-edge.xml
+          if-no-files-found: warn
+      - name: Publicar conciliación de jornada ficticia
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: abadion-conciliacion-jornada-windows
+          path: .audit-artifacts/jornada-financiera.json
+          include-hidden-files: true
           if-no-files-found: warn
       - name: Publicar capturas del flujo de ventas
         if: always()

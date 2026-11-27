@@ -49,3 +49,8 @@ Costos históricos del POS: [inspección y contratos](docs/costos-historicos-pos
 y [modelo, cobertura, transacciones y compatibilidad](docs/costos-historicos-pos.md).
 La propuesta captura costos solo en ventas nuevas, conserva los faltantes como
 desconocidos y mantiene bloqueada la producción.
+
+Conciliación financiera: [matriz previa de fuentes y movimientos](docs/conciliacion-financiera-inspeccion.md)
+y [contrato, evidencia de jornada, compatibilidad y decisiones pendientes](docs/conciliacion-financiera.md).
+Los saldos de efectivo, digital y custodia se identifican por su fuente; no se suman
+modelos ni se importan automáticamente las aperturas de la rama WhatsApp.

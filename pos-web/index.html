@@ -3227,13 +3227,14 @@ if (modoReal) {
 
   el('historialSimulado').onclick = () => mostrarHistorialPos();
   function abrirTransferenciaPos(usuario, soloEfectivo = false) {
-    abrirOperacionPos('Transferencia entre secciones', '/simulacion/cajas/transferencias', usuario, function (campos) {
+    abrirOperacionPos('Transferencia entre receptores', '/simulacion/cajas/transferencias', usuario, function (campos) {
       var medio = soloEfectivo ? 'efectivo' : null;
       var origen = selectorPos('Origen', receptoresPos(medio));
       var destino = selectorPos('Destino', receptoresPos(medio));
       if (soloEfectivo) destino.select.selectedIndex = 1;
       var monto = importeEntradaPos('Importe en pesos');
       campos.append(origen.label, destino.label, monto.label);
+      campos.append(nodoPos('p', 'Dentro de una sección se mueve el mismo dinero entre receptores. Entre secciones solo se distribuyen cobros atribuidos pendientes.', 'muted'));
       var motivo = motivoOperacionPos(campos);
       return () => ({origen: origen.select.value, destino: destino.select.value,
         importe_centavos: leerCentavosPos(monto.input.value), motivo: motivo()});
@@ -3607,6 +3608,32 @@ if (modoReal) {
           + importePos(totales.cobrado_atribuido_centavos)));
       });
       cuerpo.append(nodoPos('h3', 'Ventas por sección'), secciones);
+      var diagnostico = await consultarPos('/simulacion/conciliacion-financiera');
+      if (!cuerpo.isConnected || overlay.hidden) return;
+      var contrato = nodoPos('section');
+      contrato.id = 'conciliacionFinancieraPos';
+      contrato.append(nodoPos('h3', 'Conciliación de fuentes financieras'));
+      contrato.append(nodoPos('p', 'Los saldos de control no se suman: caja física, digital, tránsito y custodia tienen fuentes distintas. No es un saldo global certificado.', 'muted'));
+      diagnostico.receptores.forEach(fila => contrato.append(nodoPos('p', nombreReceptorPos(fila.receptor)
+        + ' · Libro propio ' + importePos(fila.saldo_registrado_centavos)
+        + ' · Custodia delivery ' + importePos(fila.custodia_delivery_centavos))));
+      var incidencias = diagnostico.diferencias.concat(diagnostico.advertencias, diagnostico.alertas_administrativas);
+      var avisos = {JORNADA_PENDIENTE_CIERRE:'Hay una jornada anterior pendiente de cierre',
+        JORNADA_ESTADO_INCOMPATIBLE:'El estado de una jornada requiere revisión',
+        ESPEJO_DIARIO_INCOMPATIBLE:'Hay un movimiento de caja sin correspondencia válida',
+        ESPEJO_DELIVERY_INCOMPATIBLE:'Hay un movimiento de delivery sin correspondencia válida',
+        DOS_MODELOS_CUSTODIA_MISMA_VENTA:'Una venta tiene registros de dos modelos de custodia',
+        SALDO_UNIFICADO_PENDIENTE_VALIDACION:'El saldo unificado está pendiente de validación',
+        SALDO_REGISTRADO_NEGATIVO:'Hay un saldo registrado negativo',
+        PAGADOR_NO_IDENTIFICADO:'Hay compras o gastos sin cuenta pagadora identificada',
+        CIERRE_CON_DIFERENCIA:'Hay un cierre con diferencia de arqueo y observación registrada',
+        CIERRE_UNIFICADO_CON_DIFERENCIA:'Hay un cierre unificado con diferencia registrada',
+        DEUDAS_DE_MODELOS_DISTINTOS_NO_SUMABLES:'Las deudas de modelos distintos necesitan correspondencia individual',
+        DELIVERY_PAGADO_DESDE_OTRA_SECCION:'Un envío fue pagado desde otra sección: revisar la atribución'};
+      contrato.append(nodoPos('p', incidencias.length ? 'Diferencias y pendientes: ' + incidencias.map(fila => avisos[fila.codigo] || 'Hay un registro que requiere revisión').join(' · ')
+        : 'Sin diferencias de enlace detectadas. Se mantienen los límites de cobertura de las fuentes.'));
+      if (diagnostico.compatibilidad_legada.detectado) contrato.append(nodoPos('p', 'Registros legados detectados: integración bloqueada hasta conciliación individual.'));
+      cuerpo.append(contrato);
       if (datos.rentabilidad_historica) {
         var margen = datos.rentabilidad_historica;
         var cobertura = nodoPos('section');
