@@ -43,6 +43,13 @@ SEC-01/02 se reprodujeron sin contraseñas reales ni publicar tokens. Los JSON d
 solo contienen booleanos de reproducción. Los permisos administrativos ya están
 controlados en backend; no se observó una ruta que permita a Ventas cambiar su rol.
 
+Referencias congeladas de la base auditada:
+[emisión de sesión](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/blob/3c5b5ae53b4a1d660314923f48b6f96349171a0e/src/pos_auth.py#L96),
+[validación de sesión](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/blob/3c5b5ae53b4a1d660314923f48b6f96349171a0e/src/pos_auth.py#L150),
+[login](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/blob/3c5b5ae53b4a1d660314923f48b6f96349171a0e/src/pos_api.py#L144),
+[adicionales](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/blob/3c5b5ae53b4a1d660314923f48b6f96349171a0e/src/pos_api.py#L809),
+[personalizaciones](https://github.com/NicoNunezFM/contabilidad-bebidas-postres/blob/3c5b5ae53b4a1d660314923f48b6f96349171a0e/src/pos_api.py#L843).
+
 ## Hipótesis y riesgos que no se presentan como explotación comprobada
 
 - Carrera entre autenticación/revocación y apertura de la transacción financiera:

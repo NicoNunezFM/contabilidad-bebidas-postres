@@ -806,7 +806,7 @@
     "permiso": "Shell público, sin datos comerciales",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 338,
+    "linea": 329,
     "dependencias": []
   },
   {
@@ -817,7 +817,7 @@
     "permiso": "Bearer bot o integración; identidad humana pendiente (bot sin cambios)",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 771,
+    "linea": 762,
     "dependencias": [
       "HTTPBearer",
       "exigir_comandos"
@@ -831,7 +831,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 350,
+    "linea": 341,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -845,7 +845,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 366,
+    "linea": 357,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -859,7 +859,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 392,
+    "linea": 383,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -873,7 +873,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 409,
+    "linea": 400,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -887,7 +887,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 427,
+    "linea": 418,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -901,7 +901,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 444,
+    "linea": 435,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -915,7 +915,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 462,
+    "linea": 453,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -929,7 +929,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 481,
+    "linea": 472,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -943,7 +943,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 499,
+    "linea": 490,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -957,7 +957,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 516,
+    "linea": 507,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -971,7 +971,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 527,
+    "linea": 518,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -985,7 +985,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 533,
+    "linea": 524,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -999,7 +999,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 543,
+    "linea": 534,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1013,7 +1013,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 549,
+    "linea": 540,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1027,7 +1027,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 569,
+    "linea": 560,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1041,7 +1041,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 592,
+    "linea": 583,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1055,7 +1055,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 608,
+    "linea": 599,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1069,7 +1069,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 624,
+    "linea": 615,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1083,7 +1083,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 642,
+    "linea": 633,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1097,7 +1097,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 654,
+    "linea": 645,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1111,7 +1111,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 682,
+    "linea": 673,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1125,7 +1125,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 714,
+    "linea": 705,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1139,7 +1139,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 730,
+    "linea": 721,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1153,7 +1153,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 743,
+    "linea": 734,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1167,7 +1167,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 759,
+    "linea": 750,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"
@@ -1181,7 +1181,7 @@
     "permiso": "Bearer integración; cookie POS y token bot insuficientes",
     "csrf": "No aplica (lectura o Bearer explícito)",
     "archivo": "src/api.py",
-    "linea": 821,
+    "linea": 812,
     "dependencias": [
       "HTTPBearer",
       "exigir_integracion"

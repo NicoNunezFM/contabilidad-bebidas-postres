@@ -61,31 +61,31 @@ El shell estático `/pos/` es público. GET no autoriza escrituras ni cambios de
 | `POST /pos-api/simulacion/saldo-unificado/pagos/{numero}/reverso` | Administración | Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict | [src/pos_api.py:1144](../../src/pos_api.py#L1144) |
 | `GET /pos-api/simulacion/saldo-unificado/conciliacion` | Administración | No aplica (lectura o Bearer explícito) | [src/pos_api.py:1152](../../src/pos_api.py#L1152) |
 | `POST /pos-api/simulacion/saldo-unificado/cierres` | Administración | Origin exacto, sin duplicados, Sec-Fetch-Site; SameSite strict | [src/pos_api.py:1158](../../src/pos_api.py#L1158) |
-| `GET /` | Shell público, sin datos comerciales | No aplica (lectura o Bearer explícito) | [src/api.py:338](../../src/api.py#L338) |
-| `POST /comandos` | Bearer bot o integración; identidad humana pendiente (bot sin cambios) | No aplica (lectura o Bearer explícito) | [src/api.py:771](../../src/api.py#L771) |
-| `GET /productos` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:350](../../src/api.py#L350) |
-| `GET /stock` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:366](../../src/api.py#L366) |
-| `POST /ventas` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:392](../../src/api.py#L392) |
-| `PATCH /ventas/{id_venta}/anular` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:409](../../src/api.py#L409) |
-| `POST /compras` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:427](../../src/api.py#L427) |
-| `PATCH /compras/{id_compra}/anular` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:444](../../src/api.py#L444) |
-| `POST /gastos` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:462](../../src/api.py#L462) |
-| `PATCH /gastos/{id_gasto}/anular` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:481](../../src/api.py#L481) |
-| `POST /inventario` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:499](../../src/api.py#L499) |
-| `GET /reportes/hoy` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:516](../../src/api.py#L516) |
-| `GET /reportes/semana` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:527](../../src/api.py#L527) |
-| `GET /reportes/mes` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:533](../../src/api.py#L533) |
-| `GET /caja` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:543](../../src/api.py#L543) |
-| `GET /caja/secciones/{seccion}` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:549](../../src/api.py#L549) |
-| `GET /recaudado/{categoria}` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:569](../../src/api.py#L569) |
-| `POST /caja/aportes` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:592](../../src/api.py#L592) |
-| `POST /caja/retiros` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:608](../../src/api.py#L608) |
-| `PATCH /caja/movimientos/{id_movimiento}/anular` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:624](../../src/api.py#L624) |
-| `GET /diezmo/{anio}/{mes}` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:642](../../src/api.py#L642) |
-| `POST /diezmo/reservas` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:654](../../src/api.py#L654) |
-| `POST /diezmo/entregas` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:682](../../src/api.py#L682) |
-| `POST /cierres/semanales` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:714](../../src/api.py#L714) |
-| `GET /cierres/semanales` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:730](../../src/api.py#L730) |
-| `POST /cierres/mensuales` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:743](../../src/api.py#L743) |
-| `GET /cierres/mensuales` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:759](../../src/api.py#L759) |
-| `POST /acciones` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:821](../../src/api.py#L821) |
+| `GET /` | Shell público, sin datos comerciales | No aplica (lectura o Bearer explícito) | [src/api.py:329](../../src/api.py#L329) |
+| `POST /comandos` | Bearer bot o integración; identidad humana pendiente (bot sin cambios) | No aplica (lectura o Bearer explícito) | [src/api.py:762](../../src/api.py#L762) |
+| `GET /productos` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:341](../../src/api.py#L341) |
+| `GET /stock` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:357](../../src/api.py#L357) |
+| `POST /ventas` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:383](../../src/api.py#L383) |
+| `PATCH /ventas/{id_venta}/anular` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:400](../../src/api.py#L400) |
+| `POST /compras` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:418](../../src/api.py#L418) |
+| `PATCH /compras/{id_compra}/anular` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:435](../../src/api.py#L435) |
+| `POST /gastos` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:453](../../src/api.py#L453) |
+| `PATCH /gastos/{id_gasto}/anular` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:472](../../src/api.py#L472) |
+| `POST /inventario` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:490](../../src/api.py#L490) |
+| `GET /reportes/hoy` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:507](../../src/api.py#L507) |
+| `GET /reportes/semana` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:518](../../src/api.py#L518) |
+| `GET /reportes/mes` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:524](../../src/api.py#L524) |
+| `GET /caja` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:534](../../src/api.py#L534) |
+| `GET /caja/secciones/{seccion}` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:540](../../src/api.py#L540) |
+| `GET /recaudado/{categoria}` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:560](../../src/api.py#L560) |
+| `POST /caja/aportes` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:583](../../src/api.py#L583) |
+| `POST /caja/retiros` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:599](../../src/api.py#L599) |
+| `PATCH /caja/movimientos/{id_movimiento}/anular` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:615](../../src/api.py#L615) |
+| `GET /diezmo/{anio}/{mes}` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:633](../../src/api.py#L633) |
+| `POST /diezmo/reservas` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:645](../../src/api.py#L645) |
+| `POST /diezmo/entregas` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:673](../../src/api.py#L673) |
+| `POST /cierres/semanales` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:705](../../src/api.py#L705) |
+| `GET /cierres/semanales` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:721](../../src/api.py#L721) |
+| `POST /cierres/mensuales` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:734](../../src/api.py#L734) |
+| `GET /cierres/mensuales` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:750](../../src/api.py#L750) |
+| `POST /acciones` | Bearer integración; cookie POS y token bot insuficientes | No aplica (lectura o Bearer explícito) | [src/api.py:812](../../src/api.py#L812) |

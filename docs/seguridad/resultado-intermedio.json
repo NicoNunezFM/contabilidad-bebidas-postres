@@ -1,0 +1,18 @@
+{
+  "etapa": "intermedia, antes de corregir recuperación y contratos de catálogo",
+  "casos": 647,
+  "aprobados": 637,
+  "fallidos": [
+    "tests.test_abadion_pruebas::test_jornada_comercial_integrada_worker_reinicio_restore",
+    "tests.test_catalogo_comercial::test_worker_catalogo_reinicio_backup_y_recuperacion",
+    "tests.test_lo_de_clau_delivery::test_worker_delivery_reinicio_backup_restore",
+    "tests.test_pos_adicionales::test_consultar_adicionales_pos",
+    "tests.test_pos_personalizaciones::test_consultar_personalizaciones_pos",
+    "tests.test_pos_simulacion::test_revalida_total_y_revierte_si_falla_el_stock",
+    "tests.test_preparacion_unificada::test_apertura_atomica_idempotente_reinicio_y_restore",
+    "tests.test_preproduccion::test_jornada_reinicio_stock_dos_cajas_compras_fiado_cierres_restore",
+    "tests.test_preproduccion_consolidacion::test_catalogo_historial_stock_ids_omisiones_e_idempotencia",
+    "tests.test_preproduccion_jornada_v1::test_jornada_v1_proceso_reinicio_y_restore_aislado"
+  ],
+  "omitidos": 0
+}

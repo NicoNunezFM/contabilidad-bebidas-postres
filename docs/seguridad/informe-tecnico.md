@@ -50,7 +50,7 @@ huellas de sesiones anteriores: deben volver a iniciar sesión.
 | Posible enumeración por tiempo | PBKDF2 ficticio para usuario inexistente | Iguala trabajo criptográfico; no garantiza tiempos indistinguibles de red/DB |
 | SEC-04, catálogo legado | Adicionales/personalizaciones exigen el mismo contrato de sesión que productos | Menú ficticio deliberadamente público se conserva; perímetro tablet exige sesión adicional |
 | CSRF/ambigüedad | Origin único exacto contra scheme/host efectivos, Host único; rechaza Sec-Fetch-Site cross-site; controles backend en todas las mutaciones POS | No cambia experiencia comercial ni exige token CSRF nuevo. Access valida proxy antes de aplicar este control |
-| SEC-05, errores | Elimina input/ctx de validaciones; errores SQLite genéricos en POS y API general; sanea ERROR_BASE_DATOS de módulos legados | No devuelve contraseñas ni texto del driver. Excepciones inesperadas siguen respuesta genérica del servidor sin debug; logs del host requieren política propia |
+| SEC-05, errores | Elimina input/ctx de validaciones; errores SQLite genéricos en POS y API general; sanea ERROR_BASE_DATOS de módulos legados y mensajes de arranque del backup | No devuelve contraseñas ni texto del driver y no imprime rutas personales del respaldo. Excepciones inesperadas siguen respuesta genérica del servidor sin debug; logs del host requieren política propia |
 | SEC-06, cache y trazabilidad | No-store/nosniff/no-referrer/DENY en respuestas POS; eventos mínimos, sin cuerpos, tokens, IPs ni nombres suministrados | Login/emisión/revocación/cambio de usuario persistidos; denegaciones en logger acotado, sin escribir en operación revertida |
 
 La revalidación financiera tiene un orden claro: quien obtiene primero el bloqueo
@@ -154,6 +154,19 @@ Un error de red también falla. Su corrección queda bloqueada por la restricci�
 no modificar el bot. Los jobs funcionales son independientes y pueden aprobar.
 
 ## Riesgos residuales y decisiones pendientes
+
+### Modelo de amenazas por frontera
+
+| Frontera / activo | Amenaza | Control y riesgo residual |
+| --- | --- | --- |
+| Navegador → sesión POS | Robo/reutilización de cookie, CSRF, fuerza bruta | Token aleatorio hasheado, HttpOnly/SameSite/Origin, TTL y revocación; un equipo/navegador comprometido puede robar una sesión activa |
+| Ventas → administración | Rol en body, cambio de nombre de cookie, rol cambiado con token viejo | Dependencias backend, vinculación a rol/credenciales y revocación; administrador y dueño del host mantienen capacidad privilegiada |
+| Dependencia HTTP → commit financiero | Usuario revocado después de autorizar, carrera entre threads | Revalidación después de BEGIN IMMEDIATE; orden transaccional definido, sin cancelación retroactiva |
+| Access → laboratorio → POS | Proxy/header/JWT falso o sesión POS sin Access | Validación de peer, host, esquema y JWT existente; solo se probó con claves/respuestas ficticias, configuración real fuera de alcance |
+| Bot/token servicio → persona/operación | Grupo admitido con remitente sin permiso, identidad declarada en body | Bearer de servicio existente no prueba identidad humana; bloqueo y propuesta independiente, sin cambio del bot |
+| SQLite/backups → sistema operativo | Lectura de datos/hashes, manipulación de DB/triggers, backup alterado | ACL/preparadores y manifests existentes, integridad/FK y limpieza de sesiones al restaurar; acceso del dueño del host fuera del aislamiento POS |
+| Dependencias/CI → aplicación | Paquete vulnerable, resolución transitiva cambiante, acción comprometida | Auditorías con fallo visible y pruebas de plataforma; falta lock transitivo completo y pin por SHA de acciones, sin afirmar cadena de suministro invulnerable |
+| Aplicación → registros | Token/contraseña o PII en error/log | Metadatos mínimos y errores saneados; logs heredados del bot, OS y proxy requieren etapa independiente y política de retención |
 
 Se mantiene el bloqueo productivo. Pendientes: propuesta del bot y sus dependencias,
 perímetro real e identidad Access autorizados, endurecimiento del host/ACL y backups,

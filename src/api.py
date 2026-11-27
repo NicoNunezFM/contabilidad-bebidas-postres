@@ -317,18 +317,9 @@ def preparar_base_de_datos():
 
     if resultado_backup.get("ok"):
         if resultado_backup.get("creado"):
-            print(
-                "Backup diario creado:",
-                resultado_backup["ruta"]
-            )
+            print("Backup diario creado.")
     else:
-        print(
-            "ADVERTENCIA: no se pudo crear el backup diario:",
-            resultado_backup.get(
-                "mensaje",
-                resultado_backup.get("codigo")
-            )
-        )
+        print("ADVERTENCIA: no se pudo crear el backup diario. Revisá el respaldo local.")
 
 
 # ============================================================

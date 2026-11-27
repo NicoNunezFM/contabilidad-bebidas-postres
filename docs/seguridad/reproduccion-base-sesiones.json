@@ -1,0 +1,6 @@
+{
+  "rotar_clave_conserva_token": true,
+  "deshabilitar_rechaza": true,
+  "rehabilitar_revive_token": true,
+  "token_anterior_adopta_rol_nuevo": true
+}

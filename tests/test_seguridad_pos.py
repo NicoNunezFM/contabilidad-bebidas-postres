@@ -317,3 +317,16 @@ def test_inventario_endpoints_se_verifica_sin_abrir_db(base_prueba,monkeypatch):
     monkeypatch.setattr(database,'obtener_conexion',prohibir)
     filas=inventario()
     assert sum(len(f['metodos']) for f in filas)==83
+
+
+@pytest.mark.parametrize('correcto',[False,True])
+def test_inicio_api_no_registra_ruta_ni_error_del_backup(base_prueba,monkeypatch,capsys,correcto):
+    import api
+    secreto='SECRETO-FICTICIO-NO-REGISTRAR'
+    monkeypatch.setattr(api,'crear_backup_diario',lambda:{'ok':correcto,'creado':True,
+                         'ruta':'C:/usuarios/'+secreto+'/archivo.db','mensaje':secreto})
+    api.preparar_base_de_datos()
+    salida=capsys.readouterr()
+    assert secreto not in salida.out+salida.err
+    esperado='Backup diario creado.' if correcto else 'no se pudo crear el backup diario'
+    assert esperado in salida.out
